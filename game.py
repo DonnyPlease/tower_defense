@@ -20,7 +20,9 @@ class Game():
         enemy_group = pygame.sprite.Group()
         
         test_tower = tower.Tower1(10,10)
+        test_tower2 = tower.Tower1(1,1)
         tower_group.add(test_tower)
+        tower_group.add(test_tower2)
         
         test_enemy = enemy.Enemy1()
         enemy_group.add(test_enemy)
