@@ -45,6 +45,8 @@ class Game():
                 bullet_group.add(test_tower.create_bullet())
             screen.blit(test_surface,(0,0))
             
+            tower_group.aim(enemy_group)
+            
             bullet_group.update()
             tower_group.update()
             enemy_group.update()

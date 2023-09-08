@@ -2,16 +2,16 @@ from typing import Iterable, Union
 import pygame
 from pygame.sprite import AbstractGroup
 from resources import T_RES
-from math import sin, cos, pi
+from math import sin, cos, pi, sqrt, acos
 import bullet
 
 class TowerGroup(pygame.sprite.Group):
     def __init__(self):
         super().__init__()
         
-    def aim(self):
-        for tower in self.sprites:
-            tower.aim()
+    def aim(self,enemies):
+        for tower in self.sprites():
+            tower.aim(enemies)
 
 class Tower(pygame.sprite.Sprite):
     def __init__(self, folder):
@@ -31,7 +31,42 @@ class Tower(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=(40*self.x + 20, 40*self.y+20))
         self.image.set_colorkey((255, 255, 255))
         
+    def dist_to_enemy(self, enemy):
+        enemy_pos = enemy.get_position()
+        d_x = self.center[0] - enemy_pos[0]
+        d_y = self.center[1] - enemy_pos[1]
+        return sqrt(d_x**2+d_y**2)
+    
+    def angle_to_enemy(self, enemy):
+        enemy_pos = enemy.get_position()
+        d_x =  enemy_pos[0] - self.center[0]
+        d_y =  enemy_pos[1] - self.center[1]
+        d =  sqrt(d_x**2+d_y**2)
+        if d_y < 0:
+            return acos(d_x/d)
+        return -acos(d_x/d)
+        
+            
+        
+    def find_closest_enemy(self, enemy_group):
+        enemies = enemy_group.sprites()
+        closest_dist = 1000
+        if len(enemies) == 0: return None
+        
+        closest_enemy = enemies[0]
+        closest_dist = self.dist_to_enemy(closest_enemy)
+        
+        if len(enemies) == 1: return closest_enemy
+        for enemy in enemies[1:]:
+            if self.dist_to_enemy(enemy) < closest_dist:
+                closest_enemy = enemy
+        return closest_enemy 
+            
+        
     def aim(self, enemy_group=None):
+        closest_enemy = self.find_closest_enemy(enemy_group)
+        
+        self.angle = self.angle_to_enemy(closest_enemy)
         print("Aiming")
     
     def update(self):

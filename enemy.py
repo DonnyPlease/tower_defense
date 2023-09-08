@@ -17,6 +17,9 @@ class Enemy(pygame.sprite.Sprite):
         self.v_x = cos(angle)*self.speed
         self.v_y = sin(angle)*self.speed
        
+    def get_position(self):
+        return [self.true_x, self.true_y]
+       
     def get_velocity(self):
         return [self.v_x, self.v_y]
     
