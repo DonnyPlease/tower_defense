@@ -31,8 +31,7 @@ class Enemy(pygame.sprite.Sprite):
     def update_position(self):
         self.true_x += self.v_x
         self.true_y -= self.v_y
-        self.rect.x = int(self.true_x)
-        self.rect.y = int(self.true_y)
+        self.rect = self.image.get_rect(center=(int(self.true_x),int(self.true_y)))
 
     def update(self):
         self.update_velocity()
@@ -40,13 +39,14 @@ class Enemy(pygame.sprite.Sprite):
         
 
 class Enemy1(Enemy):
-    def __init__(self):
+    def __init__(self, x, y):
         self.speed = 1
-        self.hitpoints = 5
+        self.hitpoints = 10
         super().__init__()
-        self.image = pygame.Surface((30,30))
+        self.image = pygame.Surface((20,20))
         self.image.fill((255,0,0))
-        self.rect = self.image.get_rect(center=(int(self.true_x),int(self.true_y)))
+        self.true_x = x
+        self.true_y = y
         
         
         
