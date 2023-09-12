@@ -147,3 +147,25 @@ class Tower1(Tower):
                              bullet_type='normal')
 
         
+        
+class Tower2(Tower):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.center = [SQUARE_SIZE*x+SQUARE_SIZE//2,SQUARE_SIZE*y+SQUARE_SIZE//2]
+        super().__init__('tower2/')
+        self.cadence = 2
+        self.damage = 1
+        self.bullet_speed = 35
+        self.range = 200
+        self.cost = 0
+        
+    def create_bullet(self):
+        return bullet.Bullet(self.center[0], 
+                             self.center[1], 
+                             self.angle, 
+                             speed=self.bullet_speed, 
+                             damage=self.damage,
+                             bullet_type='normal')
+
+        
