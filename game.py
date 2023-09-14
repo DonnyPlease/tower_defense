@@ -1,7 +1,7 @@
 import pygame
 from sys import exit
 from math import pi
-from resources import M_RES
+from resources import M_RES, T_RES
 
 BG_RES = 'resources/backgrounds/'
 SQUARE_SIZE = 40
@@ -12,6 +12,7 @@ import tower
 import enemy
 import bullet
 import button
+import states
 
 def load_path(path):
     map_path = []
@@ -24,11 +25,20 @@ def load_path(path):
 class Game():
     def __init__(self) -> None:
         pygame.init() 
-        screen = pygame.display.set_mode((1000,600))
+        screen = pygame.display.set_mode((1000, 600))
         pygame.display.set_caption('Tower Defense')
         clock = pygame.time.Clock()
+        self.state_id = 0    # 0 = start menu 
+                        # 1 = choose level
+                        # 2 = some chosen level
+                        # 3 = paused level
+                        # 4 = win/lose level
+        self.state = states.get_state(self.state_id)
         
-        test_surface = pygame.image.load(M_RES + '/map1/map.png')
+        # test_surface = pygame.image.load(M_RES + '/map1/map.png')
+        surface = self.state.get_surface()
+        button_group = self.state.get_buttons()
+        
         self.map_path = load_path(M_RES + '/map1/map.txt')
         self.map_end = load_path(M_RES + '/map1/end.txt')
         self.map_start = load_path(M_RES + '/map1/start.txt')
@@ -37,24 +47,16 @@ class Game():
         tower_group = tower.TowerGroup()
         bullet_group = pygame.sprite.Group()
         enemy_group = pygame.sprite.Group()
-        button_group = pygame.sprite.Group()
+
         
-        test_tower = tower.Tower1(14,10)
-        tower_group.add(test_tower)
-        
-        test_enemy = enemy.Enemy1(self)
-        enemy_group.add(test_enemy)
-        
-        button_tower1 = button.Button(22,2,'tower1/')
-        button_group.add(button_tower1)
-        button_tower2 = button.Button(22,4,'tower2/')
-        button_group.add(button_tower2)
         
         chosen = None
         
+        # state = states.get_state(state_id)
         while True:
+            
             # Draw all and update everything
-                
+            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
@@ -72,12 +74,12 @@ class Game():
                             new_tower = tower.Tower2(x,y)
                             tower_group.add(new_tower)
                             
-                    if (x==22) and (y==2):
-                        button_tower2.selected = False
-                        chosen = button_tower1.click()
-                    if (x==22) and (y==4):
-                        button_tower1.selected = False
-                        chosen = button_tower2.click()    
+                    # if (x==22) and (y==2):
+                    #     button_tower2.selected = False
+                    #     chosen = button_tower1.click()
+                    # if (x==22) and (y==4):
+                    #     button_tower1.selected = False
+                    #     chosen = button_tower2.click()    
                         
                 
                 if event.type == pygame.KEYDOWN:
@@ -85,7 +87,7 @@ class Game():
                         new_enemy = enemy.Enemy1(self)
                         enemy_group.add(new_enemy)
                         
-            screen.blit(test_surface,(0,0))
+            screen.blit(surface,(0,0))
             
             enemy_group.update()
             
@@ -113,7 +115,10 @@ class Game():
             
             pygame.display.update()
             clock.tick(60)
-            
+    
+    def change_state(self,):
+        self.state = get_state(self.id)
+         
     def evaluate_hits(self):
         for bullet in self.hits:
             if bullet.bullet_type == "normal":
