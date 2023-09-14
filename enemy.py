@@ -13,9 +13,6 @@ class Enemy(pygame.sprite.Sprite):
         self.end = game.map_end[randint(0,len(game.map_end)-1)]
         self.global_path = game.map_path
         self.path = map_path.find_shortest_path(self.global_path, self.start, self.end)
-        print(self.path)
-        print(self.start)
-        print(self.end)
         self.true_x = self.start[0]*40 + 20
         self.true_y = self.start[1]*40 + 20
         self.angle = 0

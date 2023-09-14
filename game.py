@@ -84,7 +84,7 @@ class Game():
                     if event.key == pygame.K_SPACE:
                         new_enemy = enemy.Enemy1(self)
                         enemy_group.add(new_enemy)
-                    
+                        
             screen.blit(test_surface,(0,0))
             
             enemy_group.update()

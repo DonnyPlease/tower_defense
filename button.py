@@ -23,7 +23,6 @@ class Button(pygame.sprite.Sprite):
             self.selected = False
             return None
         self.selected = True
-        print(self.type)
         return self.type 
         
     def update(self, x, y):
