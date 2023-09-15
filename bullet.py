@@ -48,7 +48,7 @@ class Bullet(pygame.sprite.Sprite):
         self.true_x = pos_x
         self.true_y = pos_y
         self.angle = angle
-        self.speed
+        self.speed = speed
         self.v_x = cos(angle)*speed
         self.v_y = sin(angle)*speed
         self.image = pygame.Surface((5,5))

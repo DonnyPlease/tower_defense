@@ -1,4 +1,19 @@
 import queue
+from resources import M_RES
+
+class Game_map():
+    def __init__(self, level_number) -> None:
+        self.map_path = load_path(M_RES + 'map{}/map.txt'.format(level_number))
+        self.map_end = load_path(M_RES + 'map{}/end.txt'.format(level_number))
+        self.map_start = load_path(M_RES + 'map{}/start.txt'.format(level_number))
+
+def load_path(path):
+    map_path = []
+    with open(path,'r') as file:
+        for line in file:
+            y, x = map(int, line.strip().split(','))
+            map_path.append((x,y))
+    return map_path
 
 def find_shortest_path(path, start, end):
     

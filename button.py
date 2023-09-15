@@ -4,18 +4,7 @@ from pygame.sprite import AbstractGroup
 
 from resources import T_RES
 from game import SQUARE_SIZE
-class Button(pygame.sprite.Group):
-    def __init__(self):
-        super().__init__()
-    
-    def check_hover(self):
-        (x,y) = pygame.mouse.get_pos()
-        for button in self.sprites():
-            button.check_hover(x, y)
-            
-    def update(self):
-        self.check_hover()
-        super().update()
+
 
 class Button(pygame.sprite.Sprite):
     """Button class
@@ -77,15 +66,16 @@ class Button(pygame.sprite.Sprite):
         
         Parameters
         ----------
-        x : int
-            index of the column
-        y : int
-            index of the row
+        x : float
+            mouse coordinate x
+        y : float
+            mouse coordinate y
         
         Returns
         -------
         None
         """
+        self.check_hover(x, y)
         if self.selected:
             self.image = self.image_pressed
             self.image.set_colorkey((255, 255, 255))
@@ -96,11 +86,3 @@ class Button(pygame.sprite.Sprite):
             return
         self.image = self.image_normal
         self.image.set_colorkey((255, 255, 255))
-            
-            
-
-            
-        
-        
-        
-    

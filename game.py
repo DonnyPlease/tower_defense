@@ -14,18 +14,10 @@ import bullet
 import button
 import states
 
-def load_path(path):
-    map_path = []
-    with open(path,'r') as file:
-        for line in file:
-            y, x = map(int, line.strip().split(','))
-            map_path.append((x,y))
-    return map_path
-
 class Game():
     def __init__(self) -> None:
         pygame.init() 
-        screen = pygame.display.set_mode((1000, 600))
+        self.screen = pygame.display.set_mode((1000, 600))
         pygame.display.set_caption('Tower Defense')
         clock = pygame.time.Clock()
         self.state_id = 0    # 0 = start menu 
@@ -36,88 +28,61 @@ class Game():
         self.state = states.get_state(self.state_id)
         
         # test_surface = pygame.image.load(M_RES + '/map1/map.png')
-        surface = self.state.get_surface()
-        button_group = self.state.get_buttons()
+        self.surface = self.state.get_surface()
+        self.button_group = self.state.get_buttons()
         
-        self.map_path = load_path(M_RES + '/map1/map.txt')
-        self.map_end = load_path(M_RES + '/map1/end.txt')
-        self.map_start = load_path(M_RES + '/map1/start.txt')
+        # Initialize empty groups
+        self.tower_group = tower.TowerGroup()
+        self.bullet_group = pygame.sprite.Group()
+        self.enemy_group = pygame.sprite.Group()
         
-        # tower_group = pygame.sprite.Group()
-        tower_group = tower.TowerGroup()
-        bullet_group = pygame.sprite.Group()
-        enemy_group = pygame.sprite.Group()
-
-        
-        
-        chosen = None
-        
-        # state = states.get_state(state_id)
         while True:
+            mouse_x, mouse_y = pygame.mouse.get_pos()   # Get mouse position
             
-            # Draw all and update everything
-            
+            # Set up how to quit game
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     exit()
                 
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    (x,y) = event.pos
-                    x = x // SQUARE_SIZE
-                    y = y // SQUARE_SIZE
-                    if (0<=x<20) and (0<=y<15):
-                        if chosen == 'tower1':
-                            new_tower = tower.Tower1(x,y)
-                            tower_group.add(new_tower)
-                        if chosen == 'tower2':
-                            new_tower = tower.Tower2(x,y)
-                            tower_group.add(new_tower)
-                            
-                    # if (x==22) and (y==2):
-                    #     button_tower2.selected = False
-                    #     chosen = button_tower1.click()
-                    # if (x==22) and (y==4):
-                    #     button_tower1.selected = False
-                    #     chosen = button_tower2.click()    
-                        
+                # Activate the events based on which state the game is in
+                self.state.evaluate_events(event, mouse_x, mouse_y)
                 
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
-                        new_enemy = enemy.Enemy1(self)
-                        enemy_group.add(new_enemy)
-                        
-            screen.blit(surface,(0,0))
+                # Check whether some event changed the state of the game
+                if self.state.change_state:
+                    self.state_id = self.state.next_state
+                    self.change_state()
             
-            enemy_group.update()
             
-            tower_group.aim(enemy_group)
-            tower_group.shoot(bullet_group)
+            self.screen.blit(self.surface,(0,0))
+            self.button_group.update(mouse_x, mouse_y)
             
-            bullet_group.update()
-            tower_group.update()
-            
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            button_group.update(mouse_x//SQUARE_SIZE,mouse_y//SQUARE_SIZE)
-            
-    
-            
-            bullet_group.draw(screen)
-            tower_group.draw(screen)
-            enemy_group.draw(screen)
-            button_group.draw(screen)
-            
-            self.hits = pygame.sprite.groupcollide(bullet_group,
-                                                   enemy_group, 
+            # Evaluate 
+            if self.state.is_level():
+                self.bullet_group = self.state.bullet_group
+                self.enemy_group = self.state.enemy_group
+                self.enemy_group.update()
+                self.tower_group = self.state.tower_group
+                self.tower_group.aim(self.enemy_group)
+                self.tower_group.shoot(self.bullet_group)
+                self.bullet_group.update()
+                self.tower_group.update()
+                self.hits = pygame.sprite.groupcollide(self.bullet_group,
+                                                   self.enemy_group, 
                                                    True, 
                                                    False)
-            self.evaluate_hits()
+                self.evaluate_hits()
+
             
+            # Draw current frame
+            self.draw()
             pygame.display.update()
             clock.tick(60)
     
-    def change_state(self,):
-        self.state = get_state(self.id)
+    def change_state(self):
+        self.state = states.get_state(self.state_id)
+        self.button_group = self.state.get_buttons()
+        self.surface = self.state.get_surface()
          
     def evaluate_hits(self):
         for bullet in self.hits:
@@ -129,4 +94,10 @@ class Game():
                 pass
             elif bullet.bullet_type == "laser":
                 pass
+        
+    def draw(self):
+        self.bullet_group.draw(self.screen)
+        self.tower_group.draw(self.screen)
+        self.enemy_group.draw(self.screen)
+        self.button_group.draw(self.screen)
         

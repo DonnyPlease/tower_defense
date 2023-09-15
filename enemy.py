@@ -222,14 +222,11 @@ class Enemy1(Enemy):
             an instance of the current game so the enemy can access the all
             the available squares, start and end
         """
-        self.speed = 1
+        self.speed = 3
         self.hitpoints = 20
         super().__init__(game)
         self.image_orig = pygame.image.load(E_RES+'enemy1/0.png').convert_alpha()
         self.image = self.image_orig
         self.image.set_colorkey((255, 255, 255))
         self.reward = 10
-        
-        
-        
         
