@@ -4,7 +4,6 @@ from resources import E_RES
 from random import random,randint
 from game import SQUARE_SIZE
 import map_path
-import game
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -222,11 +221,13 @@ class Enemy1(Enemy):
             an instance of the current game so the enemy can access the all
             the available squares, start and end
         """
-        self.speed = 3
+        self.speed = 1.5
         self.hitpoints = 20
         super().__init__(game)
         self.image_orig = pygame.image.load(E_RES+'enemy1/0.png').convert_alpha()
         self.image = self.image_orig
         self.image.set_colorkey((255, 255, 255))
         self.reward = 10
+        self.rect = self.image.get_rect(center=(int(self.true_x),
+                                                int(self.true_y)))
         
