@@ -6,6 +6,14 @@ from resources import T_RES
 from game import SQUARE_SIZE
 
 
+class ButtonGroup(pygame.sprite.Group):
+    def __init__(self) -> None:
+        super().__init__()
+    
+    def unselect_all(self):
+        for button in self.sprites():
+            button.unselect()
+
 class Button(pygame.sprite.Sprite):
     """Button class
 
@@ -42,21 +50,21 @@ class Button(pygame.sprite.Sprite):
     def check_hover(self, x, y):
         self.hover = self.rect.collidepoint((x,y))
     
-    def click(self):
+    def toggle_selected(self):
         """A function that toggles the button.
 
         ...
         
         Returns
         -------
-        string
-            selected type
+        bool
+            return the state of the button before clicking
         """
-        if self.selected:
-            self.selected = False
-            return None
-        self.selected = True
-        return self.type 
+        self.selected = not self.selected
+        return not self.selected
+    
+    def unselect(self):
+        self.selected = False
         
     def update(self, x, y):
         """An implementation of the function so we can update all the buttons

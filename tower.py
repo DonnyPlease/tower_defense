@@ -12,6 +12,7 @@ class TowerGroup(pygame.sprite.Group):
     """
     def __init__(self):
         super().__init__()
+        self.banned_squares = []
         
         
     def aim(self, enemies: pygame.sprite.Group):

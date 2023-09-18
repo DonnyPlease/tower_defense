@@ -85,8 +85,10 @@ class Level(State):
         self.tower_group = tower.TowerGroup()
         self.enemy_group = pygame.sprite.Group()
         self.bullet_group = pygame.sprite.Group()
-        self.button_group = pygame.sprite.Group()
+        self.button_group = button.ButtonGroup()
         self.game_map = map_path.Game_map(level_number)
+        self.tower_group.banned_squares = self.game_map.map_path
+        print(self.game_map.map_path)
         self.paused_button = button.Button(7.5, 4, 'resources/paused/paused_text/')
         self.to_menu_button = button.Button(7.5, 7, 'resources/paused/back_to_menu/')
         self.set_buttons()
@@ -135,18 +137,29 @@ class Level(State):
     def evaluate_events(self, event, mouse_x, mouse_y):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.button_tower1.hover:
-                self.button_tower1.click()
+                self.button_tower1.toggle_selected()
+                self.button_group.unselect_all()
+                self.button_tower1.toggle_selected()
+                
             elif self.button_tower2.hover:
-                self.button_tower2.click()
+                self.button_tower2.toggle_selected()
+                self.button_group.unselect_all()
+                self.button_tower2.toggle_selected()
             elif self.paused and self.to_menu_button.hover:
                 self.next_state = 0
                 self.change_state = True
             elif (0<=mouse_x<800) and (0<=mouse_y<600):
-                if self.button_tower1.selected:
-                    new_tower = tower.Tower1(mouse_x//40, mouse_y//40)
+                row = mouse_y // 40
+                col = mouse_x // 40
+                if (col,row) in self.tower_group.banned_squares:
+                    pass
+                elif self.button_tower1.selected:
+                    new_tower = tower.Tower1(col, row)
+                    self.tower_group.banned_squares.append((col,row))
                     self.tower_group.add(new_tower)
-                if self.button_tower2.selected:
-                    new_tower = tower.Tower2(mouse_x//40, mouse_y//40)
+                elif self.button_tower2.selected:
+                    new_tower = tower.Tower2(col, row)
+                    self.tower_group.banned_squares.append((col,row))
                     self.tower_group.add(new_tower)
                     
         if event.type == pygame.KEYDOWN:
