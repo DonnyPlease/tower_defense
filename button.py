@@ -49,6 +49,7 @@ class Button(pygame.sprite.Sprite):
 
     def check_hover(self, x, y):
         self.hover = self.rect.collidepoint((x,y))
+        
     
     def toggle_selected(self):
         """A function that toggles the button.
@@ -65,6 +66,9 @@ class Button(pygame.sprite.Sprite):
     
     def unselect(self):
         self.selected = False
+        
+    def select(self):
+        self.selected = True
         
     def update(self, x, y):
         """An implementation of the function so we can update all the buttons

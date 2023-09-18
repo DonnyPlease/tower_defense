@@ -86,6 +86,7 @@ class Level(State):
         self.enemy_group = pygame.sprite.Group()
         self.bullet_group = pygame.sprite.Group()
         self.button_group = button.ButtonGroup()
+        self.hover_group = pygame.sprite.Group()
         self.game_map = map_path.Game_map(level_number)
         self.tower_group.banned_squares = self.game_map.map_path
         print(self.game_map.map_path)
@@ -111,6 +112,7 @@ class Level(State):
         self.tower_group.draw(screen)
         self.enemy_group.draw(screen)
         self.button_group.draw(screen)
+        self.hover_group.draw(screen)
     
     def is_menu(self):
         return False
@@ -134,17 +136,31 @@ class Level(State):
             self.paused_button.kill()
             self.to_menu_button.kill()
     
+    def hover_tower_placement(self, row, col):
+        self.hover_group.empty()
+        if (col, row) in self.tower_group.banned_squares: return
+        
+        if self.button_tower1.selected:
+            hover_tower = tower.Tower1(col, row)
+            self.hover_group.add(hover_tower)
+        elif self.button_tower2.selected:
+            hover_tower = tower.Tower2(col, row)
+            self.hover_group.add(hover_tower)
+            
+    def tower_button_click(self, butt : button.Button):
+        if butt.selected:
+            butt.unselect()
+            return
+        self.button_group.unselect_all()
+        butt.select()    
+    
     def evaluate_events(self, event, mouse_x, mouse_y):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.button_tower1.hover:
-                self.button_tower1.toggle_selected()
-                self.button_group.unselect_all()
-                self.button_tower1.toggle_selected()
-                
+                self.tower_button_click(self.button_tower1)   
             elif self.button_tower2.hover:
-                self.button_tower2.toggle_selected()
-                self.button_group.unselect_all()
-                self.button_tower2.toggle_selected()
+                self.tower_button_click(self.button_tower2)
+                
             elif self.paused and self.to_menu_button.hover:
                 self.next_state = 0
                 self.change_state = True
@@ -161,7 +177,12 @@ class Level(State):
                     new_tower = tower.Tower2(col, row)
                     self.tower_group.banned_squares.append((col,row))
                     self.tower_group.add(new_tower)
-                    
+        else:
+            if (0<=mouse_x<800) and (0<=mouse_y<600):
+                row = mouse_y // 40
+                col = mouse_x // 40
+                self.hover_tower_placement(row, col)
+            
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 new_enemy = enemy.Enemy1(self.game_map)

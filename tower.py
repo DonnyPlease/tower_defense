@@ -81,7 +81,7 @@ class Tower(pygame.sprite.Sprite):
             button states.
         """
         super().__init__()
-        self.angle = pi/4   # Angle of where the tower points in radians. 
+        self.angle = pi/2   # Angle of where the tower points in radians. 
                             # 0 rad is 3  o'clock.
                             
         # Load all images for the animation.
