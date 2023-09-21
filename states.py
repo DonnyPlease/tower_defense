@@ -1,5 +1,6 @@
 from abc import abstractmethod
 import sys
+from copy import deepcopy
 import pygame
 import button
 import tower
@@ -83,13 +84,12 @@ class Level(State):
         self.next_state = 1
         self.paused = False
         self.tower_group = tower.TowerGroup()
-        self.enemy_group = pygame.sprite.Group()
+        self.enemy_group = enemy.EnemyGroup()
         self.bullet_group = pygame.sprite.Group()
         self.button_group = button.ButtonGroup()
         self.hover_group = pygame.sprite.Group()
         self.game_map = map_path.Game_map(level_number)
-        self.tower_group.banned_squares = self.game_map.map_path
-        print(self.game_map.map_path)
+        self.tower_group.banned_squares = deepcopy(self.game_map.map_path)
         self.paused_button = button.Button(7.5, 4, 'resources/paused/paused_text/')
         self.to_menu_button = button.Button(7.5, 7, 'resources/paused/back_to_menu/')
         self.set_buttons()
@@ -154,16 +154,23 @@ class Level(State):
         self.button_group.unselect_all()
         butt.select()    
     
+    def button_click(self):
+        for butt in self.button_group.sprites():
+            if butt.hover:
+                self.tower_button_click(butt)
+                return True
+        return False
+    
     def evaluate_events(self, event, mouse_x, mouse_y):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.button_tower1.hover:
-                self.tower_button_click(self.button_tower1)   
-            elif self.button_tower2.hover:
-                self.tower_button_click(self.button_tower2)
+            if self.paused:
+                if self.to_menu_button.hover:
+                    self.next_state = 0
+                    self.change_state = True
                 
-            elif self.paused and self.to_menu_button.hover:
-                self.next_state = 0
-                self.change_state = True
+            elif self.button_click():
+                pass
+                
             elif (0<=mouse_x<800) and (0<=mouse_y<600):
                 row = mouse_y // 40
                 col = mouse_x // 40

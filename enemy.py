@@ -5,6 +5,24 @@ from random import random,randint
 from game import SQUARE_SIZE
 import map_path
 
+class EnemyGroup(pygame.sprite.Group):
+    def __init__(self):
+        super().__init__()
+        
+    def draw(self, screen):
+        super().draw(screen)
+        for en in self.sprites():
+            max_hp = en.max_hitpoints
+            hp = en.hitpoints
+            (en_x, en_y) = en.get_pos()
+            full_rect = pygame.Rect(en_x-10, en_y-25, 20, 5)
+            pygame.draw.rect(screen, (255,0,0), full_rect)
+            hp_rect = pygame.Rect(en_x-10, en_y-25, int(20*hp/max_hp), 5)
+            pygame.draw.rect(screen, (0,255,0), hp_rect)
+            
+            
+            
+            
 
 class Enemy(pygame.sprite.Sprite):
     """A class of enemy. It is used as a parent class for the particular
@@ -24,6 +42,9 @@ class Enemy(pygame.sprite.Sprite):
         self.v_y = 0
         self.reward = 0
         self.update_velocity()
+    
+    def get_pos(self):
+        return (int(self.true_x), int(self.true_y))
     
     def update_path(self, new_global_path) -> None:
         """Updated the path. In case of a square being removed from the 
@@ -223,6 +244,7 @@ class Enemy1(Enemy):
         """
         self.speed = 1.5
         self.hitpoints = 20
+        self.max_hitpoints = 20
         super().__init__(game)
         self.image_orig = pygame.image.load(E_RES+'enemy1/0.png').convert_alpha()
         self.image = self.image_orig
