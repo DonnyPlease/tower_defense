@@ -1,3 +1,3 @@
 Tower defense
 
-A project of tower defense game using a pygame library.
+A ower defense game developed using the pygame library. 

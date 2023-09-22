@@ -4,7 +4,7 @@ from pygame.sprite import AbstractGroup
 
 from resources import T_RES
 from game import SQUARE_SIZE
-
+from tower import Tower1, Tower2
 
 class ButtonGroup(pygame.sprite.Group):
     def __init__(self) -> None:
@@ -98,3 +98,17 @@ class Button(pygame.sprite.Sprite):
             return
         self.image = self.image_normal
         self.image.set_colorkey((255, 255, 255))
+        
+class ButtonT1(Button):
+    def __init__(self,col,row,folder):
+        super().__init__(col,row,folder)
+        
+    def create_tower(self,col,row):
+        return Tower1(col, row)
+
+class ButtonT2(Button):
+    def __init__(self,col,row,folder):
+        super().__init__(col,row,folder)
+        
+    def create_tower(self,col,row):
+        return Tower2(col, row)

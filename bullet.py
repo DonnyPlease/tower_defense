@@ -1,4 +1,5 @@
 import pygame
+import enemy
 from math import cos, sin
 
 
@@ -21,7 +22,7 @@ class Bullet(pygame.sprite.Sprite):
     image : pygame.image
     rect : pygame.rect
     """
-    def __init__(self, pos_x, pos_y, angle, speed, damage, bullet_type):
+    def __init__(self, pos_x, pos_y, angle, speed, damage, bullet_type, target = None):
         """A constructor.
 
         ...
@@ -49,6 +50,7 @@ class Bullet(pygame.sprite.Sprite):
         self.true_y = pos_y
         self.angle = angle
         self.speed = speed
+        self.target = target
         self.v_x = cos(angle)*speed
         self.v_y = sin(angle)*speed
         self.image = pygame.Surface((5,5))
@@ -60,12 +62,30 @@ class Bullet(pygame.sprite.Sprite):
         """Update function - move and chceck whether it is out of the window.
         
         """
-        self.true_x += self.v_x
-        self.true_y -= self.v_y
-        self.rect.x = int(self.true_x)
-        self.rect.y = int(self.true_y)
+        if (self.bullet_type == 'normal') or (self.bullet_type == 'bomb'):
+            self.true_x += self.v_x
+            self.true_y -= self.v_y
+            self.rect.x = int(self.true_x)
+            self.rect.y = int(self.true_y)
+            
+        elif (self.bullet_type == 'missile'):
+            if not self.target.alive():
+                self.kill()
+            bullet_pos = pygame.math.Vector2((self.true_x, self.true_y))
+            target_pos = self.target.get_position_vector()
+            direction = target_pos - bullet_pos
+            direction.scale_to_length(self.speed)
+            bullet_pos = bullet_pos + direction
+            self.true_x = bullet_pos.x
+            self.true_y = bullet_pos.y
+            self.rect.x = int(self.true_x)
+            self.rect.y = int(self.true_y)
+            
+            
         if self.is_out():
             self.kill()
+
+        
         
     def is_out(self) -> bool:
         """Check if the bullet left the window.

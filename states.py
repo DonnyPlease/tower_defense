@@ -81,6 +81,10 @@ class Level(State):
     def __init__(self, level_number):
         super().__init__()
         self.surface = pygame.image.load(M_RES+'map{}/map.png'.format(level_number)) 
+        self.GAME_FONT = pygame.font.Font(pygame.font.get_default_font(), 20)
+        self.money = 300 
+        self.balance_surface = self.GAME_FONT.render('Balance: {}'.format(self.money), True, (0,0,0))
+        
         self.next_state = 1
         self.paused = False
         self.tower_group = tower.TowerGroup()
@@ -106,6 +110,10 @@ class Level(State):
                                                True, 
                                                False)
         self.evaluate_hits()
+        self.update_balance()
+    
+    def update_balance(self):
+        self.balance_surface = self.GAME_FONT.render('Balance: {}'.format(self.money), True, (0,0,0))
     
     def draw(self, screen):
         self.bullet_group.draw(screen)
@@ -113,6 +121,7 @@ class Level(State):
         self.enemy_group.draw(screen)
         self.button_group.draw(screen)
         self.hover_group.draw(screen)
+        screen.blit(self.balance_surface,(800,50))
     
     def is_menu(self):
         return False
@@ -122,8 +131,8 @@ class Level(State):
     
     def set_buttons(self):
         # Create buttons for towers
-        self.button_tower1 = button.Button(22, 2, T_RES+'tower1/')
-        self.button_tower2 = button.Button(22, 4, T_RES+'tower2/')
+        self.button_tower1 = button.ButtonT1(22, 2, T_RES+'tower1/')
+        self.button_tower2 = button.ButtonT2(22, 4, T_RES+'tower2/')
         # Add the buttons to the button group
         self.button_group.add(self.button_tower1)
         self.button_group.add(self.button_tower2)
@@ -140,12 +149,10 @@ class Level(State):
         self.hover_group.empty()
         if (col, row) in self.tower_group.banned_squares: return
         
-        if self.button_tower1.selected:
-            hover_tower = tower.Tower1(col, row)
-            self.hover_group.add(hover_tower)
-        elif self.button_tower2.selected:
-            hover_tower = tower.Tower2(col, row)
-            self.hover_group.add(hover_tower)
+        for butt in self.button_group.sprites():
+            if not butt.selected: continue
+            self.hover_group.add(butt.create_tower(col, row))
+            break
             
     def tower_button_click(self, butt : button.Button):
         if butt.selected:
@@ -160,6 +167,18 @@ class Level(State):
                 self.tower_button_click(butt)
                 return True
         return False
+    
+    def pay(self, cost):
+        self.money -= cost
+    
+    def buy_tower(self, butt, col, row):
+        new_tower = butt.create_tower(col, row)
+        if self.money < new_tower.cost: return
+        
+        self.tower_group.add(new_tower)
+        self.tower_group.banned_squares.append((col, row))
+        self.pay(new_tower.cost)
+        
     
     def evaluate_events(self, event, mouse_x, mouse_y):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -176,14 +195,16 @@ class Level(State):
                 col = mouse_x // 40
                 if (col,row) in self.tower_group.banned_squares:
                     pass
-                elif self.button_tower1.selected:
-                    new_tower = tower.Tower1(col, row)
-                    self.tower_group.banned_squares.append((col,row))
-                    self.tower_group.add(new_tower)
-                elif self.button_tower2.selected:
-                    new_tower = tower.Tower2(col, row)
-                    self.tower_group.banned_squares.append((col,row))
-                    self.tower_group.add(new_tower)
+                else:
+                    for butt in self.button_group.sprites():
+                        if not butt.selected: continue
+                        self.buy_tower(butt,col, row)
+                        # new_tower = butt.create_tower(col, row)
+                        
+                        # self.tower_group.add(butt.create_tower(col, row))
+                        
+                        # self.tower_group.banned_squares.append((col, row))
+                            
         else:
             if (0<=mouse_x<800) and (0<=mouse_y<600):
                 row = mouse_y // 40
@@ -197,17 +218,22 @@ class Level(State):
             elif event.key == pygame.K_ESCAPE:
                 self.paused = not self.paused
                 self.toggle_paused_buttons()
-            
+    
+    def rewarded(self,reward):
+        self.money += reward
+    
     def evaluate_hits(self):
         for bullet in self.hits:
             if bullet.bullet_type == "normal":
-                self.hits[bullet][0].hit(bullet.damage)
+                reward = self.hits[bullet][0].hit(bullet.damage)
             elif bullet.bullet_type == "bomb":
                 pass
-            elif bullet.bullet_typ == 'misile':
-                pass
+            elif bullet.bullet_type == 'missile':
+                reward = self.hits[bullet][0].hit(bullet.damage)
             elif bullet.bullet_type == "laser":
                 pass
+            self.rewarded(reward)
+            
         
 def get_state(ids : int) -> State:
     if ids == 0:

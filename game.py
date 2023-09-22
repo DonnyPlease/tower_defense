@@ -18,6 +18,8 @@ class Game():
     def __init__(self) -> None:
         pygame.init() 
         self.screen = pygame.display.set_mode((1000, 600))
+        self.white_surface = pygame.Surface((200,600))
+        self.white_surface.fill((255,255,255))
         pygame.display.set_caption('Tower Defense')
         clock = pygame.time.Clock()
         self.state_id = 0   # 0 = start menu 
@@ -47,6 +49,9 @@ class Game():
             
             
             self.screen.blit(self.surface,(0,0))
+            if self.state.is_level():
+                self.screen.blit(self.white_surface, (800,0))
+            
             self.state.button_group.update(mouse_x, mouse_y)
             self.state.update()
             

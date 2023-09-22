@@ -14,7 +14,6 @@ class TowerGroup(pygame.sprite.Group):
         super().__init__()
         self.banned_squares = []
         
-        
     def aim(self, enemies: pygame.sprite.Group):
         """Calls 'aim' method for every Tower in this group. Aiming is choosing
         a target and setting the correct angle so that the bullet can
@@ -97,6 +96,7 @@ class Tower(pygame.sprite.Sprite):
         # Two variables specifying the state of the tower
         self.is_shooting = False
         self.aimed = False 
+        self.closest_enemy = None
 
     def rotate_current(self) -> None:
         """Rotates current image to the current angle stored in attribute self.angle.
@@ -136,7 +136,16 @@ class Tower(pygame.sprite.Sprite):
         d_y = self.center[1] - enemy_pos[1]
         return sqrt(d_x*d_x + d_y*d_y)
     
-    def angle_to_enemy(self, enemy : enemy.Enemy) -> float:
+    def angle_to_enemy(self, enemy : enemy.Enemy):
+        enemy_pos = enemy.get_position_vector()
+        d_x =  enemy_pos.x - self.center[0]
+        d_y =  enemy_pos.y - self.center[1]
+        d =  sqrt(d_x*d_x + d_y*d_y)
+        if d_y < 0:
+            return acos(d_x/d)
+        return -acos(d_x/d)
+    
+    def angle_to_enemy_prediction(self, enemy : enemy.Enemy) -> float:
         """Calculates the correct aiming angle to the enemy considering its
         movement. The quadratic equation is solved each time to predict the
         position of the enemy in time the bullet arrives. This function is 
@@ -233,12 +242,15 @@ class Tower(pygame.sprite.Sprite):
         
         # Find closest enemy and if it is in the range, aim the tower to it and
         # (set 'self.aimed' to True). Else set 'self.aimed' to False.
-        closest_enemy = self.find_closest_enemy(enemy_group)
-        if self.dist_to_enemy(closest_enemy)>self.range:
+        self.closest_enemy = self.find_closest_enemy(enemy_group)
+        if self.dist_to_enemy(self.closest_enemy)>self.range:
             self.aimed = False
             return
         self.aimed = True
-        self.angle = self.angle_to_enemy(closest_enemy)
+        if self.bullet_type == 'missile':
+            self.angle = self.angle_to_enemy(self.closest_enemy)
+            return
+        self.angle = self.angle_to_enemy_prediction(self.closest_enemy)
         
     
     def update(self) -> None:
@@ -250,7 +262,7 @@ class Tower(pygame.sprite.Sprite):
         
         ...
         
-        return
+        Returns
         ------
         None
         """
@@ -304,9 +316,10 @@ class Tower1(Tower):
         super().__init__('tower1/')
         self.cadence = 1
         self.damage = 2
-        self.bullet_speed = 4
+        self.bullet_speed = 2
+        self.bullet_type = 'missile'
         self.range = 300
-        self.cost = 0
+        self.cost = 50
         
     def create_bullet(self):
         """Bullet for Tower1.
@@ -323,7 +336,8 @@ class Tower1(Tower):
                              self.angle, 
                              speed=self.bullet_speed, 
                              damage=self.damage,
-                             bullet_type='normal')
+                             bullet_type=self.bullet_type,
+                             target=self.closest_enemy)
 
         
         
@@ -337,7 +351,8 @@ class Tower2(Tower):
         self.damage = 1
         self.bullet_speed = 35
         self.range = 200
-        self.cost = 0
+        self.cost = 100
+        self.bullet_type='normal'
         
     def create_bullet(self):
         """Bullet for class Tower2.
