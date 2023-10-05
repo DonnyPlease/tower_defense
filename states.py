@@ -211,10 +211,9 @@ class Level(State):
     
     def evaluate_events(self, event, mouse_x, mouse_y):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.paused:
-                if self.to_menu_button.hover:
-                    self.next_state = 0
-                    self.change_state = True
+            if self.paused and self.to_menu_button.hover:
+                self.next_state = 0
+                self.change_state = True
                 
             elif self.button_click():
                 pass
