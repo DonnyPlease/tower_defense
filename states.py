@@ -1,5 +1,5 @@
 from abc import abstractmethod
-import sys
+from sys import exit
 from copy import deepcopy
 import pygame
 import button
@@ -67,7 +67,7 @@ class Menu(State):
                 self.change_state = True
                 
             if self.quit_button.hover:
-                sys.exit()
+                exit()
                 print("DUDE")
     
     def update(self):
@@ -80,10 +80,12 @@ class Menu(State):
 class Level(State):
     def __init__(self, level_number):
         super().__init__()
-        self.surface = pygame.image.load(M_RES+'map{}/map.png'.format(level_number)) 
+        self.surface = pygame.image.load(
+            M_RES+'map{}/map.png'.format(level_number)) 
         self.GAME_FONT = pygame.font.Font(pygame.font.get_default_font(), 20)
         self.money = 300 
-        self.balance_surface = self.GAME_FONT.render('Balance: {}'.format(self.money), True, (0,0,0))
+        self.balance_surface = self.GAME_FONT.render(
+            'Balance: {}'.format(self.money), True, (0,0,0))
         
         self.next_state = 1
         self.paused = False
@@ -94,8 +96,10 @@ class Level(State):
         self.hover_group = pygame.sprite.Group()
         self.game_map = map_path.Game_map(level_number)
         self.tower_group.banned_squares = deepcopy(self.game_map.map_path)
-        self.paused_button = button.Button(7.5, 4, 'resources/paused/paused_text/')
-        self.to_menu_button = button.Button(7.5, 7, 'resources/paused/back_to_menu/')
+        self.paused_button = button.Button(7.5, 4, 
+                                           'resources/paused/paused_text/')
+        self.to_menu_button = button.Button(7.5, 7, 
+                                            'resources/paused/back_to_menu/')
         self.set_buttons()
     
     def update(self):
@@ -113,7 +117,8 @@ class Level(State):
         self.update_balance()
     
     def update_balance(self):
-        self.balance_surface = self.GAME_FONT.render('Balance: {}'.format(self.money), True, (0,0,0))
+        self.balance_surface = self.GAME_FONT.render(
+            'Balance: {}'.format(self.money), True, (0,0,0))
     
     def draw(self, screen):
         self.bullet_group.draw(screen)
@@ -133,9 +138,12 @@ class Level(State):
         # Create buttons for towers
         self.button_tower1 = button.ButtonT1(22, 2, T_RES+'tower1/')
         self.button_tower2 = button.ButtonT2(22, 4, T_RES+'tower2/')
+        self.sell_button = button.ButtonSell(22, 10, 
+                                         'resources/other_buttons/sell/')
         # Add the buttons to the button group
         self.button_group.add(self.button_tower1)
         self.button_group.add(self.button_tower2)
+        self.button_group.add(self.sell_button)
         
     def toggle_paused_buttons(self):
         if self.paused:
@@ -151,9 +159,16 @@ class Level(State):
         
         for butt in self.button_group.sprites():
             if not butt.selected: continue
+            if isinstance(butt, button.ButtonSell): 
+                self.hover_sell(row, col)
+                continue
             self.hover_group.add(butt.create_tower(col, row))
             break
-            
+    
+    def hover_sell(self, row, col):
+        if (col, row) in self.tower_group.placed_towers:
+            pass
+    
     def tower_button_click(self, butt : button.Button):
         if butt.selected:
             butt.unselect()
@@ -170,6 +185,9 @@ class Level(State):
     
     def pay(self, cost):
         self.money -= cost
+        
+    def receive_money(self, money):
+        self.money += money
     
     def buy_tower(self, butt, col, row):
         new_tower = butt.create_tower(col, row)
@@ -177,8 +195,19 @@ class Level(State):
         
         self.tower_group.add(new_tower)
         self.tower_group.banned_squares.append((col, row))
+        self.tower_group.placed_towers.append((col, row))
         self.pay(new_tower.cost)
+    
+    def sell_tower(self, col, row):
+        if (col, row) not in self.tower_group.placed_towers: return
         
+        for tower in self.tower_group.sprites():
+            if col == int(tower.x) and row == int(tower.y):
+                self.receive_money(tower.cost//2)
+                tower.kill()
+                self.tower_group.placed_towers.remove((col, row))
+                self.tower_group.banned_squares.remove((col, row))
+                break
     
     def evaluate_events(self, event, mouse_x, mouse_y):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -194,16 +223,16 @@ class Level(State):
                 row = mouse_y // 40
                 col = mouse_x // 40
                 if (col,row) in self.tower_group.banned_squares:
-                    pass
+                    for butt in self.button_group.sprites():
+                        if not butt.selected: continue
+                        if isinstance(butt, button.ButtonSell):
+                            self.sell_tower(col, row)
+                        
                 else:
                     for butt in self.button_group.sprites():
                         if not butt.selected: continue
+                        if isinstance(butt, button.ButtonSell): continue
                         self.buy_tower(butt,col, row)
-                        # new_tower = butt.create_tower(col, row)
-                        
-                        # self.tower_group.add(butt.create_tower(col, row))
-                        
-                        # self.tower_group.banned_squares.append((col, row))
                             
         else:
             if (0<=mouse_x<800) and (0<=mouse_y<600):
@@ -212,8 +241,8 @@ class Level(State):
                 self.hover_tower_placement(row, col)
             
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                new_enemy = enemy.Enemy1(self.game_map)
+            if  event.key in [pygame.K_1, pygame.K_2, pygame.K_3]:
+                new_enemy = enemy.enemies_dict[event.key](self.game_map)
                 self.enemy_group.add(new_enemy)  
             elif event.key == pygame.K_ESCAPE:
                 self.paused = not self.paused

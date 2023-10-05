@@ -112,3 +112,10 @@ class ButtonT2(Button):
         
     def create_tower(self,col,row):
         return Tower2(col, row)
+    
+class ButtonSell(Button):
+    def __init__(self,col,row,folder):
+        super().__init__(col,row,folder)
+        
+    def draw_sell(self,col,row):
+        return  

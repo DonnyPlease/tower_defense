@@ -2,6 +2,8 @@ import pygame
 from sys import exit
 from math import pi
 from resources import M_RES, T_RES
+from os import getpid as os_getpid
+from psutil import Process
 
 BG_RES = 'resources/backgrounds/'
 SQUARE_SIZE = 40
@@ -57,6 +59,13 @@ class Game():
             
             # Draw current frame
             self.state.draw(self.screen)
+            
+            
+            process = Process(os_getpid())
+            memory_usage = process.memory_info().rss
+            print("Memory usage: {:.5f} MB | FPS {:.0f}".format(memory_usage/1024**2,   
+                                                                int(clock.get_fps())), 
+                  end='\r')
             pygame.display.update()
             clock.tick(60)
     

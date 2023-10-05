@@ -9,16 +9,15 @@ import map_path
 class EnemyGroup(pygame.sprite.Group):
     def __init__(self):
         super().__init__()
-
     def draw(self, screen):
         super().draw(screen)
         for en in self.sprites():
             max_hp = en.max_hitpoints
             hp = en.hitpoints
-            (en_x, en_y) = en.get_pos()
-            full_rect = pygame.Rect(en_x-10, en_y-25, 20, 5)
-            pygame.draw.rect(screen, (255, 0, 0), full_rect)
-            hp_rect = pygame.Rect(en_x-10, en_y-25, int(20*hp/max_hp), 5)
+            x, y = en.get_pos()
+            rect = pygame.Rect(x - 10, y - 25, 20, 5)
+            pygame.draw.rect(screen, (255, 0, 0), rect)
+            hp_rect = pygame.Rect(x - 10, y - 25, int(20 * hp / max_hp), 5)
             pygame.draw.rect(screen, (0, 255, 0), hp_rect)
 
 
@@ -262,3 +261,121 @@ class Enemy1(Enemy):
         self.reward = 50
         self.rect = self.image.get_rect(center=(int(self.true_x),
                                                 int(self.true_y)))
+        
+
+class Enemy2(Enemy):
+    """Class derived from Enemy. It represents a particular setting
+    of the enemy as well as it specifies the images used to depict the enemy
+    during the game.
+
+    ...
+
+    Attributes
+    ----------
+    speed : int 
+        speed of the enemy in pixels per screen update
+    hitpoints : int
+        damage the enemy can withstand before dying
+    start : 
+    end :
+    path : list
+    global_path : list
+    image :
+    rect :
+    reward : int
+        reward for killing the enemy
+    true_x : float
+        actual x position of the enemy
+    true_y : float
+        actual y position of the enemy
+    v_x : float
+        velocity in the x direction
+    v_y : float
+        velocity in the y direction
+    angle : float
+        angle of the enemy with relationship to 3 o'clock
+    """
+
+    def __init__(self, game):
+        """A constructor.
+
+        ...
+
+        Parameters
+        ----------
+        game : game.Game
+            an instance of the current game so the enemy can access the all
+            the available squares, start and end
+        """
+        self.speed = 3.5
+        self.hitpoints = 80
+        self.max_hitpoints = 80
+        super().__init__(game)
+        self.image_orig = pygame.image.load(
+            E_RES+'enemy2/0.png').convert_alpha()
+        self.image = self.image_orig
+        self.image.set_colorkey((255, 255, 255))
+        self.reward = 300
+        self.rect = self.image.get_rect(center=(int(self.true_x),
+                                                int(self.true_y)))
+        
+
+class Enemy3(Enemy):
+    """Class derived from Enemy. It represents a particular setting
+    of the enemy as well as it specifies the images used to depict the enemy
+    during the game.
+
+    ...
+
+    Attributes
+    ----------
+    speed : int 
+        speed of the enemy in pixels per screen update
+    hitpoints : int
+        damage the enemy can withstand before dying
+    start : 
+    end :
+    path : list
+    global_path : list
+    image :
+    rect :
+    reward : int
+        reward for killing the enemy
+    true_x : float
+        actual x position of the enemy
+    true_y : float
+        actual y position of the enemy
+    v_x : float
+        velocity in the x direction
+    v_y : float
+        velocity in the y direction
+    angle : float
+        angle of the enemy with relationship to 3 o'clock
+    """
+
+    def __init__(self, game):
+        """A constructor.
+
+        ...
+
+        Parameters
+        ----------
+        game : game.Game
+            an instance of the current game so the enemy can access the all
+            the available squares, start and end
+        """
+        self.speed = 5.5
+        self.hitpoints = 20
+        self.max_hitpoints = 20
+        super().__init__(game)
+        self.image_orig = pygame.image.load(
+            E_RES+'enemy3/0.png').convert_alpha()
+        self.image = self.image_orig
+        self.image.set_colorkey((255, 255, 255))
+        self.reward = 100
+        self.rect = self.image.get_rect(center=(int(self.true_x),
+                                                int(self.true_y)))
+        
+enemies_dict = {pygame.K_1: Enemy1,
+                pygame.K_2: Enemy2,
+                pygame.K_3: Enemy3}

@@ -13,6 +13,7 @@ class TowerGroup(pygame.sprite.Group):
     def __init__(self):
         super().__init__()
         self.banned_squares = []
+        self.placed_towers = []
         
     def aim(self, enemies: pygame.sprite.Group):
         """Calls 'aim' method for every Tower in this group. Aiming is choosing
@@ -84,7 +85,8 @@ class Tower(pygame.sprite.Sprite):
                             # 0 rad is 3  o'clock.
                             
         # Load all images for the animation.
-        self.images = [pygame.image.load(T_RES+folder+'{}.png'.format(i)).convert_alpha() for i in range(7)]
+        self.images = [pygame.image.load(
+            T_RES+folder+'{}.png'.format(i)).convert_alpha() for i in range(7)]
         self.current_image = 0  # Index of current image.
         self.image = self.images[self.current_image]    # Choose current image.
         # Get rectangle.
@@ -99,7 +101,8 @@ class Tower(pygame.sprite.Sprite):
         self.closest_enemy = None
 
     def rotate_current(self) -> None:
-        """Rotates current image to the current angle stored in attribute self.angle.
+        """Rotates current image to the current angle stored in attribute 
+        self.angle.
         
         ...
         
@@ -110,15 +113,20 @@ class Tower(pygame.sprite.Sprite):
         angle_deg = self.angle*180/pi-90  # Convert angle from radians 
                                           # to degress andoffset by 90 degrees
                                           
-        # Use pygame.transform.rotate to rotate current image with angle in degrees.
-        self.image = pygame.transform.rotate(self.images[int(self.current_image)],angle=angle_deg)
+        # Use pygame.transform.rotate to rotate current image with angle in 
+        # degrees.
+        self.image = pygame.transform.rotate(
+            self.images[int(self.current_image)],angle=angle_deg)
         
         # Rotated image has to be re-positioned.
-        self.rect = self.image.get_rect(center=(SQUARE_SIZE*self.x + SQUARE_SIZE//2, SQUARE_SIZE*self.y+SQUARE_SIZE//2))
+        self.rect = self.image.get_rect(
+            center=(SQUARE_SIZE*self.x + SQUARE_SIZE//2, 
+                    SQUARE_SIZE*self.y+SQUARE_SIZE//2))
         self.image.set_colorkey((255, 255, 255))
         
     def dist_to_enemy(self, enemy: enemy.Enemy) -> float:
-        """Calculates the distance between this tower and enemy passed as an argument.
+        """Calculates the distance between this tower and enemy passed as an 
+        argument.
         
         ...
         
@@ -187,7 +195,8 @@ class Tower(pygame.sprite.Sprite):
             return acos(d_x/d)
         return -acos(d_x/d)
         
-    def find_closest_enemy(self, enemy_group : pygame.sprite.Group) -> enemy.Enemy:
+    def find_closest_enemy(self, 
+                           enemy_group : pygame.sprite.Group) -> enemy.Enemy:
         """This function finds the closest enemy to this tower (self) and
         returns the whole sprite.
         
@@ -286,7 +295,7 @@ class Tower(pygame.sprite.Sprite):
             whether the bullet is shot or not yet
         """
         time = pygame.time.get_ticks()
-        if ((time - self.last_shot_time) < 1000/self.cadence) or not self.aimed: 
+        if ((time-self.last_shot_time) < 1000/self.cadence) or not self.aimed: 
             return False
         
         self.last_shot_time = time
@@ -312,7 +321,8 @@ class Tower1(Tower):
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.center = [SQUARE_SIZE*x+SQUARE_SIZE//2,SQUARE_SIZE*y+SQUARE_SIZE//2]
+        self.center = [SQUARE_SIZE*x+SQUARE_SIZE//2,
+                       SQUARE_SIZE*y+SQUARE_SIZE//2]
         super().__init__('tower1/')
         self.cadence = 1
         self.damage = 2
@@ -345,7 +355,8 @@ class Tower2(Tower):
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.center = [SQUARE_SIZE*x+SQUARE_SIZE//2,SQUARE_SIZE*y+SQUARE_SIZE//2]
+        self.center = [SQUARE_SIZE*x+SQUARE_SIZE//2,
+                       SQUARE_SIZE*y+SQUARE_SIZE//2]
         super().__init__('tower2/')
         self.cadence = 2
         self.damage = 1
