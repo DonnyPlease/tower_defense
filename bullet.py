@@ -62,6 +62,9 @@ class Bullet(pygame.sprite.Sprite):
         """Update function - move and chceck whether it is out of the window.
         
         """
+        if self.is_out():
+            self.kill()
+            
         if (self.bullet_type == 'normal') or (self.bullet_type == 'bomb'):
             self.true_x += self.v_x
             self.true_y -= self.v_y
@@ -69,8 +72,14 @@ class Bullet(pygame.sprite.Sprite):
             self.rect.y = int(self.true_y)
             
         elif (self.bullet_type == 'missile'):
+            # if the target is dead, keep flying straight
             if not self.target.alive():
-                self.kill()
+                self.true_x += self.v_x
+                self.true_y -= self.v_y
+                self.rect.x = int(self.true_x)
+                self.rect.y = int(self.true_y)
+                return
+            
             bullet_pos = pygame.math.Vector2((self.true_x, self.true_y))
             target_pos = self.target.get_position_vector()
             direction = target_pos - bullet_pos
@@ -82,8 +91,6 @@ class Bullet(pygame.sprite.Sprite):
             self.rect.y = int(self.true_y)
             
             
-        if self.is_out():
-            self.kill()
 
         
         

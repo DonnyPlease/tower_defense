@@ -100,6 +100,8 @@ class Button(pygame.sprite.Sprite):
         self.image.set_colorkey((255, 255, 255))
         
 class ButtonT1(Button):
+    """ButtonT1 class for creating tower 1.
+    ..."""
     def __init__(self,col,row,folder):
         super().__init__(col,row,folder)
         
@@ -107,6 +109,7 @@ class ButtonT1(Button):
         return Tower1(col, row)
 
 class ButtonT2(Button):
+    """ButtonT2 class for creating tower 2."""
     def __init__(self,col,row,folder):
         super().__init__(col,row,folder)
         
@@ -114,6 +117,7 @@ class ButtonT2(Button):
         return Tower2(col, row)
     
 class ButtonSell(Button):
+    """ButtonSell class for selling towers."""
     def __init__(self,col,row,folder):
         super().__init__(col,row,folder)
         

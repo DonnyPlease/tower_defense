@@ -307,7 +307,7 @@ class Enemy2(Enemy):
             an instance of the current game so the enemy can access the all
             the available squares, start and end
         """
-        self.speed = 3.5
+        self.speed = 2.5
         self.hitpoints = 80
         self.max_hitpoints = 80
         super().__init__(game)
@@ -315,7 +315,7 @@ class Enemy2(Enemy):
             E_RES+'enemy2/0.png').convert_alpha()
         self.image = self.image_orig
         self.image.set_colorkey((255, 255, 255))
-        self.reward = 300
+        self.reward = 1000
         self.rect = self.image.get_rect(center=(int(self.true_x),
                                                 int(self.true_y)))
         
