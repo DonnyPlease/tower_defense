@@ -21,7 +21,7 @@ export class Overlay {
 
   constructor(scene: Phaser.Scene, title: string, titleColor: string, actions: OverlayAction[]) {
     const panelW = 320;
-    const panelH = 136 + actions.length * 60;
+    const panelH = 160 + actions.length * 60;
     const px = (WIDTH - panelW) / 2, py = (HEIGHT - panelH) / 2;
 
     const dim = scene.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.5).setOrigin(0).setDepth(DEPTH);
@@ -33,13 +33,13 @@ export class Overlay {
     const titleText = addText(scene, WIDTH / 2, py + 36, title, {
       fontSize: '32px', fontStyle: 'bold', color: titleColor,
     }).setOrigin(0.5).setDepth(DEPTH);
-    this.subtitleText = addText(scene, WIDTH / 2, py + 84, '', {
-      fontSize: '15px', color: CSS.textDim, align: 'center',
-    }).setOrigin(0.5).setDepth(DEPTH);
+    this.subtitleText = addText(scene, WIDTH / 2, py + 66, '', {
+      fontSize: '15px', color: CSS.textDim, align: 'center', lineSpacing: 4,
+    }).setOrigin(0.5, 0).setDepth(DEPTH);
     this.objects.push(dim, this.blocker, panel, titleText, this.subtitleText);
 
     actions.forEach((a, i) => {
-      this.buttons.push(new Button(scene, px + 40, py + 120 + i * 60, panelW - 80, 48, {
+      this.buttons.push(new Button(scene, px + 40, py + 144 + i * 60, panelW - 80, 48, {
         label: a.label, variant: a.variant, onClick: a.onClick,
       }).setDepth(DEPTH + 1));
     });

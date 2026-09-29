@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { COLORS, CSS, addText } from './theme';
+import { audio } from '../audio/audio';
 
 export type ButtonVariant = 'default' | 'primary' | 'danger';
 
@@ -10,7 +11,10 @@ export interface ButtonOptions {
   hotkey?: string;
   variant?: ButtonVariant;
   fontSize?: number;
+  /** 'row' = icon left of the text; 'tile' = icon on top, text underneath. */
+  layout?: 'row' | 'tile';
   onClick: () => void;
+  onHover?: (hovering: boolean) => void;
 }
 
 /** A rounded, canvas-drawn button with hover / selected / disabled states. */
@@ -34,15 +38,23 @@ export class Button {
     this.bg = scene.add.graphics();
 
     let textX = x + w / 2;
+    let textY = y + h / 2;
     let originX = 0.5;
+    const tile = opts.layout === 'tile';
     if (opts.icon) {
-      const s = Math.min(40, h - 12);
-      this.icon = scene.add.image(x + 10 + s / 2, y + h / 2, opts.icon).setDisplaySize(s, s);
-      textX = x + 18 + s;
-      originX = 0;
+      if (tile) {
+        const s = h - 24;
+        this.icon = scene.add.image(x + w / 2, y + 4 + s / 2, opts.icon).setDisplaySize(s, s);
+        textY = y + h - 11;
+      } else {
+        const s = Math.min(40, h - 12);
+        this.icon = scene.add.image(x + 10 + s / 2, y + h / 2, opts.icon).setDisplaySize(s, s);
+        textX = x + 18 + s;
+        originX = 0;
+      }
     }
-    const hasSub = opts.sublabel !== undefined;
-    this.labelText = addText(scene, textX, y + h / 2 - (hasSub ? 9 : 0), opts.label, {
+    const hasSub = opts.sublabel !== undefined && !tile;
+    this.labelText = addText(scene, textX, textY - (hasSub ? 9 : 0), opts.label, {
       fontSize: `${opts.fontSize ?? 16}px`, fontStyle: 'bold',
     }).setOrigin(originX, 0.5);
     if (hasSub) {
@@ -57,10 +69,16 @@ export class Button {
     }
 
     this.zone = scene.add.zone(x, y, w, h).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    this.zone.on('pointerover', () => { this.hover = true; this.redraw(); });
-    this.zone.on('pointerout', () => { this.hover = false; this.redraw(); });
+    this.zone.on('pointerover', () => { this.hover = true; this.redraw(); opts.onHover?.(true); });
+    this.zone.on('pointerout', () => { this.hover = false; this.redraw(); opts.onHover?.(false); });
     this.zone.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (this.enabled && pointer.button === 0) opts.onClick();
+      if (pointer.button !== 0) return;
+      if (this.enabled) {
+        audio.play('click');
+        opts.onClick();
+      } else {
+        audio.play('error');
+      }
     });
     this.redraw();
   }
@@ -81,6 +99,7 @@ export class Button {
     for (const o of this.objects) (o as unknown as Phaser.GameObjects.Components.Visible).setVisible(visible);
     if (this.zone.input) this.zone.input.enabled = visible;
     if (!visible) this.hover = false;
+    if (visible) this.redraw();
     return this;
   }
 
@@ -100,8 +119,14 @@ export class Button {
     return this;
   }
 
-  setLabel(label: string): this {
+  setLabel(label: string, color: string = CSS.text): this {
     if (this.labelText.text !== label) this.labelText.setText(label);
+    if (this.labelText.style.color !== color) this.labelText.setColor(color);
+    return this;
+  }
+
+  setIcon(key: string): this {
+    this.icon?.setTexture(key);
     return this;
   }
 
