@@ -3,7 +3,20 @@ import { WIDTH, HEIGHT } from './config';
 import { RES, COLORS } from './ui/theme';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
+import { LevelSelectScene } from './scenes/LevelSelectScene';
+import { UpgradesScene } from './scenes/UpgradesScene';
 import { GameScene } from './scenes/GameScene';
+import { audio } from './audio/audio';
+import { loadProfile } from './game/profile';
+
+const profile = loadProfile();
+audio.setSfx(profile.sfx);
+audio.setMusic(profile.music);
+
+// Browsers only allow audio after the player interacts with the page.
+const unlockAudio = () => audio.unlock();
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -15,8 +28,10 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, MenuScene, GameScene],
+  audio: { noAudio: true }, // we synthesise our own sound (src/audio)
+  scene: [BootScene, MenuScene, LevelSelectScene, UpgradesScene, GameScene],
 });
 
-// Handy for debugging from the browser console.
+// Handy for debugging from the browser console, e.g.
+//   game.scene.getScene('game').world.spawn('boss')
 (window as unknown as { game: Phaser.Game }).game = game;

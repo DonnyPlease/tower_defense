@@ -1,6 +1,9 @@
 import * as Phaser from 'phaser';
 import { WIDTH, HEIGHT } from '../config';
 
+/** Generated textures are drawn this many times larger than their display size. */
+export const GEN = 2;
+
 export const COLORS = {
   background: 0x14171f,
   panel: 0x1e2230,
@@ -15,6 +18,15 @@ export const COLORS = {
   grassAlt: 0x659a41,
   path: 0xdcc594,
   pathEdge: 0xb89f6b,
+  high: 0x86b25a,
+  highEdgeLight: 0xa9cf7c,
+  highEdgeDark: 0x4d7530,
+  rock: 0x7b8088,
+  rockDark: 0x555a61,
+  water: 0x3a7bd5,
+  waterLight: 0x6fa8f0,
+  bridge: 0x9c6b3c,
+  bridgeDark: 0x6e4a27,
 };
 
 export const CSS = {
@@ -62,4 +74,14 @@ export function lerp(a: number, b: number, t: number): number {
 export function lerpAngle(a: number, b: number, t: number): number {
   const diff = Math.atan2(Math.sin(b - a), Math.cos(b - a));
   return a + diff * t;
+}
+
+/** Scale that shows a sprite texture at one tile (40 px), whatever its source size. */
+export function spriteScale(scene: Phaser.Scene, key: string): number {
+  const w = scene.textures.get(key).getSourceImage().width || 40;
+  return 40 / w;
+}
+
+export function starString(stars: number, max = 3): string {
+  return '★'.repeat(stars) + '☆'.repeat(Math.max(0, max - stars));
 }
