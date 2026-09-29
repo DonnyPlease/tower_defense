@@ -5,7 +5,7 @@ import { enemyDef, type EnemyType } from '../data/enemies';
 import type { World } from '../sim/world';
 import type { Tower } from '../sim/tower';
 import { Button } from './Button';
-import { COLORS, CSS, addText, spriteScale } from './theme';
+import { COLORS, CSS, addText, spriteScale, towerIcon } from './theme';
 import { towerStatsText } from './format';
 
 /** What the sidebar needs from the game scene. */
@@ -74,7 +74,7 @@ export class Hud {
     TOWER_KINDS.forEach((kind, i) => {
       const bx = X + (i % 2) * (cellW + 8), by = 94 + Math.floor(i / 2) * (cellH + 6);
       const b = new Button(scene, bx, by, cellW, cellH, {
-        label: '', icon: `${kind}-0`, hotkey: String(i + 1), layout: 'tile', fontSize: 13,
+        label: '', icon: towerIcon(scene, kind), hotkey: String(i + 1), layout: 'tile', fontSize: 13,
         onClick: () => host.selectTool(host.tool === kind ? null : kind),
         onHover: (on) => { this.hovered = on ? kind : this.hovered === kind ? null : this.hovered; },
       }).setDepth(DEPTH);

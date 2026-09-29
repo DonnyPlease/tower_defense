@@ -31,7 +31,12 @@ const SHOT_SOUND: Record<TowerKind, SfxName | null> = {
   gun: 'gun', missile: 'missile', cannon: 'cannon', frost: null, laser: null, support: null,
 };
 
-interface TowerSprites { shadow: Phaser.GameObjects.Image; body: Phaser.GameObjects.Image; baseScale: number }
+interface TowerSprites {
+  shadow: Phaser.GameObjects.Image;
+  base: Phaser.GameObjects.Image | null; // still plate under a rotating turret
+  body: Phaser.GameObjects.Image;
+  baseScale: number;
+}
 interface EnemySprites { shadow: Phaser.GameObjects.Image; body: Phaser.GameObjects.Image; baseScale: number }
 
 /**
@@ -207,6 +212,7 @@ export class FieldView {
     for (const [t, s] of this.towers) {
       if (!live.has(t)) {
         s.shadow.destroy();
+        s.base?.destroy();
         s.body.destroy();
         this.towers.delete(t);
       }
@@ -216,8 +222,11 @@ export class FieldView {
       let s = this.towers.get(t);
       if (!s) {
         const key = `${t.kind}-0`;
+        const baseKey = `${t.kind}-base`;
         s = {
           shadow: this.scene.add.image(t.x, t.y + 3, 'shadow').setDepth(DEPTH.shadows).setDisplaySize(34, 20),
+          base: this.scene.textures.exists(baseKey)
+            ? this.scene.add.image(t.x, t.y, baseKey).setDepth(DEPTH.towers - 1) : null,
           body: this.scene.add.image(t.x, t.y, key).setDepth(DEPTH.towers),
           baseScale: spriteScale(this.scene, key),
         };
@@ -231,6 +240,7 @@ export class FieldView {
       const recoil = frames === 1 && t.shooting ? 0.9 : 1;
       const levelScale = 1 + 0.06 * t.level;
       s.body.setScale(s.baseScale * levelScale * recoil);
+      s.base?.setScale(s.baseScale * levelScale);
       if (t.def.behavior === 'support') s.body.setRotation(this.frameCount * 0.02);
 
       if (t.def.behavior === 'beam' && t.target?.alive) {

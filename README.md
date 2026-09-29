@@ -118,9 +118,10 @@ src/
   game/profile.ts    saved progress: stars, perks, settings, saved game
   audio/audio.ts     procedural sound effects and music
   view/FieldView.ts  draws a World with Phaser (sprites, particles, effects)
+  view/towerArt.ts   procedural art for the Gun and Missile towers
   ui/                sidebar HUD, buttons, dialogs, colours, minimaps
   scenes/            Boot, Menu, LevelSelect, Upgrades, Game
-public/assets/       sprite files (the rest are drawn in BootScene)
+public/assets/       enemy sprite files (everything else is drawn in code)
 tests/               Vitest tests, including a bot that must beat every level
 ```
 
@@ -133,9 +134,10 @@ every level and fails if one becomes unbeatable.
 
 ## Adding content
 
-- **New tower:** add an entry to `TOWERS` in `src/data/towers.ts`. Either put
-  7 animation frames (pointing up) in `public/assets/towers/<folder>/` and set
-  `sprite`, or draw a texture called `<kind>-0` in `BootScene`.
+- **New tower:** add an entry to `TOWERS` in `src/data/towers.ts` and give it
+  art. Either draw it in code (see `src/view/towerArt.ts`: a still `<kind>-base`
+  plate plus rotating turret frames `<kind>-0`, `<kind>-1`, …), or put PNG
+  frames (pointing up) in `public/assets/towers/<folder>/` and set `sprite`.
 - **New enemy:** add an entry to `ENEMIES` in `src/data/enemies.ts` and a
   texture (facing right). Abilities (`armor`, `shield`, `flying`, `split`,
   `heal`, `summon`) are just fields.

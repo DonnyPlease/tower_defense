@@ -9,7 +9,7 @@ import type { Tile } from '../sim/map';
 import { FieldView, DEPTH } from '../view/FieldView';
 import { Hud, type HudHost } from '../ui/Hud';
 import { Overlay } from '../ui/Overlay';
-import { COLORS, CSS, addText, setupCamera } from '../ui/theme';
+import { COLORS, CSS, addText, setupCamera, towerIcon } from '../ui/theme';
 import { starString } from '../ui/format';
 import { audio } from '../audio/audio';
 import {
@@ -406,7 +406,7 @@ export class GameScene extends Phaser.Scene implements HudHost {
         const range = towerDef(this.tool).levels[0].range * (this.world.map.isHighGround(col, row) ? 1.25 : 1);
         g.fillStyle(color, 0.12).fillCircle(cx, cy, range);
         g.lineStyle(2, color, 0.6).strokeCircle(cx, cy, range);
-        const key = `${this.tool}-0`;
+        const key = towerIcon(this, this.tool);
         this.ghost.setTexture(key).setPosition(cx, cy).setRotation(0)
           .setDisplaySize(TILE, TILE).setAlpha(0.75).setTint(ok ? 0xffffff : 0xff8080).setVisible(true);
       }
