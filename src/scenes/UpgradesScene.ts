@@ -3,7 +3,7 @@ import { WIDTH } from '../config';
 import { PERKS, PERK_IDS } from '../data/perks';
 import { TOWER_KINDS, towerDef } from '../data/towers';
 import { Button } from '../ui/Button';
-import { COLORS, CSS, addText, setupCamera } from '../ui/theme';
+import { COLORS, CSS, addText, setupCamera, towerIcon } from '../ui/theme';
 import {
   loadProfile, availableStars, totalStars, nextPerkCost, buyPerk, refundPerks, unlockedTowers,
 } from '../game/profile';
@@ -59,7 +59,7 @@ export class UpgradesScene extends Phaser.Scene {
       const y = 164 + i * 46;
       const d = towerDef(kind);
       const have = unlocked.includes(kind);
-      this.add.image(690, y + 16, `${kind}-0`).setDisplaySize(32, 32).setAlpha(have ? 1 : 0.35);
+      this.add.image(690, y + 16, towerIcon(this, kind)).setDisplaySize(32, 32).setAlpha(have ? 1 : 0.35);
       addText(this, 716, y + 6, d.name, { fontSize: '15px', fontStyle: 'bold', color: have ? CSS.text : CSS.textDim });
       addText(this, 920, y + 7, have ? '✓' : `★ ${d.unlockStars}`, {
         fontSize: '15px', color: have ? CSS.green : CSS.gold,

@@ -74,3 +74,8 @@ export function spriteScale(scene: Phaser.Scene, key: string): number {
   const w = scene.textures.get(key).getSourceImage().width || 40;
   return 40 / w;
 }
+
+/** Texture showing a whole tower (base + turret) for icons and previews. */
+export function towerIcon(scene: Phaser.Scene, kind: string): string {
+  return scene.textures.exists(`${kind}-icon`) ? `${kind}-icon` : `${kind}-0`;
+}

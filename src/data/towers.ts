@@ -25,7 +25,7 @@ export interface TowerDef {
   hitsAir: boolean;
   hitsGround: boolean;
   ignoresArmor?: boolean;
-  /** Folder in public/assets/towers with 7 frames pointing up; otherwise a generated texture. */
+  /** Optional folder in public/assets/towers with `frames` PNGs pointing up; otherwise the art is drawn in BootScene. */
   sprite?: string;
   frames: number;
   /** Total stars needed before the tower can be used. */
@@ -40,7 +40,7 @@ export const TOWERS = {
     description: 'Rapid fire. Aims ahead of moving targets. Hits air.',
     behavior: 'projectile', bullet: 'normal', bulletSpeed: 16,
     hitsAir: true, hitsGround: true,
-    sprite: 'tower2', frames: 7, unlockStars: 0, color: 0xe63946,
+    frames: 7, unlockStars: 0, color: 0xe63946,
     levels: [
       { cost: 100, range: 170, damage: 3, fireRate: 3 },
       { cost: 70, range: 180, damage: 5, fireRate: 3.5 },
@@ -52,7 +52,7 @@ export const TOWERS = {
     description: 'Cheap homing missiles that never miss. Hits air.',
     behavior: 'projectile', bullet: 'missile', bulletSpeed: 4,
     hitsAir: true, hitsGround: true,
-    sprite: 'tower1', frames: 7, unlockStars: 0, color: 0x57c26b,
+    frames: 7, unlockStars: 0, color: 0x57c26b,
     levels: [
       { cost: 50, range: 200, damage: 6, fireRate: 0.8 },
       { cost: 50, range: 215, damage: 10, fireRate: 0.9 },

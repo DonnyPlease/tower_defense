@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { WIDTH, HEIGHT } from '../config';
 import { TOWERS, TOWER_KINDS } from '../data/towers';
 import { COLORS, GEN, setupCamera } from '../ui/theme';
+import { TOWER_ART, TURRET_FRAMES, drawBase } from '../view/towerArt';
 
 // Sprite files shipped in public/assets.
 const FILE_ENEMIES: Record<string, string> = { scout: 'enemy1', tank: 'enemy2', racer: 'enemy3' };
@@ -58,6 +59,12 @@ export class BootScene extends Phaser.Scene {
 
     // ---- towers (GEN x size, pointing up) ----
     const S = 40 * GEN, c = S / 2;
+    // Gun and missile: a still base plate, animated turret frames, and an icon of both.
+    for (const [kind, art] of Object.entries(TOWER_ART)) {
+      tex(`${kind}-base`, S, S, (g) => drawBase(g, art.accent));
+      for (let i = 0; i < TURRET_FRAMES; i++) tex(`${kind}-${i}`, S, S, (g) => art.turret(g, i));
+      tex(`${kind}-icon`, S, S, (g) => { drawBase(g, art.accent); art.turret(g, 0); });
+    }
     tex('cannon-0', S, S, (g) => {
       g.fillStyle(0x3d4451, 1).fillRoundedRect(4 * GEN, 4 * GEN, 32 * GEN, 32 * GEN, 7 * GEN);
       g.fillStyle(0x5c6677, 1).fillCircle(c, c + 3 * GEN, 11 * GEN);
