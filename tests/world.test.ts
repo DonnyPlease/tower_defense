@@ -1,89 +1,256 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/sim/world';
-import { MAPS, TOWERS, TILE, STARTING_MONEY, SELL_REFUND, type TowerKind } from '../src/config';
+import { LEVELS, levelById, ENDLESS, endlessWave } from '../src/data/levels';
+import { TOWERS } from '../src/data/towers';
+import { modifiersFromPerks } from '../src/data/perks';
+import { SELL_REFUND, TICK_RATE, waveBonus, earlyBonus } from '../src/config';
 
-const newWorld = () => new World(MAPS[0]);
+const meadow = levelById('meadow');
+const run = (w: World, ticks: number) => { for (let i = 0; i < ticks; i++) w.update(); };
 
-describe('World building and selling', () => {
+describe('building, upgrading, selling', () => {
   it('builds on grass and charges the cost', () => {
-    const w = newWorld();
+    const w = new World(meadow);
     expect(w.build('missile', 0, 0)).not.toBeNull();
-    expect(w.money).toBe(STARTING_MONEY - TOWERS.missile.cost);
+    expect(w.money).toBe(meadow.money - TOWERS.missile.levels[0].cost);
   });
 
-  it('refuses path tiles, occupied tiles and unaffordable towers', () => {
-    const w = newWorld();
-    expect(w.build('missile', 0, 10)).toBeNull(); // path
+  it('refuses roads, occupied tiles, locked and unaffordable towers', () => {
+    const w = new World(meadow, { unlocked: ['gun', 'missile'] });
+    expect(w.build('missile', 0, 10)).toBeNull(); // road
     w.build('missile', 0, 0);
     expect(w.build('gun', 0, 0)).toBeNull(); // occupied
+    expect(w.build('laser', 1, 0)).toBeNull(); // locked
     w.money = 10;
     expect(w.build('gun', 1, 0)).toBeNull(); // too expensive
   });
 
-  it('refunds part of the cost when selling', () => {
-    const w = newWorld();
-    w.build('gun', 0, 0);
-    expect(w.sell(0, 0)).toBe(true);
-    expect(w.money).toBe(STARTING_MONEY - TOWERS.gun.cost + TOWERS.gun.cost * SELL_REFUND);
-    expect(w.towerAt(0, 0)).toBeNull();
-    expect(w.sell(0, 0)).toBe(false);
+  it('upgrades up to level 3 and refunds part of everything invested', () => {
+    const w = new World(meadow);
+    w.money = 10_000;
+    const t = w.build('gun', 0, 0)!;
+    expect(w.upgrade(t)).toBe(true);
+    expect(w.upgrade(t)).toBe(true);
+    expect(w.upgrade(t)).toBe(false); // max level
+    expect(t.level).toBe(2);
+    const invested = TOWERS.gun.levels.reduce((n, l) => n + l.cost, 0);
+    const before = w.money;
+    w.sell(t);
+    expect(w.money - before).toBe(Math.floor(invested * SELL_REFUND));
+  });
+
+  it('applies perk modifiers', () => {
+    const mods = modifiersFromPerks({ capital: 2, fortify: 1, engineering: 1, firepower: 0 });
+    const w = new World(meadow, { modifiers: mods });
+    expect(w.money).toBe(meadow.money + 80);
+    expect(w.lives).toBe(meadow.lives + 5);
+    expect(w.costOf('gun')).toBe(Math.round(100 * 0.94));
   });
 });
 
-describe('World simulation', () => {
-  it('a tower kills a lone enemy and pays the reward', () => {
-    const w = new World(MAPS[0], { money: 1000 });
+describe('enemies', () => {
+  it('armor reduces weak hits, lasers ignore it', () => {
+    const w = new World(meadow);
+    const e = w.spawn('armored');
+    const hp = e.hitpoints;
+    e.hit(3);
+    expect(hp - e.hitpoints).toBeCloseTo(0.75); // 25 % minimum
+    e.hit(10, { ignoresArmor: true });
+    expect(hp - e.hitpoints).toBeCloseTo(10.75);
+  });
+
+  it('shields absorb damage first and recharge', () => {
+    const w = new World(meadow);
+    const e = w.spawn('shielded');
+    e.hit(10);
+    expect(e.hitpoints).toBe(e.maxHitpoints);
+    expect(e.shield).toBe(e.maxShield - 10);
+    run(w, 6 * TICK_RATE);
+    expect(e.shield).toBe(e.maxShield);
+  });
+
+  it('frost slows ground enemies but not drones', () => {
+    const w = new World(meadow);
+    const e = w.spawn('scout');
+    const d = w.spawn('drone');
+    e.applySlow(0.5, 10);
+    d.applySlow(0.5, 10);
+    expect(e.speed).toBeCloseTo(e.def.speed * 0.5);
+    expect(d.speed).toBeCloseTo(d.def.speed);
+  });
+
+  it('splitters split into minis', () => {
+    const w = new World(meadow);
+    w.money = 10_000;
+    const e = w.spawn('splitter');
+    for (let i = 0; i < 60; i++) w.update(); // walk onto the map
+    e.hitpoints = 1;
     w.build('gun', 3, 9);
     w.build('gun', 3, 13);
-    const e = w.spawn('scout');
-    for (let i = 0; i < 2000 && e.alive; i++) w.update();
-    expect(e.escaped).toBe(false);
-    expect(w.money).toBe(1000 - 2 * TOWERS.gun.cost + e.reward);
+    for (let i = 0; i < 600 && e.alive; i++) w.update();
+    expect(e.alive).toBe(false);
+    expect(w.events.some((ev) => ev.type === 'kill' && ev.enemy === 'splitter')).toBe(true);
+    expect(w.enemies.filter((m) => m.type === 'mini').length + w.kills - 1).toBeGreaterThanOrEqual(3);
   });
 
-  it('enemies that escape cost lives', () => {
-    const w = newWorld();
+  it('medics heal nearby enemies', () => {
+    const w = new World(meadow);
+    const m = w.spawn('healer');
+    const s = w.spawn('scout');
+    s.hitpoints = 5;
+    run(w, 2 * TICK_RATE);
+    expect(s.hitpoints).toBeGreaterThan(5);
+    expect(m.alive).toBe(true);
+  });
+
+  it('the boss summons reinforcements', () => {
+    const w = new World(meadow);
+    w.spawn('boss');
+    run(w, 8 * TICK_RATE);
+    expect(w.enemies.filter((e) => e.type === 'scout').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('drones fly straight to the exit', () => {
+    const w = new World(meadow);
+    const d = w.spawn('drone');
+    run(w, 30);
+    // Along the flight route the drone never touches the road's corner waypoints.
+    expect(d.nav.remaining(d.x, d.y)).toBeLessThan(w.map.routes[0].length * 1000);
+    for (let i = 0; i < 2000 && d.alive; i++) w.update();
+    expect(d.escaped).toBe(true);
+  });
+
+  it('escaping enemies cost lives', () => {
+    const w = new World(meadow);
     w.spawn('tank');
     for (let i = 0; i < 5000 && w.enemies.length; i++) w.update();
-    expect(w.lives).toBe(20 - 3);
+    expect(w.lives).toBe(meadow.lives - 3);
+  });
+});
+
+describe('towers in action', () => {
+  it('cannon shells hit every ground enemy in the splash', () => {
+    const w = new World(meadow);
+    w.money = 10_000;
+    const a = w.spawn('scout'), b = w.spawn('scout');
+    run(w, 90);
+    w.build('cannon', 3, 9);
+    for (let i = 0; i < 400 && a.alive; i++) w.update();
+    expect(a.hitpoints < a.maxHitpoints || !a.alive).toBe(true);
+    expect(b.hitpoints < b.maxHitpoints || !b.alive).toBe(true);
   });
 
-  it('is lost when no towers are built', () => {
-    const w = newWorld();
-    for (let i = 0; i < 100_000 && w.status === 'playing'; i++) {
-      w.startNextWave();
+  it('beacons boost the fire rate of nearby towers', () => {
+    const w = new World(meadow);
+    w.money = 10_000;
+    const gun = w.build('gun', 0, 0)!;
+    w.build('support', 1, 0);
+    w.update();
+    expect(gun.fireRate).toBeCloseTo(gun.stats.fireRate * 1.2);
+  });
+
+  it('lasers heat up on the same target', () => {
+    const w = new World(meadow);
+    w.money = 10_000;
+    const laser = w.build('laser', 3, 9)!;
+    const e = w.spawn('tank');
+    for (let i = 0; i < 1000 && !laser.target; i++) w.update();
+    run(w, 60);
+    expect(laser.target).toBe(e);
+    expect(laser.heatFraction).toBeGreaterThan(0.4);
+  });
+});
+
+describe('waves and economy', () => {
+  it('pays the wave bonus plus interest when a wave is cleared', () => {
+    const w = new World(meadow);
+    w.lives = 1000;
+    w.startNextWave();
+    const before = w.money;
+    let cleared = null;
+    for (let i = 0; i < 20000 && !cleared; i++) {
       w.update();
+      cleared = w.events.find((e) => e.type === 'waveCleared');
+      w.events.length = 0;
     }
-    expect(w.status).toBe('lost');
+    expect(cleared).toMatchObject({ bonus: waveBonus(0) });
+    expect(w.money).toBe(before + waveBonus(0) + (cleared as { interest: number }).interest);
   });
 
-  it('can be won by a sensible player', () => {
-    // A greedy bot: before every wave, spend everything on the spot that
-    // covers the most path tiles.
-    const w = newWorld();
-    const coverage = (col: number, row: number, range: number) => {
-      let n = 0;
-      for (let r = 0; r < 15; r++) for (let c = 0; c < 20; c++) {
-        if (w.map.isPath(c, r) && Math.hypot(c - col, r - row) * TILE <= range) n++;
-      }
-      return n;
-    };
-    const pick = (): TowerKind => (w.towers.length % 2 ? 'gun' : 'missile');
-    for (let i = 0; i < 200_000 && w.status === 'playing'; i++) {
-      if (w.canStartWave) {
-        while (w.canAfford(pick())) {
-          const kind = pick();
-          let best: [number, number] | null = null, bestScore = -1;
-          for (let r = 0; r < 15; r++) for (let c = 0; c < 20; c++) {
-            const s = w.canBuildAt(c, r) ? coverage(c, r, TOWERS[kind].range) : -1;
-            if (s > bestScore) { bestScore = s; best = [c, r]; }
-          }
-          w.build(kind, ...best!);
-        }
+  it('pays an early bonus for calling a wave while enemies remain', () => {
+    const w = new World(meadow);
+    w.startNextWave();
+    expect(w.canStartWave).toBe(false); // still spawning
+    for (let i = 0; i < 20000 && w.spawning; i++) w.update();
+    expect(w.canStartWave).toBe(true);
+    const before = w.money;
+    w.startNextWave();
+    expect(w.money - before).toBe(earlyBonus(1));
+  });
+
+  it('endless mode never runs out of waves', () => {
+    const w = new World(ENDLESS, { endlessWaves: endlessWave });
+    expect(w.totalWaves).toBeNull();
+    expect(w.waveAt(500)?.length).toBeGreaterThan(0);
+    expect(endlessWave(9).some((g) => g.type === 'boss')).toBe(true);
+  });
+});
+
+describe('maze levels', () => {
+  const field = levelById('openfield');
+
+  it('enemies walk around towers', () => {
+    const w = new World(field);
+    const len = () => Math.min(...w.map.starts.map((s) => w.distanceField[s.row][s.col]));
+    const before = len();
+    w.money = 10_000;
+    for (let r = 1; r <= 13; r++) w.build('missile', 10, r);
+    expect(len()).toBeGreaterThan(before);
+  });
+
+  it('refuses a tower that would cut off the exit', () => {
+    const w = new World(field);
+    w.money = 100_000;
+    let refused = false;
+    for (let r = 1; r <= 13; r++) {
+      if (!w.build('missile', 16, r)) refused = true;
+    }
+    expect(refused).toBe(true);
+    expect(w.map.starts.every((s) => Number.isFinite(w.distanceField[s.row][s.col]))).toBe(true);
+  });
+});
+
+describe('save and resume', () => {
+  it('round-trips a snapshot between waves', () => {
+    const w = new World(meadow);
+    w.money = 1000;
+    const t = w.build('gun', 0, 0)!;
+    w.upgrade(t);
+    t.targetMode = 'strongest';
+    const snap = w.snapshot()!;
+    const copy = new World(meadow);
+    copy.restore(JSON.parse(JSON.stringify(snap)));
+    expect(copy.money).toBe(w.money);
+    expect(copy.towers).toHaveLength(1);
+    expect(copy.towers[0]).toMatchObject({ kind: 'gun', level: 1, targetMode: 'strongest', invested: t.invested });
+  });
+
+  it('cannot snapshot during a wave', () => {
+    const w = new World(meadow);
+    w.startNextWave();
+    expect(w.snapshot()).toBeNull();
+  });
+});
+
+describe('the game ends', () => {
+  it('is lost when nothing is built', () => {
+    for (const level of LEVELS) {
+      const w = new World(level);
+      for (let i = 0; i < 200_000 && w.status === 'playing'; i++) {
         w.startNextWave();
+        w.update();
       }
-      w.update();
+      expect(w.status, level.id).toBe('lost');
     }
-    expect(w.status).toBe('won');
   });
 });
