@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { TILE, FIELD_W, FIELD_H } from '../config';
 import { TOWER_KINDS, TARGET_MODES, towerDef, type TowerKind } from '../data/towers';
 import { LEVELS, ENDLESS, endlessWave, levelById } from '../data/levels';
+import { enemyDef } from '../data/enemies';
 import { World, type WorldEvent } from '../sim/world';
 import type { Tower } from '../sim/tower';
 import { FixedStep } from '../sim/fixedStep';
@@ -302,7 +303,7 @@ export class GameScene extends Phaser.Scene implements HudHost {
     for (const ev of events) {
       if (ev.type === 'waveStarted') {
         const last = total !== null && ev.wave === total - 1;
-        const boss = this.world.waveAt(ev.wave)?.some((g) => g.type === 'boss');
+        const boss = this.world.waveAt(ev.wave)?.some((g) => enemyDef(g.type).boss);
         this.showBanner(last ? 'Final wave!' : boss ? `Wave ${ev.wave + 1}\nBoss incoming!` : `Wave ${ev.wave + 1}`,
           boss ? CSS.red : CSS.text);
         if (ev.early) this.field.floatText(FIELD_W / 2, 110, `Early call +$${ev.early}`, CSS.gold);

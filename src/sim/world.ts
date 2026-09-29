@@ -35,6 +35,7 @@ export interface LevelSource extends MapSource {
   id: string;
   money: number;
   lives: number;
+  hpScale?: number;
   waves?: Wave[];
 }
 
@@ -71,6 +72,7 @@ export class World {
   readonly modifiers: Modifiers;
   readonly unlocked: ReadonlySet<TowerKind>;
   readonly startLives: number;
+  readonly hpScale: number;
   money: number;
   lives: number;
   tick = 0;
@@ -101,6 +103,7 @@ export class World {
     this.staticWaves = level.waves ?? [];
     this.money = level.money + this.modifiers.money;
     this.lives = this.startLives = level.lives + this.modifiers.lives;
+    this.hpScale = level.hpScale ?? 1;
     this.flow = this.map.distanceField((c, r) => this.towerAt(c, r) !== null);
   }
 
@@ -151,7 +154,7 @@ export class World {
   get hpMultiplier(): number {
     const i = Math.max(0, this.waveIndex);
     // Endless waves also get tougher quadratically, so every run ends eventually.
-    return 1 + WAVE_HP_GROWTH * i + (this.endless ? ENDLESS_HP_GROWTH * i * i : 0);
+    return this.hpScale * (1 + WAVE_HP_GROWTH * i + (this.endless ? ENDLESS_HP_GROWTH * i * i : 0));
   }
 
   // ---- queries -------------------------------------------------------------
