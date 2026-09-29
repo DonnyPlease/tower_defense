@@ -29,10 +29,6 @@ export class RouteNav implements Nav {
     }
   }
 
-  get start(): Point {
-    return this.route[0];
-  }
-
   get target(): Point {
     return this.route[Math.min(this.idx, this.route.length - 1)];
   }

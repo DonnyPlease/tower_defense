@@ -70,3 +70,37 @@ describe('GameMap', () => {
     expect(tileCenter({ col: 2, row: 3 })).toEqual({ x: 2 * TILE + TILE / 2, y: 3 * TILE + TILE / 2 });
   });
 });
+
+describe('GameMap validation and edges', () => {
+  const blank = () => Array.from({ length: ROWS }, () => '.'.repeat(COLS));
+
+  it('rejects maps of the wrong size', () => {
+    expect(() => new GameMap({ name: 'small', tiles: ['S..E'] })).toThrow(/must be 20x15/);
+  });
+
+  it('rejects maps without an entrance or exit', () => {
+    const tiles = blank();
+    tiles[0] = 'S' + '#'.repeat(COLS - 1);
+    expect(() => new GameMap({ name: 'no exit', tiles })).toThrow(/at least one S and one E/);
+  });
+
+  it('points off the map from every border', () => {
+    const tiles = blank();
+    tiles[0] = '.S' + '.'.repeat(COLS - 2);
+    for (let r = 1; r < ROWS - 1; r++) tiles[r] = '.#' + '.'.repeat(COLS - 2);
+    tiles[ROWS - 1] = '.E' + '.'.repeat(COLS - 2);
+    const map = new GameMap({ name: 'vertical', tiles });
+    expect(map.outward({ col: 1, row: 0 })).toEqual([0, -1]);
+    expect(map.outward({ col: 1, row: ROWS - 1 })).toEqual([0, 1]);
+    expect(map.outward({ col: COLS - 1, row: 5 })).toEqual([1, 0]);
+    expect(map.outward({ col: 5, row: 5 })).toEqual([0, 0]);
+    expect(map.routes[0][0].y).toBeLessThan(0); // enters from above
+  });
+
+  it('nextTile stops at the exit and outside the field', () => {
+    const map = new GameMap(levelById('meadow'));
+    const field = map.distanceField();
+    expect(GameMap.nextTile(field, map.ends[0], null)).toBeNull();
+    expect(GameMap.nextTile(field, { col: -5, row: -5 }, null)).toBeNull();
+  });
+});

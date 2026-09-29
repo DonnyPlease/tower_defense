@@ -9,7 +9,8 @@ import type { Tile } from '../sim/map';
 import { FieldView, DEPTH } from '../view/FieldView';
 import { Hud, type HudHost } from '../ui/Hud';
 import { Overlay } from '../ui/Overlay';
-import { COLORS, CSS, addText, setupCamera, starString } from '../ui/theme';
+import { COLORS, CSS, addText, setupCamera } from '../ui/theme';
+import { starString } from '../ui/format';
 import { audio } from '../audio/audio';
 import {
   loadProfile, saveProfile, playerModifiers, unlockedTowers, recordWin, recordEndless, starsFor,

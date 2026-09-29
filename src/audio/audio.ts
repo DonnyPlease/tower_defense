@@ -23,7 +23,7 @@ const PROGRESSION = [
 const ARP = [0, 1, 2, 1, 0, 2, 1, 2];
 const BPM = 104;
 
-class AudioEngine {
+export class AudioEngine {
   private ctx: AudioContext | null = null;
   private sfxGain!: GainNode;
   private musicGain!: GainNode;
