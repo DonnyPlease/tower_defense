@@ -7,7 +7,7 @@ import type { Tower } from '../sim/tower';
 import type { Bullet } from '../sim/bullet';
 import { GameMap, tileCenter, type Tile } from '../sim/map';
 import { audio, type SfxName } from '../audio/audio';
-import { COLORS, CSS, addText, lerp, lerpAngle, spriteScale } from '../ui/theme';
+import { COLORS, CSS, GEN, addText, lerp, lerpAngle, spriteScale } from '../ui/theme';
 
 // Depths of the layers inside the playing field.
 export const DEPTH = {
@@ -299,9 +299,10 @@ export class FieldView {
       }
       const x = lerp(b.prevX, b.x, alpha), y = lerp(b.prevY, b.y, alpha);
       if (b.type === 'shell') {
-        // Fake a ballistic arc: shells grow towards the middle of their flight.
+        // Fake a ballistic arc: shells grow a little towards the middle of their flight.
+        // The texture is drawn at GEN x size, so 1 / GEN is its normal (6 px) size.
         const p = b.flight > 0 ? b.travelled / b.flight : 1;
-        img.setPosition(x, y).setScale(1 + Math.sin(Math.PI * p) * 0.8);
+        img.setPosition(x, y).setScale((1 + Math.sin(Math.PI * p) * 0.5) / GEN);
       } else {
         img.setPosition(x, y).setRotation(b.angle);
       }
