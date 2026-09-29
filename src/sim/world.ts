@@ -1,64 +1,100 @@
 import {
   TICK_RATE, TOWERS, WAVES, STARTING_MONEY, STARTING_LIVES, WAVE_HP_GROWTH, waveBonus,
-} from './config.js';
-import { GameMap } from './map.js';
-import { Enemy } from './enemy.js';
-import { Tower } from './tower.js';
+  type MapDef, type Wave, type TowerKind, type EnemyType, type BulletType,
+} from '../config';
+import { GameMap } from './map';
+import { Enemy } from './enemy';
+import { Tower } from './tower';
+import type { Bullet } from './bullet';
 
-// The whole game simulation for one level. It knows nothing about rendering
-// or input, so it can run headless (see tests/).
+export type GameStatus = 'playing' | 'won' | 'lost';
+
+/** Things that happened during a tick; the view drains them for effects. */
+export type WorldEvent =
+  | { type: 'build'; x: number; y: number; kind: TowerKind }
+  | { type: 'sell'; x: number; y: number; amount: number }
+  | { type: 'shot'; x: number; y: number; kind: TowerKind }
+  | { type: 'hit'; x: number; y: number; bullet: BulletType }
+  | { type: 'kill'; x: number; y: number; amount: number; enemy: EnemyType }
+  | { type: 'leak'; x: number; y: number; amount: number }
+  | { type: 'waveStarted'; wave: number }
+  | { type: 'waveCleared'; wave: number; amount: number }
+  | { type: 'won' }
+  | { type: 'lost' };
+
+export interface WorldOptions {
+  waves?: Wave[];
+  money?: number;
+  lives?: number;
+}
+
+/**
+ * The whole game simulation for one level. It knows nothing about rendering
+ * or input, so it can run headless (see tests/).
+ */
 export class World {
-  constructor(mapDef, { waves = WAVES, money = STARTING_MONEY, lives = STARTING_LIVES } = {}) {
+  readonly map: GameMap;
+  readonly waves: Wave[];
+  money: number;
+  lives: number;
+  tick = 0;
+  enemies: Enemy[] = [];
+  towers: Tower[] = [];
+  bullets: Bullet[] = [];
+  waveIndex = -1; // index of the last started wave
+  status: GameStatus = 'playing';
+  events: WorldEvent[] = [];
+
+  private spawnQueue: { tick: number; type: EnemyType }[] = [];
+  private routeCounter = 0;
+
+  constructor(mapDef: MapDef, opts: WorldOptions = {}) {
     this.map = new GameMap(mapDef);
-    this.waves = waves;
-    this.money = money;
-    this.lives = lives;
-    this.tick = 0;
-    this.enemies = [];
-    this.towers = [];
-    this.bullets = [];
-    this.waveIndex = -1; // index of the last started wave
-    this.spawnQueue = []; // [{ tick, type }] sorted by tick
-    this.status = 'playing'; // 'playing' | 'won' | 'lost'
-    this.events = []; // things that happened, drained by the renderer
-    this.routeCounter = 0;
+    this.waves = opts.waves ?? WAVES;
+    this.money = opts.money ?? STARTING_MONEY;
+    this.lives = opts.lives ?? STARTING_LIVES;
   }
 
   // ---- queries -------------------------------------------------------------
 
-  get waveInProgress() {
+  get waveInProgress(): boolean {
     return this.spawnQueue.length > 0 || this.enemies.length > 0;
   }
 
-  get canStartWave() {
+  get canStartWave(): boolean {
     return this.status === 'playing' && !this.waveInProgress &&
       this.waveIndex < this.waves.length - 1;
   }
 
-  towerAt(col, row) {
+  /** Enemies still to come in the current wave, including those on the field. */
+  get enemiesRemaining(): number {
+    return this.spawnQueue.length + this.enemies.length;
+  }
+
+  towerAt(col: number, row: number): Tower | null {
     return this.towers.find((t) => t.col === col && t.row === row) ?? null;
   }
 
-  canBuildAt(col, row) {
+  canBuildAt(col: number, row: number): boolean {
     return this.map.inBounds(col, row) && !this.map.isPath(col, row) && !this.towerAt(col, row);
   }
 
-  canAfford(kind) {
+  canAfford(kind: TowerKind): boolean {
     return this.money >= TOWERS[kind].cost;
   }
 
   // ---- actions -------------------------------------------------------------
 
-  build(kind, col, row) {
+  build(kind: TowerKind, col: number, row: number): Tower | null {
     if (this.status !== 'playing' || !this.canBuildAt(col, row) || !this.canAfford(kind)) return null;
     const tower = new Tower(kind, col, row);
     this.towers.push(tower);
     this.money -= tower.def.cost;
-    this.events.push({ type: 'build', x: tower.x, y: tower.y });
+    this.events.push({ type: 'build', x: tower.x, y: tower.y, kind });
     return tower;
   }
 
-  sell(col, row) {
+  sell(col: number, row: number): boolean {
     const tower = this.towerAt(col, row);
     if (!tower || this.status !== 'playing') return false;
     this.towers.splice(this.towers.indexOf(tower), 1);
@@ -67,7 +103,7 @@ export class World {
     return true;
   }
 
-  startNextWave() {
+  startNextWave(): boolean {
     if (!this.canStartWave) return false;
     this.waveIndex++;
     for (const group of this.waves[this.waveIndex]) {
@@ -77,10 +113,11 @@ export class World {
       }
     }
     this.spawnQueue.sort((a, b) => a.tick - b.tick);
+    this.events.push({ type: 'waveStarted', wave: this.waveIndex });
     return true;
   }
 
-  spawn(type) {
+  spawn(type: EnemyType): Enemy {
     const routes = this.map.routes;
     const route = routes[this.routeCounter++ % routes.length];
     const hp = 1 + WAVE_HP_GROWTH * Math.max(0, this.waveIndex);
@@ -91,13 +128,13 @@ export class World {
 
   // ---- simulation ----------------------------------------------------------
 
-  update() {
+  update(): void {
     if (this.status !== 'playing') return;
     this.tick++;
     const hadWave = this.waveInProgress;
 
     while (this.spawnQueue.length && this.spawnQueue[0].tick <= this.tick) {
-      this.spawn(this.spawnQueue.shift().type);
+      this.spawn(this.spawnQueue.shift()!.type);
     }
 
     for (const e of this.enemies) {

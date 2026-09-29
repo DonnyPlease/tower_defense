@@ -1,11 +1,22 @@
 {
   "name": "tower-defense",
   "version": "1.0.0",
-  "description": "A browser tower defense game (HTML5 Canvas, no dependencies)",
+  "description": "A browser tower defense game built with Phaser and TypeScript",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node tools/serve.js",
-    "test": "node --test tests/"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.2"
   }
 }

@@ -6,7 +6,7 @@ export const ROWS = 15;
 export const FIELD_W = COLS * TILE; // 800 - the playing field
 export const FIELD_H = ROWS * TILE; // 600
 export const SIDEBAR_W = 200;
-export const WIDTH = FIELD_W + SIDEBAR_W; // 1000 - logical canvas size
+export const WIDTH = FIELD_W + SIDEBAR_W; // 1000 - logical game size
 export const HEIGHT = FIELD_H;
 
 // The simulation runs at a fixed rate, independent of the monitor refresh
@@ -19,20 +19,33 @@ export const STARTING_LIVES = 20;
 export const SELL_REFUND = 0.5; // fraction of the cost returned when selling
 export const WAVE_HP_GROWTH = 0.15; // enemy hitpoints grow by 15 % per wave
 
-// Tower types. `sprite` is a folder in assets/towers containing 7 animation
-// frames (0.png - 6.png) pointing upwards.
+export type BulletType = 'normal' | 'missile';
+
+export interface TowerDef {
+  name: string;
+  sprite: string; // folder in public/assets/towers with frames 0.png-6.png, pointing up
+  cost: number;
+  range: number;
+  fireRate: number; // shots per second
+  damage: number;
+  bulletSpeed: number;
+  bulletType: BulletType;
+  hotkey: string;
+  description: string;
+}
+
 export const TOWERS = {
   missile: {
     name: 'Missile',
     sprite: 'tower1',
     cost: 50,
     range: 200,
-    fireRate: 0.8, // shots per second
+    fireRate: 0.8,
     damage: 6,
     bulletSpeed: 4,
-    bulletType: 'missile', // homing
-    hotkey: 'q',
-    description: 'Slow homing missiles. Cheap, never misses.',
+    bulletType: 'missile',
+    hotkey: 'Q',
+    description: 'Slow homing missiles. Cheap and never misses.',
   },
   gun: {
     name: 'Gun',
@@ -42,24 +55,47 @@ export const TOWERS = {
     fireRate: 3,
     damage: 3,
     bulletSpeed: 16,
-    bulletType: 'normal', // straight, aims ahead of the target
-    hotkey: 'w',
-    description: 'Rapid fire with target leading.',
+    bulletType: 'normal',
+    hotkey: 'W',
+    description: 'Rapid fire. Aims ahead of moving targets.',
   },
-};
+} satisfies Record<string, TowerDef>;
 
-// Enemy types. `sprite` is a folder in assets/enemies with 0.png facing right.
+export type TowerKind = keyof typeof TOWERS;
+export const TOWER_KINDS = Object.keys(TOWERS) as TowerKind[];
+
+export interface EnemyDef {
+  sprite: string; // folder in public/assets/enemies with 0.png facing right
+  speed: number;
+  hitpoints: number;
+  reward: number;
+  damage: number; // lives lost when it escapes
+  radius: number;
+}
+
 export const ENEMIES = {
   scout: { sprite: 'enemy1', speed: 1.5, hitpoints: 20, reward: 6, damage: 1, radius: 14 },
   tank: { sprite: 'enemy2', speed: 1.0, hitpoints: 110, reward: 20, damage: 3, radius: 17 },
   racer: { sprite: 'enemy3', speed: 3.2, hitpoints: 14, reward: 8, damage: 1, radius: 14 },
-};
+} satisfies Record<string, EnemyDef>;
+
+export type EnemyType = keyof typeof ENEMIES;
+export const ENEMY_TYPES = Object.keys(ENEMIES) as EnemyType[];
 
 // Waves: each group spawns `count` enemies of `type`, one every `interval`
 // seconds, starting `delay` seconds after the wave begins.
-const g = (type, count, interval, delay = 0) => ({ type, count, interval, delay });
+export interface SpawnGroup {
+  type: EnemyType;
+  count: number;
+  interval: number;
+  delay: number;
+}
+export type Wave = SpawnGroup[];
 
-export const WAVES = [
+const g = (type: EnemyType, count: number, interval: number, delay = 0): SpawnGroup =>
+  ({ type, count, interval, delay });
+
+export const WAVES: Wave[] = [
   [g('scout', 8, 1.0)],
   [g('scout', 12, 0.7)],
   [g('scout', 8, 0.8), g('racer', 4, 0.8, 3)],
@@ -72,11 +108,16 @@ export const WAVES = [
   [g('tank', 8, 1.2), g('scout', 16, 0.4, 1), g('racer', 12, 0.45, 6)],
 ];
 
-export const waveBonus = (waveIndex) => 25 + 10 * waveIndex;
+export const waveBonus = (waveIndex: number): number => 25 + 10 * waveIndex;
 
 // Maps are plain ASCII: '#' = path, '.' = buildable ground.
 // 'S' / 'E' are path tiles on the border where enemies enter / leave.
-export const MAPS = [
+export interface MapDef {
+  name: string;
+  tiles: string[];
+}
+
+export const MAPS: MapDef[] = [
   {
     name: 'Meadow',
     tiles: [
