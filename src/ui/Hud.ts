@@ -6,6 +6,7 @@ import type { World } from '../sim/world';
 import type { Tower } from '../sim/tower';
 import { Button } from './Button';
 import { COLORS, CSS, addText, spriteScale } from './theme';
+import { towerStatsText } from './format';
 
 /** What the sidebar needs from the game scene. */
 export interface HudHost {
@@ -36,25 +37,6 @@ const PANEL_H = 196;
 const MODE_LABEL: Record<TargetMode, string> = {
   first: 'First', last: 'Last', strongest: 'Strongest', closest: 'Closest',
 };
-
-export function towerStatsText(kind: TowerKind, level: number, opts: { range?: number; buff?: number } = {}): string {
-  const d = towerDef(kind), s = d.levels[level];
-  const range = Math.round(opts.range ?? s.range);
-  switch (d.behavior) {
-    case 'projectile': {
-      const lines = [`Damage ${s.damage}  ·  ${s.fireRate.toFixed(1)}/s`, `Range ${range}`];
-      if (s.splash) lines[1] += `  ·  Splash ${s.splash}`;
-      if (opts.buff) lines.push(`Boosted +${Math.round(opts.buff * 100)}% fire rate`);
-      return lines.join('\n');
-    }
-    case 'beam':
-      return `${s.damage} dps, heats to ${s.damage * 3}\nRange ${range}`;
-    case 'aura':
-      return `Slow ${Math.round((s.slow ?? 0) * 100)}%  ·  ${s.damage} dmg/s\nRange ${range}`;
-    case 'support':
-      return `+${Math.round((s.buff ?? 0) * 100)}% fire rate nearby\nRange ${range}`;
-  }
-}
 
 /** The right-hand sidebar: stats, build grid, context panel and wave controls. */
 export class Hud {

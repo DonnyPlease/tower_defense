@@ -254,3 +254,96 @@ describe('the game ends', () => {
     }
   });
 });
+
+describe('more world rules', () => {
+  it('slows wear off', () => {
+    const w = new World(meadow);
+    const e = w.spawn('scout');
+    e.applySlow(0.5, 3);
+    run(w, 3);
+    expect(e.slow).toBe(0);
+  });
+
+  it('ignores zero damage and hits on dead enemies', () => {
+    const w = new World(meadow);
+    const e = w.spawn('scout');
+    expect(e.hit(0)).toBe(false);
+    e.hit(1000);
+    expect(e.hit(5)).toBe(false);
+  });
+
+  it('refuses to sell a tower twice or change anything after the game ended', () => {
+    const w = new World(meadow);
+    const t = w.build('missile', 0, 0)!;
+    w.setTargetMode(t, 'last');
+    expect(t.targetMode).toBe('last');
+    expect(w.sell(t)).toBe(true);
+    expect(w.sell(t)).toBe(false);
+    w.status = 'lost';
+    const tick = w.tick;
+    w.update();
+    expect(w.tick).toBe(tick);
+    expect(w.build('missile', 0, 0)).toBeNull();
+  });
+
+  it('counts the enemies still to come', () => {
+    const w = new World(meadow);
+    w.startNextWave();
+    expect(w.enemiesRemaining).toBe(8);
+    expect(w.waveAt(99)).toBeNull();
+  });
+
+  it('beacons outside their range give no boost', () => {
+    const w = new World(meadow);
+    w.money = 10_000;
+    const far = w.build('gun', 19, 14)!;
+    w.build('support', 0, 0);
+    w.update();
+    expect(far.buff).toBe(0);
+  });
+});
+
+describe('more maze rules', () => {
+  const field = levelById('openfield');
+
+  it('refuses to build on a tile an enemy is walking to', () => {
+    const w = new World(field);
+    w.money = 10_000;
+    const e = w.spawn('scout');
+    run(w, 40); // walk onto the map
+    const t = e.nav.targetTile!;
+    expect(w.buildBlockReason(t.col, t.row)).toBe('enemy');
+  });
+
+  it('ignores drones when checking for blocked paths', () => {
+    const w = new World(field);
+    w.spawn('drone');
+    run(w, 40);
+    expect(w.buildBlockReason(3, 3)).toBeNull();
+  });
+
+  it('splitters in a maze hand their route to their minis', () => {
+    const w = new World(field);
+    w.money = 10_000;
+    const e = w.spawn('splitter');
+    run(w, 90);
+    e.hitpoints = 1;
+    w.build('gun', 3, 5);
+    w.build('gun', 3, 9);
+    for (let i = 0; i < 600 && e.alive; i++) w.update();
+    const minis = w.enemies.filter((m) => m.type === 'mini');
+    expect(minis.length).toBeGreaterThan(0);
+    for (let i = 0; i < 3000 && w.enemies.some((m) => m.type === 'mini'); i++) w.update();
+    expect(w.enemies.some((m) => m.type === 'mini')).toBe(false); // they all reached the exit or died
+  });
+
+  it('flow navigation reports the remaining distance, even when leaving', () => {
+    const w = new World(field);
+    const e = w.spawn('racer');
+    const start = e.remaining;
+    run(w, 60);
+    expect(e.remaining).toBeLessThan(start);
+    for (let i = 0; i < 2000 && e.nav.targetTile; i++) w.update();
+    expect(e.remaining).toBeLessThan(80);
+  });
+});

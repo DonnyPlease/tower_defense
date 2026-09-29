@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   resetProfile, loadProfile, recordWin, totalStars, availableStars, buyPerk, refundPerks,
   unlockedTowers, isLevelUnlocked, isEndlessUnlocked, starsFor, playerModifiers,
@@ -39,5 +39,43 @@ describe('profile', () => {
     expect(playerModifiers(p).money).toBe(80);
     refundPerks(p);
     expect(availableStars(p)).toBe(3);
+  });
+});
+
+describe('profile storage', () => {
+  it('records the best endless run', async () => {
+    const { resetProfile, recordEndless } = await import('../src/game/profile');
+    const p = resetProfile();
+    expect(recordEndless(p, 12)).toBe(true);
+    expect(recordEndless(p, 8)).toBe(false);
+    expect(p.endlessBest).toBe(12);
+  });
+
+  it('saves to and loads from localStorage', async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
+    vi.resetModules();
+    const a = await import('../src/game/profile');
+    const p = a.loadProfile();
+    a.recordWin(p, 'meadow', 2);
+    expect(JSON.parse(store.get('tower-defense-profile')!).stars.meadow).toBe(2);
+
+    vi.resetModules(); // simulate a page reload
+    const b = await import('../src/game/profile');
+    expect(b.loadProfile().stars.meadow).toBe(2);
+    vi.unstubAllGlobals();
+  });
+
+  it('starts fresh when the stored data is corrupt or from another version', async () => {
+    for (const raw of ['{not json', JSON.stringify({ v: 99, stars: { meadow: 3 } })]) {
+      vi.stubGlobal('localStorage', { getItem: () => raw, setItem: () => undefined });
+      vi.resetModules();
+      const { loadProfile } = await import('../src/game/profile');
+      expect(loadProfile().stars).toEqual({});
+      vi.unstubAllGlobals();
+    }
   });
 });

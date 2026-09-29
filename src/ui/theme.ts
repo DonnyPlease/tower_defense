@@ -67,21 +67,10 @@ export function addText(
   });
 }
 
-export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
 
-export function lerpAngle(a: number, b: number, t: number): number {
-  const diff = Math.atan2(Math.sin(b - a), Math.cos(b - a));
-  return a + diff * t;
-}
 
 /** Scale that shows a sprite texture at one tile (40 px), whatever its source size. */
 export function spriteScale(scene: Phaser.Scene, key: string): number {
   const w = scene.textures.get(key).getSourceImage().width || 40;
   return 40 / w;
-}
-
-export function starString(stars: number, max = 3): string {
-  return '★'.repeat(stars) + '☆'.repeat(Math.max(0, max - stars));
 }

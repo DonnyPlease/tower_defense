@@ -124,11 +124,12 @@ export class GameMap {
 
   /**
    * Next tile towards the exit, following the distance field and preferring
-   * to keep going in direction `dir` (fewer turns). Null at an exit.
+   * to keep going in direction `dir` (fewer turns). Null at an exit or when the
+   * tile can't reach one.
    */
   static nextTile(dist: DistanceField, cur: Tile, dir: Dir | null): Tile | null {
     const d = dist[cur.row]?.[cur.col] ?? Infinity;
-    if (d === 0) return null;
+    if (d === 0 || !Number.isFinite(d)) return null; // at the exit, or cut off from it
     const options = dir ? [dir, ...DIRS] : DIRS;
     for (const [dc, dr] of options) {
       const c = cur.col + dc, r = cur.row + dr;

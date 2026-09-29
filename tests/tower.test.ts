@@ -57,3 +57,26 @@ describe('Tower', () => {
     expect(new Tower('gun', 5, 10).pickTarget(w.enemies)).toBe(d);
   });
 });
+
+describe('aiming edge cases', () => {
+  it('handles a target exactly as fast as the bullet', () => {
+    // a == 0 in the intercept equation: catchable only when closing in.
+    expect(leadAngle(0, 0, { x: 100, y: 0, vx: -10, vy: 0 }, 10)).toBeCloseTo(0);
+    expect(leadAngle(0, 0, { x: 100, y: 0, vx: 0, vy: 10 }, 10)).toBeCloseTo(0); // no solution: direct aim
+  });
+
+  it('handles a stationary target at the tower', () => {
+    expect(Number.isFinite(leadAngle(0, 0, { x: 0, y: 0, vx: 0, vy: 0 }, 5))).toBe(true);
+  });
+
+  it('closest mode picks the nearest enemy', () => {
+    const w = new World(meadow);
+    const near = w.spawn('scout'), far = w.spawn('scout');
+    near.x = 230; near.y = 420;
+    far.x = 330; far.y = 420;
+    near.remaining = 900; far.remaining = 100;
+    const t = new Tower('gun', 5, 10);
+    t.targetMode = 'closest';
+    expect(t.pickTarget(w.enemies)).toBe(near);
+  });
+});

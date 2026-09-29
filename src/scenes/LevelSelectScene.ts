@@ -4,7 +4,8 @@ import { LEVELS, ENDLESS } from '../data/levels';
 import { GameMap } from '../sim/map';
 import { Button } from '../ui/Button';
 import { drawMinimap } from '../ui/minimap';
-import { COLORS, CSS, addText, setupCamera, starString } from '../ui/theme';
+import { COLORS, CSS, addText, setupCamera } from '../ui/theme';
+import { starString } from '../ui/format';
 import { loadProfile, isLevelUnlocked, isEndlessUnlocked, totalStars } from '../game/profile';
 import { audio } from '../audio/audio';
 

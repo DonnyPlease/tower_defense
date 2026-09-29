@@ -10,7 +10,6 @@ You need [Node.js](https://nodejs.org) 20 or newer.
 ```bash
 npm install
 npm run dev        # dev server with hot reload at http://localhost:5173
-npm test           # unit + balance tests for the game logic
 npm run build      # type-check and build a static site into dist/
 npm run preview    # serve the built dist/ folder
 ```
@@ -62,6 +61,30 @@ left off (at the start of the wave).
 
 **Sound.** All sound effects and the music are synthesised with the Web Audio
 API, so there are no audio files. You can toggle them in the menu or the sidebar.
+
+## Testing
+
+```bash
+npm test               # unit + balance tests (Vitest, a few seconds)
+npm run test:coverage  # the same, with a coverage report in coverage/index.html
+npm run build && npm run test:e2e   # browser smoke tests (Playwright)
+```
+
+- **Unit tests** (`tests/`) cover everything that runs without a browser:
+  the simulation, game data, saved profile, audio engine (against a fake
+  Web Audio API) and UI formatting helpers. Coverage must stay at least 97%
+  of lines and 92% of branches, or the run fails.
+- **Balance test** (`tests/balance.test.ts`): a greedy bot must win every level.
+- **Browser smoke tests** (`e2e/`) start the built game in Chromium and click
+  through it: menus, building, upgrading, selling, waves, saving and
+  continuing, winning, every map with a busy wave, and touch controls on a
+  phone-sized screen. They fail on any JavaScript error. The first time, run
+  `npx playwright install chromium` to download the browser.
+
+**CI:** `.github/workflows/ci.yml` runs on every pull request and push to
+`main`. Two jobs run in parallel: *Type-check, unit tests, build* (with a
+coverage table in the job summary) and *Browser smoke tests* (uploads the
+Playwright report if something fails).
 
 ## Controls
 
