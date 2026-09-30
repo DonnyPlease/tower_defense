@@ -22,6 +22,8 @@ func test_imul_wraps_like_javascript() -> void:
 	expect_eq(MathX.imul(-1, -1), 1)
 	expect_eq(MathX.js_round(-2.5), -2)
 	expect_eq(MathX.js_round(2.5), 3)
+	expect_eq(MathX.to_fixed(30.25, 1), "30.3")
+	expect_eq(MathX.to_fixed(12.6, 1), "12.6")
 
 
 func test_endless_waves_match_the_javascript_version() -> void:

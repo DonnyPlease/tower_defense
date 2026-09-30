@@ -28,12 +28,12 @@ func _initialize() -> void:
 		var cells: PackedStringArray = []
 		for skill: String in BalanceReport.SKILL_NAMES:
 			var h: BalanceReport.HumanStats = r.humans[skill]
-			cells.append("%4d%% (♥%4.1f)" % [roundi(h.win_rate * 100), h.avg_lives])
+			cells.append("%4d%% (♥%4s)" % [MathX.js_round(h.win_rate * 100), MathX.to_fixed(h.avg_lives, 1)])
 		print("%-12s %-39s %-22s %s" % [level.id, ",".join(r.unlocked), expert, "  ".join(cells)])
 
 	if only.is_empty() or only.has("endless"):
 		var parts: PackedStringArray = []
 		for skill: String in BalanceReport.SKILL_NAMES:
-			parts.append("%s %.1f" % [skill, BalanceReport.endless_waves(BalanceReport.SKILLS[skill], mini(games, 8))])
+			parts.append("%s %s" % [skill, MathX.to_fixed(BalanceReport.endless_waves(BalanceReport.SKILLS[skill], mini(games, 8)), 1)])
 		print("endless      average waves survived: %s" % ", ".join(parts))
 	quit(0)

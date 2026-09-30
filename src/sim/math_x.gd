@@ -12,6 +12,13 @@ static func js_round(x: float) -> int:
 	return floori(x + 0.5)
 
 
+## Number.prototype.toFixed: `digits` decimals, halves rounded up (printf's
+## "%.1f" rounds an exact 30.25 down to 30.2; JavaScript prints 30.3).
+static func to_fixed(x: float, digits: int) -> String:
+	var scale: float = pow(10.0, digits)
+	return ("%." + str(digits) + "f") % (js_round(x * scale) / scale)
+
+
 static func hypot(x: float, y: float) -> float:
 	return sqrt(x * x + y * y)
 
