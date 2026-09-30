@@ -2,12 +2,6 @@ class_name Palette
 extends RefCounted
 ## Colours shared by the UI and the renderer.
 
-
-## Colour from a 0xRRGGBB value.
-static func rgb(hex: int, alpha: float = 1.0) -> Color:
-	return Color(((hex >> 16) & 0xFF) / 255.0, ((hex >> 8) & 0xFF) / 255.0, (hex & 0xFF) / 255.0, alpha)
-
-
 const BACKGROUND: Color = Color("#14171f")
 const PANEL: Color = Color("#1e2230")
 const PANEL_LIGHT: Color = Color("#2a3042")
@@ -34,3 +28,8 @@ const BRIDGE_DARK: Color = Color("#6e4a27")
 # Text colours.
 const TEXT: Color = Color("#e8ecf4")
 const TEXT_DIM: Color = Color("#9aa3b8")
+
+
+## Colour from a 0xRRGGBB value.
+static func rgb(hex: int, alpha: float = 1.0) -> Color:
+	return Color(((hex >> 16) & 0xFF) / 255.0, ((hex >> 8) & 0xFF) / 255.0, (hex & 0xFF) / 255.0, alpha)

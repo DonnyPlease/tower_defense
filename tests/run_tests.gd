@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless test runner.
 ##
-##   godot --headless -s res://tests/run_tests.gd -- [suite ...] [--filter=text]
+##   godot --headless -s res://tests/run_tests.gd -- [suite ...] [--filter=text[,text...]]
 ##
 ## Suites are folders under tests/ (unit, smoke, balance); without any, unit
 ## and smoke run. Every tests/<suite>/test_*.gd extends TestCase; its methods
@@ -20,10 +20,10 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var suites: Array[String] = []
-	var filter: String = ""
+	var filters: PackedStringArray = [] # a test runs if its name contains any of them
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--filter="):
-			filter = arg.trim_prefix("--filter=")
+			filters = arg.trim_prefix("--filter=").split(",", false)
 		else:
 			suites.append(arg)
 	if suites.is_empty():
@@ -48,14 +48,17 @@ func _run() -> void:
 				printerr("Can't load %s/%s" % [dir, file])
 				failed.append(file)
 				continue
-			print("\n%s/%s" % [suite, file])
+			var header: String = "\n%s/%s" % [suite, file]
 			for method: Dictionary in script.get_script_method_list():
 				var name: String = method["name"]
 				if not name.begins_with("test_"):
 					continue
 				var full: String = "%s/%s > %s" % [suite, file.get_basename(), name]
-				if not filter.is_empty() and not full.contains(filter):
+				if not filters.is_empty() and not Array(filters).any(func(f: String) -> bool: return full.contains(f)):
 					continue
+				if not header.is_empty():
+					print(header) # only for files with tests to run
+					header = ""
 				var test: TestCase = script.new()
 				test.tree = self
 				var t0: int = Time.get_ticks_msec()

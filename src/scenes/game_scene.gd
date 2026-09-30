@@ -11,8 +11,6 @@ const BLOCK_MESSAGE: Dictionary[World.BlockReason, String] = {
 	World.BlockReason.ENEMY: "Enemy in the way",
 	World.BlockReason.BLOCKS_PATH: "That would block the path",
 }
-const D_OVERLAY: int = 45
-const D_FLOATERS: int = 60
 const GHOST_BLOCKED: Color = Color("#ff8080")
 
 var world: World
@@ -64,22 +62,22 @@ func _ready() -> void:
 	field = FieldView.new(world)
 	field.fx = fx
 	_stage.add_child(field)
-	_hover = DrawNode.new(_draw_hover, D_OVERLAY)
+	_hover = DrawNode.new(_draw_hover, FieldView.D_OVERLAY)
 	_stage.add_child(_hover)
 	_ghost = DrawNode.new(func(ci: CanvasItem) -> void:
 		if not tool.is_empty():
-			TowerArt.draw_icon(ci, tool, Vector2.ZERO, Config.TILE), D_OVERLAY)
+			TowerArt.draw_icon(ci, tool, Vector2.ZERO, Config.TILE), FieldView.D_OVERLAY)
 	_ghost.visible = false
 	_stage.add_child(_ghost)
 	_hint = Ui.text(_stage, 0, 0, "", 13, Palette.RED, true, Vector2(0.5, 1)).set_outline(3)
-	_hint.z_index = D_FLOATERS
+	_hint.z_index = FieldView.D_FLOATERS
 	_banner = Ui.text(_stage, Config.FIELD_W / 2.0, 70, "", 30, Palette.TEXT, true, Vector2(0.5, 0.5)).set_outline(5)
-	_banner.z_index = D_FLOATERS
+	_banner.z_index = FieldView.D_FLOATERS
 	_banner.modulate.a = 0
-	_boss_bar = DrawNode.new(_draw_boss_bar, D_FLOATERS)
+	_boss_bar = DrawNode.new(_draw_boss_bar, FieldView.D_FLOATERS)
 	_stage.add_child(_boss_bar)
 	_boss_text = Ui.text(_stage, Config.FIELD_W / 2.0, 12, "", 13, Palette.TEXT, true, Vector2(0.5, 0)).set_outline(3)
-	_boss_text.z_index = D_FLOATERS
+	_boss_text.z_index = FieldView.D_FLOATERS
 	hud = Hud.new(self)
 	_stage.add_child(hud)
 

@@ -43,7 +43,16 @@ var ends: Array[Vector2i] = []
 ## Why the map is invalid, or "" for a valid map.
 var error: String = ""
 var _terrain: PackedInt32Array
+var _walkable: PackedByteArray ## 1 where ground enemies may walk (ignoring towers)
 var _key: String
+# For every tile, the top-left corners of the unwalkable tiles among its 3 x 3
+# neighbours, so clearance lookups during route smoothing are fast. Tile k's
+# obstacles are at indices _obstacle_start[k] until _obstacle_end[k];
+# _obstacle_start[k] is -1 if tile k itself is unwalkable.
+var _obstacle_start: PackedInt32Array
+var _obstacle_end: PackedInt32Array
+var _obstacle_x0: PackedFloat64Array
+var _obstacle_y0: PackedFloat64Array
 
 
 func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> void:
@@ -64,6 +73,9 @@ func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> vo
 				starts.append(Vector2i(c, r))
 			if ch == "E":
 				ends.append(Vector2i(c, r))
+	_walkable.resize(Config.COLS * Config.ROWS)
+	for k: int in _terrain.size():
+		_walkable[k] = 1 if _is_walkable_terrain(_terrain[k] as Terrain) else 0
 	if starts.is_empty() or ends.is_empty():
 		error = 'Map "%s" needs at least one S and one E tile' % name
 		return
@@ -128,6 +140,11 @@ func _shared_routes() -> Shared:
 	return shared
 
 
+## Identifies the map's tiles (and maze flag): maps with the same key are the same.
+func key() -> String:
+	return _key
+
+
 ## Builds this map's routes now (e.g. on a background thread while a menu is open).
 func warm_up() -> void:
 	_shared_routes()
@@ -164,7 +181,10 @@ func is_high_ground(col: int, row: int) -> bool:
 
 ## Whether ground enemies may walk here, ignoring towers.
 func is_walkable(col: int, row: int) -> bool:
-	var t: Terrain = terrain_at(col, row)
+	return in_bounds(col, row) and _walkable[row * Config.COLS + col] != 0
+
+
+func _is_walkable_terrain(t: Terrain) -> bool:
 	if t == Terrain.ROAD or t == Terrain.BRIDGE:
 		return true
 	return maze and (t == Terrain.GRASS or t == Terrain.HIGH)
@@ -175,30 +195,50 @@ func is_walkable(col: int, row: int) -> bool:
 ## `blocked` marks extra obstacles (towers in maze levels): a non-zero byte
 ## per tile, or an empty array for none.
 func distance_field(blocked: PackedByteArray = PackedByteArray(), exits: Array[Vector2i] = []) -> PackedInt32Array:
+	var n: int = Config.COLS * Config.ROWS
+	var cols: int = Config.COLS
 	var dist := PackedInt32Array()
-	dist.resize(Config.COLS * Config.ROWS)
+	dist.resize(n)
 	dist.fill(UNREACHABLE)
-	var queue: Array[Vector2i] = []
-	for e: Vector2i in (exits if not exits.is_empty() else ends):
-		dist[e.y * Config.COLS + e.x] = 0
-		queue.append(e)
+	var sources: Array[Vector2i] = exits if not exits.is_empty() else ends
+	# Every tile enters the queue at most once (plus possibly repeated exits).
+	var queue := PackedInt32Array()
+	queue.resize(n + sources.size())
+	var tail: int = 0
+	for e: Vector2i in sources:
+		var k: int = e.y * cols + e.x
+		dist[k] = 0
+		queue[tail] = k
+		tail += 1
 	var has_blocked: bool = not blocked.is_empty()
-	var i: int = 0
-	while i < queue.size():
-		var cur: Vector2i = queue[i]
-		i += 1
-		var d: int = dist[cur.y * Config.COLS + cur.x]
-		for dir: Vector2i in DIRS:
-			var c: int = cur.x + dir.x
-			var r: int = cur.y + dir.y
-			if not is_walkable(c, r):
-				continue
-			var k: int = r * Config.COLS + c
-			if has_blocked and blocked[k] != 0:
-				continue
-			if dist[k] == UNREACHABLE:
-				dist[k] = d + 1
-				queue.append(Vector2i(c, r))
+	var walk: PackedByteArray = _walkable
+	var head: int = 0
+	while head < tail:
+		var k: int = queue[head]
+		head += 1
+		var d: int = dist[k] + 1
+		var c: int = k % cols
+		# Right, down, left, up (unrolled: this runs a lot while planning mazes).
+		var nk: int = k + 1
+		if c + 1 < cols and walk[nk] != 0 and dist[nk] == UNREACHABLE and not (has_blocked and blocked[nk] != 0):
+			dist[nk] = d
+			queue[tail] = nk
+			tail += 1
+		nk = k + cols
+		if nk < n and walk[nk] != 0 and dist[nk] == UNREACHABLE and not (has_blocked and blocked[nk] != 0):
+			dist[nk] = d
+			queue[tail] = nk
+			tail += 1
+		nk = k - 1
+		if c > 0 and walk[nk] != 0 and dist[nk] == UNREACHABLE and not (has_blocked and blocked[nk] != 0):
+			dist[nk] = d
+			queue[tail] = nk
+			tail += 1
+		nk = k - cols
+		if nk >= 0 and walk[nk] != 0 and dist[nk] == UNREACHABLE and not (has_blocked and blocked[nk] != 0):
+			dist[nk] = d
+			queue[tail] = nk
+			tail += 1
 	return dist
 
 
@@ -324,15 +364,6 @@ func _clearance_at(x: float, y: float) -> float:
 		best = minf(best, sqrt(dx * dx + dy * dy))
 	return best
 
-
-# For every tile, the top-left corners of the unwalkable tiles among its 3 x 3
-# neighbours, so clearance lookups during route smoothing are fast. Tile k's
-# obstacles are at indices _obstacle_start[k] until _obstacle_end[k];
-# _obstacle_start[k] is -1 if tile k itself is unwalkable.
-var _obstacle_start: PackedInt32Array
-var _obstacle_end: PackedInt32Array
-var _obstacle_x0: PackedFloat64Array
-var _obstacle_y0: PackedFloat64Array
 
 
 func _build_obstacles() -> void:

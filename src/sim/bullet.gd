@@ -110,7 +110,7 @@ func find_hit(enemies: Array[Enemy]) -> Enemy:
 	var best: Enemy = null
 	var best_t: float = INF
 	for e: Enemy in enemies:
-		if not can_hit(e):
+		if not e.alive or not (hits_air if e.flying else hits_ground): # can_hit(), inlined
 			continue
 		var r: float = e.radius + radius
 		var t: float = ((e.x - sx) * dx + (e.y - sy) * dy) / len2 if len2 > 0 else 0.0

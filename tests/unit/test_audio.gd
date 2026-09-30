@@ -141,6 +141,20 @@ func test_plays_nothing_when_effects_are_muted() -> void:
 	a.set_sfx(true)
 
 
+func test_renders_everything_on_a_worker_thread() -> void:
+	var a: AudioEngine = make_engine()
+	a.set_music(false)
+	a.start(RATE, RATE, true)
+	# Real time, not frames: headless frames take next to no time.
+	var deadline: int = Time.get_ticks_msec() + 20_000
+	while not a.is_ready() and Time.get_ticks_msec() < deadline:
+		await frames(1)
+	expect_true(a.is_ready(), "all sounds were synthesised")
+	a.now_override_msec = 5000
+	a.play("win")
+	expect_eq(a.plays, 1)
+
+
 func test_plays_music_and_stops_when_muted() -> void:
 	var a: AudioEngine = make_engine()
 	a.render_now(RATE, RATE)

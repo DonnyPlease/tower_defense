@@ -1,22 +1,20 @@
 # Tower Defense
 
-A browser tower defense game built with [Phaser 4](https://phaser.io) and TypeScript.
-It runs in any modern browser, works with mouse or touch, and scales to any screen.
+A tower defense game made with [Godot 4](https://godotengine.org) in statically
+typed GDScript. It plays with mouse or touch, scales to any screen, and exports
+to desktop, the web and mobile.
 
 ## Running it
 
-You need [Node.js](https://nodejs.org) 20 or newer.
+You need **Godot 4.4 or newer** (the standard build; the .NET build isn't needed).
 
-```bash
-npm install
-npm run dev        # dev server with hot reload at http://localhost:5173
-npm run build      # type-check and build a static site into dist/
-npm run preview    # serve the built dist/ folder
-```
+- **Editor:** open Godot, choose *Import*, pick `project.godot`, then press
+  <kbd>F5</kbd> to play.
+- **Command line:** `godot --path .` from this folder.
 
-`dist/` is a plain static site. You can upload it to GitHub Pages, itch.io or
-any web host, or wrap it as an Android/iOS app with
-[Capacitor](https://capacitorjs.com).
+To ship the game, use *Project → Export* in the editor (install the export
+templates when it asks). Web, Windows, Linux, macOS and Android all work; the
+project uses the Compatibility renderer, which is what web builds need.
 
 ## The game
 
@@ -46,8 +44,8 @@ choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
 
 **10 enemy types:** Scout, Racer, Tank, Armored (flat damage reduction),
 Shielded (recharging shield), Splitter (breaks into 3 minis), Medic (heals
-others), Drone (flies straight over everything), and the Warlord boss
-(armored, summons reinforcements).
+others), Drone (flies straight over everything), the Juggernaut mini-boss and
+the Warlord boss (armored, summons reinforcements).
 
 **Economy.** You get a bonus for every wave you clear, plus 5% interest on
 unspent money. Call the next wave early for extra cash. The sidebar shows what
@@ -55,59 +53,14 @@ the next wave contains.
 
 **Progression.** Earn 1–3 stars per level: 3 for losing no lives, 2 for keeping
 at least half. Stars unlock towers and buy permanent upgrades (starting money,
-lives, cheaper towers, damage). Progress and a game in progress are saved in
-the browser automatically, and **Continue** on the main menu resumes where you
-left off (at the start of the wave).
+lives, cheaper towers, damage). Progress and a game in progress are saved
+automatically (in Godot's `user://` folder; the browser's storage in web
+builds), and **Continue** on the main menu resumes where you left off (at the
+start of the wave).
 
-**Sound.** All sound effects and the music are synthesised with the Web Audio
-API, so there are no audio files. You can toggle them in the menu or the sidebar.
-
-## Testing
-
-```bash
-npm test               # unit + balance tests (Vitest, a few seconds)
-npm run test:coverage  # the same, with a coverage report in coverage/index.html
-npm run build && npm run test:e2e   # browser smoke tests (Playwright)
-```
-
-- **Unit tests** (`tests/`) cover everything that runs without a browser:
-  the simulation, game data, saved profile, audio engine (against a fake
-  Web Audio API) and UI formatting helpers. Coverage must stay at least 97%
-  of lines and 92% of branches, or the run fails.
-- **Balance tests** (`tests/balance.test.ts`) guard the difficulty curve (see below).
-- **Browser smoke tests** (`e2e/`) start the built game in Chromium and click
-  through it: menus, building, upgrading, selling, waves, saving and
-  continuing, winning, every map with a busy wave, and touch controls on a
-  phone-sized screen. They fail on any JavaScript error. The first time, run
-  `npx playwright install chromium` to download the browser.
-
-**CI:** `.github/workflows/ci.yml` runs on every pull request and push to
-`main`. Two jobs run in parallel: *Type-check, unit tests, build* (with a
-coverage table in the job summary) and *Browser smoke tests* (uploads the
-Playwright report if something fails).
-
-## Balancing
-
-`balance/` contains simulated players:
-
-- **Expert:** a strategy with tunable preferences (tower mix, upgrade
-  eagerness, maze building, calling waves early). `searchExpert` tries many
-  settings and keeps the best, which approximates optimal play.
-- **Human-like players** with a skill from 0 (novice) to 1 (good). They place
-  towers imperfectly, pick tower types semi-randomly and don't always spend well.
-  Each is played with many fixed seeds to get a win rate.
-
-Each level is played with the towers a typical player has unlocked by then.
-
-```bash
-npm run balance          # report: expert result + novice/average/good win rates per level
-npm run balance:tune     # finds each level's hpScale for its target win rate
-```
-
-Current targets (in `balance/tune.ts`): Meadow is won by about 75% of
-novices; Riverside, Highlands and Open Field by about 75%, 70% and 60% of
-average players; the best strategy found keeps all lives on every level. Each
-level's `hpScale` in `src/data/levels.ts` is the main difficulty knob.
+**Sound.** All sound effects and the music are synthesised when the game
+starts (on a background thread), so there are no audio files. You can toggle
+them in the menu or the sidebar.
 
 ## Controls
 
@@ -122,31 +75,107 @@ level's `hpScale` in `src/data/levels.ts` is the main difficulty knob.
 | `F` | Speed 1x / 2x / 3x |
 | `M` | Music on/off |
 
+## Testing
+
+The tests run headless with the Godot binary. Set `GODOT` if it isn't on your
+`PATH` as `godot`:
+
+```bash
+tests/run.sh                    # unit + scene tests (about 10 s)
+tests/run.sh balance            # balance tests (several minutes)
+tests/run.sh unit --filter=maze # only tests whose name contains "maze"
+```
+
+- **Unit tests** (`tests/unit/`) cover the simulation, the game data, the
+  saved profile, the synthesiser and audio engine, and the UI formatting
+  helpers. `test_scripts.gd` loads every script in the project, so a type error
+  anywhere fails the run.
+- **Determinism tests** (`test_determinism.gd`) check that the random numbers
+  and endless waves are exactly those of the original JavaScript version of
+  the game.
+- **Scene tests** (`tests/smoke/`) start the real screens and click, tap and
+  type like a player: menus, building, upgrading, selling, waves, saving and
+  continuing, winning and losing, every map with a busy wave, the upgrades
+  screen and touch controls.
+- **Balance tests** (`tests/balance/`) guard the difficulty curve (see below).
+
+GDScript has no exceptions, so a crashing test only prints a `SCRIPT ERROR`;
+`tests/run.sh` fails the run on any script or engine error.
+
+`tools/screenshots.tscn` renders every screen to PNG files (it needs a
+display, e.g. `xvfb-run`):
+
+```bash
+godot --path . res://tools/screenshots.tscn -- /tmp/screenshots
+```
+
+**CI:** `.github/workflows/ci.yml` runs on every pull request and push to
+`main`: the unit and scene tests, the balance tests (split over five parallel
+jobs), and a job that renders every screen with a virtual display and uploads
+the screenshots.
+
+## Typed GDScript
+
+Every variable, parameter and return value has a static type, and the project
+settings turn Godot's typing warnings into errors (`untyped_declaration`,
+`unsafe_property_access`, `unsafe_method_access`, `unsafe_call_argument`,
+`integer_division`, `narrowing_conversion`). Data from JSON is converted with
+explicit checks (`src/util/json_read.gd`).
+
+## Balancing
+
+`balance/` contains simulated players:
+
+- **Expert:** a strategy with tunable preferences (tower mix, upgrade
+  eagerness, maze building, calling waves early). `search_expert` tries many
+  settings and keeps the best, which approximates optimal play.
+- **Human-like players** with a skill from 0 (novice) to 1 (good). They place
+  towers imperfectly, pick tower types semi-randomly and don't always spend well.
+  Each is played with many fixed seeds to get a win rate.
+
+Each level is played with the towers a typical player has unlocked by then.
+
+```bash
+godot --headless -s res://balance/report.gd              # expert result + win rates per level
+godot --headless -s res://balance/report.gd -- --quick   # fewer games, rougher numbers
+godot --headless -s res://balance/tune.gd                # each level's hp_scale for its target win rate
+```
+
+Current targets (in `balance/tune.gd`): Meadow is won by about 75% of
+novices; Riverside, Highlands and Open Field by about 75%, 70% and 60% of
+average players; the best strategy found keeps all lives on every level. Each
+level's `hp_scale` in `src/data/levels.gd` is the main difficulty knob.
+
 ## Project layout
 
 ```
+project.godot        engine settings (1000 x 600 logical size, strict typing)
+scenes/              the four screens: menu, level select, upgrades, game
 src/
-  config.ts          global constants (sizes, tick rate, economy formulas)
+  config.gd          global constants (sizes, tick rate, economy formulas)
   data/              game content, which is the place to tweak and add things
-    towers.ts        tower stats per level
-    enemies.ts       enemy stats and abilities
-    levels.ts        maps, waves, endless wave generator
-    perks.ts         permanent upgrades bought with stars
-  sim/               the game rules, plain TypeScript with no Phaser
-    world.ts         one game: money, lives, waves, building, the update tick
-    map.ts           map parsing, terrain, pathfinding, distance fields
-    route.ts         smooth curved routes along the middle of the road, with lane widths
-    nav.ts           how enemies move: lanes and weaving on roads, steering in mazes
-    enemy.ts  tower.ts  bullet.ts
-    fixedStep.ts     fixed-timestep loop helper
-  game/profile.ts    saved progress: stars, perks, settings, saved game
-  audio/audio.ts     procedural sound effects and music
-  view/FieldView.ts  draws a World with Phaser (sprites, particles, effects)
-  view/towerArt.ts   procedural art for the Gun and Missile towers
-  ui/                sidebar HUD, buttons, dialogs, colours, minimaps
-  scenes/            Boot, Menu, LevelSelect, Upgrades, Game
-public/assets/       enemy sprite files (everything else is drawn in code)
-tests/               Vitest tests, including a bot that must beat every level
+    towers.gd        tower stats per level
+    enemies.gd       enemy stats and abilities
+    levels.gd        maps, waves, endless wave generator
+    perks.gd         permanent upgrades bought with stars
+  sim/               the game rules; no nodes, no rendering
+    world.gd         one game: money, lives, waves, building, the update tick
+    game_map.gd      map parsing, terrain, pathfinding, distance fields
+    route.gd         smooth curved routes along the middle of the road, with lane widths
+    route_nav.gd     how enemies walk roads: lanes and weaving
+    flow_nav.gd      how enemies walk mazes: vehicle-like steering
+    enemy.gd  tower.gd  bullet.gd  aim.gd
+    fixed_step.gd    fixed-timestep loop helper
+    math_x.gd  mulberry32.gd   JavaScript-exact maths and random numbers
+  game/              saved profile, screen switching (the Router autoload)
+  audio/             synthesiser, sound recipes, the Audio autoload
+  view/              draws a World: vector art for towers and enemies, effects
+  ui/                sidebar, buttons, dialogs, colours, fonts
+  scenes/            the scripts of the screens
+assets/              enemy sprites; symbol fonts (Noto, SIL Open Font License)
+balance/             simulated players, balance report and tuner
+tests/               test runner, unit, scene and balance tests
+tools/               screenshot renderer
 ```
 
 **Enemy movement.** Roads are turned into smooth curves that keep to the
@@ -159,21 +188,25 @@ The **simulation** (`src/sim`) and the **view** are kept apart. The simulation
 runs at a fixed 60 ticks per second, whatever the monitor's refresh rate. The
 view reads its state every frame and interpolates between ticks, so movement
 stays smooth on 60, 120 or 144 Hz screens. Because of this split, the whole
-game is tested headlessly: `tests/balance.test.ts` has a simple greedy bot play
-every level and fails if one becomes unbeatable.
+game is tested headlessly, and the balance tests play thousands of games.
 
 ## Adding content
 
-- **New tower:** add an entry to `TOWERS` in `src/data/towers.ts` and give it
-  art. Either draw it in code (see `src/view/towerArt.ts`: a still `<kind>-base`
-  plate plus rotating turret frames `<kind>-0`, `<kind>-1`, …), or put PNG
-  frames (pointing up) in `public/assets/towers/<folder>/` and set `sprite`.
-- **New enemy:** add an entry to `ENEMIES` in `src/data/enemies.ts` and a
-  texture (facing right). Abilities (`armor`, `shield`, `flying`, `split`,
-  `heal`, `summon`) are just fields.
-- **New level:** add a 20×15 map to `LEVELS` in `src/data/levels.ts`. The file
-  documents the tile letters (road, grass, high ground, rock, water, bridge,
-  entry and exit). Set `maze: true` to let enemies walk on grass.
-- Run `npm test` afterwards. The balance test tells you if the level is still winnable.
+- **New tower:** add it to `_build()` in `src/data/towers.gd` and to `KINDS`,
+  and give it art. Either draw it in code (see `src/view/tower_art.gd`), or put
+  PNG frames (pointing up) in `assets/towers/<folder>/0.png`, `1.png`, … and
+  set the tower's `sprite` to the folder name.
+- **New enemy:** add it to `src/data/enemies.gd` and `TYPES`, and give it art
+  (facing right) in `src/view/enemy_art.gd`. Abilities (`armor`, `shield`,
+  `flying`, `split`, `heal`, `summon`) are just fields.
+- **New level:** add a 20×15 map to `src/data/levels.gd`. `LevelDef` documents
+  the tile letters (road, grass, high ground, rock, water, bridge, entry and
+  exit). Set `maze` to let enemies walk on grass.
+- Run `tests/run.sh` and `tests/run.sh balance` afterwards. The balance tests
+  tell you if the level is still winnable.
 
-Debug from the browser console: `game.scene.getScene('game').world.spawn('boss')`.
+**Debugging:** while the game runs from the editor, the *Remote* scene tree
+shows the live nodes and lets you inspect and change their properties. The
+simulation is plain GDScript objects, so the quickest way to try things is a
+line in `GameScene._ready()`, e.g. `world.money = 10000` or
+`world.spawn("boss")`.

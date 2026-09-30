@@ -101,8 +101,16 @@ func in_range(ex: float, ey: float, radius: float, reach: float = -1.0) -> bool:
 func pick_target(enemies: Array[Enemy]) -> Enemy:
 	var best: Enemy = null
 	var best_score: float = -INF
+	var hits_air: bool = def.hits_air
+	var hits_ground: bool = def.hits_ground
 	for e: Enemy in enemies:
-		if not can_target(e) or not in_range(e.x, e.y, e.radius):
+		# can_target() and in_range(), inlined: this is the game's hottest loop.
+		if not e.alive or not (hits_air if e.flying else hits_ground):
+			continue
+		var reach: float = attack_range + e.radius
+		var dx: float = e.x - x
+		var dy: float = e.y - y
+		if dx * dx + dy * dy > reach * reach:
 			continue
 		var score: float
 		match target_mode:
@@ -199,10 +207,9 @@ func _update_aura(world: World) -> void:
 	var slow: float = stats.slow
 	var any: bool = false
 	for e: Enemy in world.enemies:
-		if not can_target(e) or not in_range(e.x, e.y, e.radius):
-			continue
-		e.apply_slow(slow, SLOW_TICKS)
-		any = true
+		if can_target(e) and in_range(e.x, e.y, e.radius):
+			e.apply_slow(slow, SLOW_TICKS)
+			any = true
 	if not any or cooldown > 0:
 		return
 	_start_shot()
