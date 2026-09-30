@@ -91,6 +91,7 @@ export class World {
   private spawnQueue: { tick: number; type: EnemyType }[] = [];
   private pendingBonus = 0;
   private spawnCounter = 0;
+  private laneCounter = 0; // gives every enemy its own lane
   private flow: DistanceField;
 
   constructor(level: LevelSource, opts: WorldOptions = {}) {
@@ -275,27 +276,21 @@ export class World {
   /** Spawns an enemy at a map entrance (or, with `from`, as a copy of another's position). */
   spawn(type: EnemyType, from?: Enemy): Enemy {
     const hp = this.hpMultiplier;
+    const seed = this.laneCounter++;
     let enemy: Enemy;
     if (from) {
-      enemy = new Enemy(type, from.nav.clone(), { x: from.x, y: from.y }, hp);
+      enemy = new Enemy(type, from.nav.clone(seed), hp);
     } else {
       const i = this.spawnCounter++;
       let nav: Nav;
-      let start: { x: number; y: number };
       if (enemyDef(type).flying) {
-        const route = this.map.flightRoutes[i % this.map.flightRoutes.length];
-        nav = new RouteNav(route);
-        start = route[0];
+        nav = new RouteNav(this.map.flightRoutes[i % this.map.flightRoutes.length], seed, true);
       } else if (this.map.maze) {
-        const s = this.map.starts[i % this.map.starts.length];
-        nav = new FlowNav(this.map, () => this.flow, s);
-        start = this.map.outside(s);
+        nav = new FlowNav(this.map, () => this.flow, this.map.starts[i % this.map.starts.length], seed);
       } else {
-        const route = this.map.routes[i % this.map.routes.length];
-        nav = new RouteNav(route);
-        start = route[0];
+        nav = new RouteNav(this.map.routes[i % this.map.routes.length], seed);
       }
-      enemy = new Enemy(type, nav, start, hp);
+      enemy = new Enemy(type, nav, hp);
     }
     this.enemies.push(enemy);
     return enemy;
@@ -311,11 +306,9 @@ export class World {
       for (let i = 0; i < split.count; i++) {
         const child = this.spawn(split.type, e);
         // Spread the children a little along the way they're walking.
-        const back = (i - (split.count - 1) / 2) * 10;
-        child.x -= Math.cos(e.angle) * back;
-        child.y -= Math.sin(e.angle) * back;
-        child.prevX = child.x;
-        child.prevY = child.y;
+        child.nav.fallBack((i - (split.count - 1) / 2) * 10);
+        child.x = child.prevX = child.nav.x;
+        child.y = child.prevY = child.nav.y;
       }
     }
   }

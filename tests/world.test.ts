@@ -3,7 +3,7 @@ import { World } from '../src/sim/world';
 import { LEVELS, levelById, ENDLESS, endlessWave } from '../src/data/levels';
 import { TOWERS } from '../src/data/towers';
 import { modifiersFromPerks } from '../src/data/perks';
-import { SELL_REFUND, TICK_RATE, waveBonus, earlyBonus } from '../src/config';
+import { SELL_REFUND, TICK_RATE, TILE, COLS, ROWS, waveBonus, earlyBonus } from '../src/config';
 
 const meadow = levelById('meadow');
 const run = (w: World, ticks: number) => { for (let i = 0; i < ticks; i++) w.update(); };
@@ -114,8 +114,8 @@ describe('enemies', () => {
     const w = new World(meadow);
     const d = w.spawn('drone');
     run(w, 30);
-    // Along the flight route the drone never touches the road's corner waypoints.
-    expect(d.nav.remaining(d.x, d.y)).toBeLessThan(w.map.routes[0].length * 1000);
+    // The flight route is much shorter than the road.
+    expect(d.remaining).toBeLessThan(w.map.routes[0].length - 100);
     for (let i = 0; i < 2000 && d.alive; i++) w.update();
     expect(d.escaped).toBe(true);
   });
@@ -345,5 +345,72 @@ describe('more maze rules', () => {
     expect(e.remaining).toBeLessThan(start);
     for (let i = 0; i < 2000 && e.nav.targetTile; i++) w.update();
     expect(e.remaining).toBeLessThan(80);
+  });
+});
+
+describe('natural movement', () => {
+  const onMap = (x: number, y: number) =>
+    Math.max(0, Math.min(COLS - 1, Math.floor(x / TILE))) + ',' + Math.max(0, Math.min(ROWS - 1, Math.floor(y / TILE)));
+
+  it('enemies spread over the road but never leave it', () => {
+    for (const level of LEVELS) {
+      const w = new World(level);
+      w.money = 0;
+      const types = ['scout', 'racer', 'tank', 'brute'] as const;
+      for (let i = 0; i < 24; i++) w.spawn(types[i % types.length]);
+      const lanes = new Set<number>();
+      for (let t = 0; t < 4000 && w.enemies.length; t++) {
+        w.update();
+        for (const e of w.enemies) {
+          const [c, r] = onMap(e.x, e.y).split(',').map(Number);
+          expect(w.map.isWalkable(c, r), `${level.name} ${e.type} at ${e.x.toFixed(0)},${e.y.toFixed(0)}`).toBe(true);
+          if (t === 60) lanes.add(Math.round(e.y));
+        }
+      }
+      if (level.id === 'meadow' || level.maze) expect(lanes.size, level.name).toBeGreaterThan(4); // not single file
+    }
+  });
+
+  it('walks at its speed and turns smoothly', () => {
+    for (const level of [...LEVELS]) {
+      const w = new World(level);
+      const e = w.spawn('scout');
+      let prev = e.angle;
+      for (let t = 0; t < 3000 && e.alive; t++) {
+        w.update();
+        if (!e.alive) break;
+        const step = Math.hypot(e.vx, e.vy);
+        expect(step).toBeLessThanOrEqual(e.speed * 1.35);
+        expect(Math.abs(Math.atan2(Math.sin(e.angle - prev), Math.cos(e.angle - prev)))).toBeLessThan(0.3);
+        prev = e.angle;
+      }
+      expect(e.escaped).toBe(true);
+    }
+  });
+
+  it('maze enemies go around towers, not through them', () => {
+    const w = new World(levelById('openfield'));
+    w.money = 100_000;
+    for (let r = 1; r <= 12; r++) if (r !== 3) w.build('gun', 3, r);
+    for (let r = 1; r <= 12; r++) if (r !== 11) w.build('gun', 10, r);
+    for (let i = 0; i < 12; i++) w.spawn(i % 2 ? 'tank' : 'racer');
+    for (let t = 0; t < 6000 && w.enemies.length; t++) {
+      w.update();
+      for (const e of w.enemies) {
+        expect(w.towerAt(Math.floor(e.x / TILE), Math.floor(e.y / TILE))).toBeNull();
+      }
+    }
+    expect(w.enemies.length).toBe(0);
+  });
+
+  it('split children fan out from their parent', () => {
+    const w = new World(meadow);
+    const e = w.spawn('splitter');
+    run(w, 200);
+    (w as unknown as { damageEnemy(e: unknown, n: number, o: object): void }).damageEnemy(e, 999, {});
+    const minis = w.enemies.filter((m) => m.type === 'mini');
+    run(w, 60);
+    expect(minis.length).toBe(3);
+    expect(new Set(minis.map((m) => Math.round(m.x) + ',' + Math.round(m.y))).size).toBe(3);
   });
 });

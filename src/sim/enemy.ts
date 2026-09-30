@@ -1,7 +1,6 @@
 import { TICK_RATE } from '../config';
 import { enemyDef, type EnemyDef, type EnemyType } from '../data/enemies';
 import type { Nav } from './nav';
-import type { Point } from './map';
 
 const SHIELD_DELAY = 3 * TICK_RATE; // ticks without damage before the shield recharges
 const SHIELD_REGEN = 0.25 / TICK_RATE; // fraction of max shield per tick
@@ -36,23 +35,20 @@ export class Enemy {
 
   private slowTicks = 0;
   private shieldCooldown = 0;
-  private heading: number;
 
-  constructor(readonly type: EnemyType, readonly nav: Nav, start: Point, hpMultiplier = 1) {
+  constructor(readonly type: EnemyType, readonly nav: Nav, hpMultiplier = 1) {
     this.def = enemyDef(type);
     this.radius = this.def.radius;
     this.maxHitpoints = Math.round(this.def.hitpoints * hpMultiplier);
     this.hitpoints = this.maxHitpoints;
     this.maxShield = Math.round((this.def.shield ?? 0) * hpMultiplier);
     this.shield = this.maxShield;
-    this.x = this.prevX = start.x;
-    this.y = this.prevY = start.y;
-    const t = nav.target;
-    this.heading = Math.atan2(t.y - start.y, t.x - start.x);
-    this.angle = this.prevAngle = this.heading;
+    this.x = this.prevX = nav.x;
+    this.y = this.prevY = nav.y;
+    this.angle = this.prevAngle = nav.heading;
     const ability = this.def.heal?.interval ?? this.def.summon?.interval ?? 0;
     this.abilityTimer = Math.round(ability * TICK_RATE);
-    this.remaining = nav.remaining(this.x, this.y);
+    this.remaining = nav.remaining();
   }
 
   get flying(): boolean {
@@ -63,7 +59,7 @@ export class Enemy {
     return this.def.speed * (1 - this.slow);
   }
 
-  /** Moves along the path; leftover movement carries over corners. */
+  /** Walks along the path (the Nav decides how). */
   update(): void {
     this.prevX = this.x;
     this.prevY = this.y;
@@ -75,34 +71,18 @@ export class Enemy {
       else this.shield = Math.min(this.maxShield, this.shield + this.maxShield * SHIELD_REGEN);
     }
 
-    let step = this.speed;
-    for (let guard = 0; step > 0 && guard < 8; guard++) {
-      const target = this.nav.target;
-      const dx = target.x - this.x, dy = target.y - this.y;
-      const d = Math.hypot(dx, dy);
-      if (d > step) {
-        this.x += (dx / d) * step;
-        this.y += (dy / d) * step;
-        this.heading = Math.atan2(dy, dx);
-        break;
-      }
-      this.x = target.x;
-      this.y = target.y;
-      step -= d;
-      const next = this.nav.advance();
-      if (!next) {
-        this.alive = false;
-        this.escaped = true;
-        break;
-      }
-      if (next === target) break; // waiting (path blocked)
+    if (!this.nav.move(this.speed)) {
+      this.alive = false;
+      this.escaped = true;
     }
+    this.x = this.nav.x;
+    this.y = this.nav.y;
     this.vx = this.x - this.prevX;
     this.vy = this.y - this.prevY;
-    this.remaining = this.nav.remaining(this.x, this.y);
+    this.remaining = this.nav.remaining();
 
     // Turn the sprite smoothly instead of snapping at corners.
-    const diff = Math.atan2(Math.sin(this.heading - this.angle), Math.cos(this.heading - this.angle));
+    const diff = Math.atan2(Math.sin(this.nav.heading - this.angle), Math.cos(this.nav.heading - this.angle));
     this.angle += diff * 0.25;
   }
 
