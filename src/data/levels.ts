@@ -30,6 +30,8 @@ export interface LevelDef {
   maze?: boolean;
   money: number;
   lives: number;
+  /** Multiplies every enemy's hitpoints on this level (the main difficulty knob). */
+  hpScale?: number;
   waves: Wave[];
 }
 
@@ -40,6 +42,7 @@ export const LEVELS: LevelDef[] = [
     description: 'A gentle start. Learn the basics.',
     money: 250,
     lives: 20,
+    hpScale: 1.08, // tuned with npm run balance:tune
     tiles: [
       '....................',
       '....................',
@@ -63,9 +66,9 @@ export const LEVELS: LevelDef[] = [
       [g('scout', 8, 0.8), g('racer', 5, 0.7, 3)],
       [g('tank', 3, 2.5), g('scout', 10, 0.6, 2)],
       [g('racer', 14, 0.45)],
-      [g('armored', 4, 2), g('scout', 12, 0.5, 1)],
+      [g('tank', 4, 2), g('scout', 12, 0.5, 1)],
       [g('tank', 6, 1.6), g('racer', 10, 0.45, 3)],
-      [g('boss', 1, 1), g('scout', 14, 0.6, 2), g('armored', 3, 2, 6)],
+      [g('brute', 1, 1), g('scout', 14, 0.6, 2), g('tank', 3, 2, 6)],
     ],
   },
   {
@@ -74,6 +77,7 @@ export const LEVELS: LevelDef[] = [
     description: 'Two roads, one bridge. Watch the sky.',
     money: 350,
     lives: 20,
+    hpScale: 0.98, // tuned with npm run balance:tune
     tiles: [
       '.........~~.........',
       '.........~~.........',
@@ -110,6 +114,7 @@ export const LEVELS: LevelDef[] = [
     description: 'A long winding road. Hold the high ground.',
     money: 320,
     lives: 20,
+    hpScale: 1.02, // tuned with npm run balance:tune
     tiles: [
       '....................',
       'S##########HH.......',
@@ -149,6 +154,7 @@ export const LEVELS: LevelDef[] = [
     maze: true,
     money: 500,
     lives: 20,
+    hpScale: 1.04, // tuned with npm run balance:tune
     tiles: [
       'RRRRRRRRRRRRRRRRRRRR',
       '......R.............',
@@ -197,6 +203,7 @@ export const ENDLESS: Omit<LevelDef, 'waves'> = {
   description: 'Waves never stop. How long can you last?',
   money: 350,
   lives: 20,
+  hpScale: 1.5, // tuned: average players survive about 20 waves
   tiles: LEVELS[2].tiles,
 };
 

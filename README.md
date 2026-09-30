@@ -74,7 +74,7 @@ npm run build && npm run test:e2e   # browser smoke tests (Playwright)
   the simulation, game data, saved profile, audio engine (against a fake
   Web Audio API) and UI formatting helpers. Coverage must stay at least 97%
   of lines and 92% of branches, or the run fails.
-- **Balance test** (`tests/balance.test.ts`): a greedy bot must win every level.
+- **Balance tests** (`tests/balance.test.ts`) guard the difficulty curve (see below).
 - **Browser smoke tests** (`e2e/`) start the built game in Chromium and click
   through it: menus, building, upgrading, selling, waves, saving and
   continuing, winning, every map with a busy wave, and touch controls on a
@@ -85,6 +85,29 @@ npm run build && npm run test:e2e   # browser smoke tests (Playwright)
 `main`. Two jobs run in parallel: *Type-check, unit tests, build* (with a
 coverage table in the job summary) and *Browser smoke tests* (uploads the
 Playwright report if something fails).
+
+## Balancing
+
+`balance/` contains simulated players:
+
+- **Expert:** a strategy with tunable preferences (tower mix, upgrade
+  eagerness, maze building, calling waves early). `searchExpert` tries many
+  settings and keeps the best, which approximates optimal play.
+- **Human-like players** with a skill from 0 (novice) to 1 (good). They place
+  towers imperfectly, pick tower types semi-randomly and don't always spend well.
+  Each is played with many fixed seeds to get a win rate.
+
+Each level is played with the towers a typical player has unlocked by then.
+
+```bash
+npm run balance          # report: expert result + novice/average/good win rates per level
+npm run balance:tune     # finds each level's hpScale for its target win rate
+```
+
+Current targets (in `balance/tune.ts`): Meadow is won by about 75% of
+novices; Riverside, Highlands and Open Field by about 75%, 70% and 60% of
+average players; the best strategy found keeps all lives on every level. Each
+level's `hpScale` in `src/data/levels.ts` is the main difficulty knob.
 
 ## Controls
 

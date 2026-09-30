@@ -22,7 +22,7 @@ export interface EnemyDef {
 }
 
 export type EnemyType =
-  | 'scout' | 'racer' | 'tank' | 'armored' | 'shielded' | 'splitter' | 'mini' | 'healer' | 'drone' | 'boss';
+  | 'scout' | 'racer' | 'tank' | 'armored' | 'shielded' | 'splitter' | 'mini' | 'healer' | 'drone' | 'brute' | 'boss';
 
 export const ENEMIES: Record<EnemyType, EnemyDef> = {
   scout: {
@@ -62,6 +62,11 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
   drone: {
     name: 'Drone', texture: 'enemy-drone', speed: 1.6, hitpoints: 22, reward: 8, damage: 1, radius: 13, flying: true,
     description: 'Flies straight over everything. Only Gun, Missile and Laser can hit it.',
+  },
+  brute: {
+    name: 'Juggernaut', texture: 'enemy-tank', tint: 0xffa94d, scale: 1.4, speed: 0.7, hitpoints: 500,
+    reward: 60, damage: 5, radius: 22, boss: true,
+    description: 'Mini-boss. Very tough but unarmored. Costs 5 lives.',
   },
   boss: {
     name: 'Warlord', texture: 'enemy-tank', tint: 0xff6b6b, scale: 1.75, speed: 0.55, hitpoints: 1200, armor: 3,

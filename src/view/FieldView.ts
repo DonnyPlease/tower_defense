@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { TILE, COLS, ROWS, FIELD_W, FIELD_H } from '../config';
 import type { TowerKind } from '../data/towers';
+import { enemyDef } from '../data/enemies';
 import type { World, WorldEvent } from '../sim/world';
 import type { Enemy } from '../sim/enemy';
 import type { Tower } from '../sim/tower';
@@ -378,9 +379,10 @@ export class FieldView {
           break;
         }
         case 'kill': {
-          const big = ev.enemy === 'tank' || ev.enemy === 'boss' || ev.enemy === 'armored';
-          this.explosion.explode(ev.enemy === 'boss' ? 60 : big ? 22 : 12, ev.x, ev.y);
-          if (ev.enemy === 'boss') {
+          const boss = enemyDef(ev.enemy).boss ?? false;
+          const big = ev.enemy === 'tank' || ev.enemy === 'armored';
+          this.explosion.explode(boss ? 60 : big ? 22 : 12, ev.x, ev.y);
+          if (boss) {
             this.ring(ev.x, ev.y, 120, 0xff8c42, 700);
             if (!this.quiet) this.scene.cameras.main.shake(400, 0.012);
             this.sound('bigExplosion');

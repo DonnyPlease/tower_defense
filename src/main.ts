@@ -29,6 +29,10 @@ const game = new Phaser.Game({
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   audio: { noAudio: true }, // we synthesise our own sound (src/audio)
+  // One texture per draw batch. With multi-texture batching some GPUs pick the
+  // wrong texture for a sprite (turrets drawn clipped, black squares flashing).
+  // This scene has few sprites, so the extra draw calls cost nothing noticeable.
+  render: { maxTextures: 1 },
   scene: [BootScene, MenuScene, LevelSelectScene, UpgradesScene, GameScene],
 });
 
