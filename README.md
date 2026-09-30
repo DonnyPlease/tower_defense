@@ -135,7 +135,8 @@ src/
   sim/               the game rules, plain TypeScript with no Phaser
     world.ts         one game: money, lives, waves, building, the update tick
     map.ts           map parsing, terrain, pathfinding, distance fields
-    nav.ts           how enemies follow a route or the maze flow field
+    route.ts         smooth curved routes along the middle of the road, with lane widths
+    nav.ts           how enemies move: lanes and weaving on roads, steering in mazes
     enemy.ts  tower.ts  bullet.ts
     fixedStep.ts     fixed-timestep loop helper
   game/profile.ts    saved progress: stars, perks, settings, saved game
@@ -147,6 +148,12 @@ src/
 public/assets/       enemy sprite files (everything else is drawn in code)
 tests/               Vitest tests, including a bot that must beat every level
 ```
+
+**Enemy movement.** Roads are turned into smooth curves that keep to the
+middle of the road. Every enemy picks its own lane and weaves a little, so a
+wave spreads over wide roads and swings through corners instead of marching in
+single file. In Open Field, enemies steer like vehicles: they start turning
+before a corner, turn at a limited rate and slow down for sharp turns.
 
 The **simulation** (`src/sim`) and the **view** are kept apart. The simulation
 runs at a fixed 60 ticks per second, whatever the monitor's refresh rate. The

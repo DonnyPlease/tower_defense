@@ -16,8 +16,8 @@ describe('GameMap', () => {
 
   it('routes start and end one tile outside the field', () => {
     for (const route of meadow.routes) {
-      expect(route[0].x).toBe(-TILE / 2);
-      expect(route[route.length - 1].x).toBe(COLS * TILE + TILE / 2);
+      expect(route.points[0].x).toBe(-TILE / 2);
+      expect(route.points[route.points.length - 1].x).toBe(COLS * TILE + TILE / 2);
     }
   });
 
@@ -30,13 +30,33 @@ describe('GameMap', () => {
     }
   });
 
-  it('only turns at waypoints (no collinear points)', () => {
-    for (const route of meadow.routes) {
-      for (let i = 1; i < route.length - 1; i++) {
-        const [a, b, c] = [route[i - 1], route[i], route[i + 1]];
-        expect((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)).not.toBe(0);
+  it('routes are smooth: no sharp corners anywhere', () => {
+    for (const level of LEVELS) {
+      const map = new GameMap(level);
+      for (const route of [...map.routes, ...map.flightRoutes]) {
+        const p = route.points;
+        for (let i = 1; i < p.length - 1; i++) {
+          const a1 = Math.atan2(p[i].y - p[i - 1].y, p[i].x - p[i - 1].x);
+          const a2 = Math.atan2(p[i + 1].y - p[i].y, p[i + 1].x - p[i].x);
+          expect(Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1)))).toBeLessThan(0.5);
+        }
       }
     }
+  });
+
+  it('keeps to the middle of wide roads and knows how much room there is', () => {
+    // Meadow's first straight is 3 tiles wide (rows 10-12), with room on both sides.
+    const route = meadow.routes[0];
+    const i = route.points.findIndex((p) => p.x >= 2 * TILE);
+    expect(route.points[i].y).toBeGreaterThan(10 * TILE + 14);
+    expect(route.points[i].y).toBeLessThan(13 * TILE - 14);
+    expect(route.left[i]).toBeGreaterThan(TILE / 2);
+    expect(route.right[i]).toBeGreaterThan(TILE / 2);
+    // Riverside's roads are one tile wide: hardly any room to the sides.
+    const river = new GameMap(levelById('riverside'));
+    const j = river.routes[0].points.findIndex((p) => p.x >= 2 * TILE);
+    expect(river.routes[0].left[j]).toBeLessThan(10);
+    expect(river.routes[0].right[j]).toBeLessThan(10);
   });
 
   it('understands terrain', () => {
@@ -94,7 +114,7 @@ describe('GameMap validation and edges', () => {
     expect(map.outward({ col: 1, row: ROWS - 1 })).toEqual([0, 1]);
     expect(map.outward({ col: COLS - 1, row: 5 })).toEqual([1, 0]);
     expect(map.outward({ col: 5, row: 5 })).toEqual([0, 0]);
-    expect(map.routes[0][0].y).toBeLessThan(0); // enters from above
+    expect(map.routes[0].points[0].y).toBeLessThan(0); // enters from above
   });
 
   it('nextTile stops at the exit and outside the field', () => {

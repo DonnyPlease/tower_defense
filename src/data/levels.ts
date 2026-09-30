@@ -42,7 +42,7 @@ export const LEVELS: LevelDef[] = [
     description: 'A gentle start. Learn the basics.',
     money: 250,
     lives: 20,
-    hpScale: 1.08, // tuned with npm run balance:tune
+    hpScale: 0.88, // tuned with npm run balance:tune
     tiles: [
       '....................',
       '....................',
@@ -77,7 +77,7 @@ export const LEVELS: LevelDef[] = [
     description: 'Two roads, one bridge. Watch the sky.',
     money: 350,
     lives: 20,
-    hpScale: 0.98, // tuned with npm run balance:tune
+    hpScale: 0.97, // tuned with npm run balance:tune
     tiles: [
       '.........~~.........',
       '.........~~.........',
@@ -114,7 +114,7 @@ export const LEVELS: LevelDef[] = [
     description: 'A long winding road. Hold the high ground.',
     money: 320,
     lives: 20,
-    hpScale: 1.02, // tuned with npm run balance:tune
+    hpScale: 1.04, // tuned with npm run balance:tune
     tiles: [
       '....................',
       'S##########HH.......',
@@ -154,7 +154,7 @@ export const LEVELS: LevelDef[] = [
     maze: true,
     money: 500,
     lives: 20,
-    hpScale: 1.04, // tuned with npm run balance:tune
+    hpScale: 0.94, // tuned with npm run balance:tune
     tiles: [
       'RRRRRRRRRRRRRRRRRRRR',
       '......R.............',
@@ -203,7 +203,7 @@ export const ENDLESS: Omit<LevelDef, 'waves'> = {
   description: 'Waves never stop. How long can you last?',
   money: 350,
   lives: 20,
-  hpScale: 1.5, // tuned: average players survive about 20 waves
+  hpScale: 1.45, // tuned: average players survive about 20 waves
   tiles: LEVELS[2].tiles,
 };
 
