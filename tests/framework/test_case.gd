@@ -8,6 +8,8 @@ extends RefCounted
 var tree: SceneTree
 ## Failures of the test that is running.
 var failures: PackedStringArray = []
+## Why the test was skipped ("" if it ran).
+var skip_reason: String = ""
 
 
 ## Runs before every test.
@@ -22,6 +24,11 @@ func after_each() -> void:
 
 func fail(message: String) -> void:
 	failures.append(message)
+
+
+## Marks the test as skipped: return right after (in before_each, the test doesn't run).
+func skip(reason: String) -> void:
+	skip_reason = reason
 
 
 func _where(message: String) -> String:

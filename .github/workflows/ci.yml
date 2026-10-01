@@ -19,12 +19,15 @@ env:
 
 jobs:
   test:
-    name: Unit and scene tests
+    name: Unit, scene and phone tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-godot
+      # The scene and phone tests draw real frames in a virtual display.
+      - name: Install a virtual display
+        run: sudo apt-get update -q && sudo apt-get install -yq xvfb libgl1-mesa-dri
       # Also compiles every script with the strict typing rules (tests/unit/test_scripts.gd)
       # and fails on any script or engine error.
       - run: tests/run.sh

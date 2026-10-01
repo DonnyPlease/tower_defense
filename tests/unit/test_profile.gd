@@ -1,18 +1,19 @@
 extends TestCase
 ## Saved progress: stars, unlocks, perks, storage.
 
-const PATH: String = "user://test_profile.json"
+## One file per process, so test runs can go side by side.
+static var profile_path: String = "user://unit_profile_%d.json" % OS.get_process_id()
 
 
 func before_each() -> void:
-	Profile.storage_path = PATH
+	Profile.storage_path = profile_path
 	Profile.forget_cache()
-	DirAccess.remove_absolute(PATH)
+	DirAccess.remove_absolute(profile_path)
 	Profile.reset()
 
 
 func after_each() -> void:
-	DirAccess.remove_absolute(PATH)
+	DirAccess.remove_absolute(profile_path)
 	Profile.storage_path = Profile.DEFAULT_PATH
 	Profile.forget_cache()
 
@@ -75,7 +76,7 @@ func test_saves_to_and_loads_from_storage() -> void:
 	p.save = w.snapshot()
 	p.music = false
 	Profile.save_profile(p)
-	var stored: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
+	var stored: Variant = JSON.parse_string(FileAccess.get_file_as_string(profile_path))
 	expect_true(stored is Dictionary)
 
 	Profile.forget_cache() # like restarting the game
@@ -92,7 +93,7 @@ func test_saves_to_and_loads_from_storage() -> void:
 
 func test_starts_fresh_when_the_stored_data_is_corrupt_or_from_another_version() -> void:
 	for raw: String in ["{not json", JSON.stringify({"v": 99, "stars": {"meadow": 3}}), "[]"]:
-		var file := FileAccess.open(PATH, FileAccess.WRITE)
+		var file := FileAccess.open(profile_path, FileAccess.WRITE)
 		file.store_string(raw)
 		file.close()
 		Profile.forget_cache()

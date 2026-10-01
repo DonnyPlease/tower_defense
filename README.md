@@ -77,13 +77,13 @@ them in the menu or the sidebar.
 
 ## Testing
 
-The tests run headless with the Godot binary. Set `GODOT` if it isn't on your
-`PATH` as `godot`:
+Set `GODOT` if the Godot binary isn't on your `PATH` as `godot`:
 
 ```bash
-tests/run.sh                    # unit + scene tests (about 10 s)
-tests/run.sh balance            # balance tests (several minutes)
-tests/run.sh unit --filter=maze # only tests whose name contains "maze"
+tests/run.sh                        # unit, scene and phone tests (about 2 min)
+tests/run.sh balance                # balance tests (several minutes)
+tests/run.sh unit --filter=maze     # only tests whose name contains "maze"
+tests/run.sh smoke --filter=wave,maze
 ```
 
 - **Unit tests** (`tests/unit/`) cover the simulation, the game data, the
@@ -93,14 +93,31 @@ tests/run.sh unit --filter=maze # only tests whose name contains "maze"
 - **Determinism tests** (`test_determinism.gd`) check that the random numbers
   and endless waves are exactly those of the original JavaScript version of
   the game.
-- **Scene tests** (`tests/smoke/`) start the real screens and click, tap and
-  type like a player: menus, building, upgrading, selling, waves, saving and
-  continuing, winning and losing, every map with a busy wave, the upgrades
-  screen and touch controls.
+- **Scene tests** (`tests/smoke/`) start the real screens and click and type
+  like a player, then check what the player sees: the sidebar's money, lives
+  and wave, the context panel, button labels, banners, dialog texts, floating
+  texts and hints. They cover the menus and their navigation (buttons, Esc,
+  Enter), sound buttons, building, upgrading, selling, refused builds and the
+  maze rule, waves, calling a wave early, pausing (button, keys, focus loss),
+  game speed, saving and continuing, winning, losing and endless mode, perks
+  and refunds, and every map with a busy wave. `test_pixels.gd` checks pixels
+  of real frames (terrain, sidebar, health bars, the build preview, dimmed
+  dialogs), so the drawing code is tested too.
+- **Phone tests** (`tests/phone/`) run in an 844 x 390 window (a phone held
+  sideways): the game is scaled and letterboxed, taps land where the finger
+  does, and taps on the black bars do nothing.
 - **Balance tests** (`tests/balance/`) guard the difficulty curve (see below).
 
-GDScript has no exceptions, so a crashing test only prints a `SCRIPT ERROR`;
-`tests/run.sh` fails the run on any script or engine error.
+Unit and balance tests run headless. Headless Godot draws nothing and ignores
+the window size, so the scene and phone tests run in a virtual display:
+`tests/run.sh` uses `xvfb-run` when it is installed (`apt install xvfb
+libgl1-mesa-dri`), otherwise your `$DISPLAY`. Without either they run headless
+and skip the checks that need real frames.
+
+GDScript has no exceptions: a runtime error only ends the function it happens
+in and prints a `SCRIPT ERROR`. So the runner reads the engine's log after
+every test, and any script or engine error fails that test (with the error and
+where it happened).
 
 `tools/screenshots.tscn` renders every screen to PNG files (it needs a
 display, e.g. `xvfb-run`):
@@ -110,9 +127,9 @@ godot --path . res://tools/screenshots.tscn -- /tmp/screenshots
 ```
 
 **CI:** `.github/workflows/ci.yml` runs on every pull request and push to
-`main`: the unit and scene tests, the balance tests (split over five parallel
-jobs), and a job that renders every screen with a virtual display and uploads
-the screenshots.
+`main`: the unit, scene and phone tests (with a virtual display), the balance
+tests (split over five parallel jobs), and a job that renders every screen and
+uploads the screenshots.
 
 ## Typed GDScript
 
@@ -187,8 +204,8 @@ before a corner, turn at a limited rate and slow down for sharp turns.
 The **simulation** (`src/sim`) and the **view** are kept apart. The simulation
 runs at a fixed 60 ticks per second, whatever the monitor's refresh rate. The
 view reads its state every frame and interpolates between ticks, so movement
-stays smooth on 60, 120 or 144 Hz screens. Because of this split, the whole
-game is tested headlessly, and the balance tests play thousands of games.
+stays smooth on 60, 120 or 144 Hz screens. Because of this split, the
+simulation is tested headlessly, and the balance tests play thousands of games.
 
 ## Adding content
 

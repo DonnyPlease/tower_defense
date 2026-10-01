@@ -39,6 +39,10 @@ func is_shaking() -> bool:
 	return _shake_left > 0
 
 
+func is_flashing() -> bool:
+	return _flash.visible
+
+
 func _process(delta: float) -> void:
 	if _shake_left > 0:
 		_shake_left -= delta

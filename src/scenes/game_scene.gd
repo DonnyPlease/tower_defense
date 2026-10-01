@@ -378,10 +378,6 @@ func show_banner(text: String, color: Color) -> void:
 	_banner_tween.chain().tween_property(_banner, "modulate:a", 0.0, 0.4).set_delay(1.5)
 
 
-func banner_text() -> String:
-	return _banner.text
-
-
 func _draw_boss_bar(g: CanvasItem) -> void:
 	var boss: Enemy = null
 	for e: Enemy in world.enemies:
@@ -451,3 +447,32 @@ func _draw_hover(g: CanvasItem) -> void:
 	elif tower != null and tower != selected:
 		g.draw_circle(Vector2(tower.x, tower.y), tower.attack_range, Color(1, 1, 1, 0.08))
 		Paint.stroke_circle(g, tower.x, tower.y, tower.attack_range, 2, Color(1, 1, 1, 0.45))
+
+
+# ---- what the player sees (read by the scene tests) ---------------------------
+
+## The latest banner ("Wave 3", "Wave cleared ...").
+func banner_text() -> String:
+	return _banner.text
+
+
+## Whether the banner is (mostly) visible right now.
+func banner_showing() -> bool:
+	return _banner.modulate.a > 0.5
+
+
+## The hint above the hovered tile ("" when none is shown).
+func hint_text() -> String:
+	return _hint.text if _hint.visible else ""
+
+
+## The build preview: "hidden", "ok" (white) or "blocked" (tinted red).
+func ghost_state() -> String:
+	if not _ghost.visible:
+		return "hidden"
+	return "ok" if _ghost.modulate.g > 0.9 else "blocked"
+
+
+## The boss health label at the top ("" without a boss).
+func boss_label() -> String:
+	return _boss_text.text

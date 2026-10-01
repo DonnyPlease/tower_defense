@@ -136,12 +136,6 @@ func _gui_input(event: InputEvent) -> void:
 		Audio.play("error")
 
 
-## Clicks the button as if by the player (keyboard shortcuts and tests).
-func press() -> void:
-	if _enabled and is_visible_in_tree():
-		on_click.call()
-
-
 func is_enabled() -> bool:
 	return _enabled
 

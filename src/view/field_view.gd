@@ -396,6 +396,18 @@ func float_text(x: float, y: float, text: String, color: Color) -> void:
 	tween.chain().tween_callback(label.queue_free)
 
 
-## Effects still playing (tests).
+# ---- what the player sees (read by the scene tests) ---------------------------
+
+## Texts floating up right now ("+$5", "-1 ♥", "Not enough money", ...).
+func floating_texts() -> PackedStringArray:
+	var out: PackedStringArray = []
+	for child: Node in get_children():
+		var label := child as TextLabel
+		if label != null and not label.is_queued_for_deletion():
+			out.append(label.text)
+	return out
+
+
+## Particles and rings still playing.
 func effect_count() -> int:
 	return _rings.count() + _explosion.count() + _sparks.count() + _dust.count() + _frost.count() + _stars.count()

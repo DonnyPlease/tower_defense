@@ -4,19 +4,25 @@ extends TestCase
 ## the Router and clicks, taps and types like a player (events go through the
 ## normal input pipeline, so buttons, dialogs and the field react as in play).
 
-const PROFILE_PATH: String = "user://smoke_profile.json"
+## Every level won with 3 stars: everything is unlocked.
+const ALL_STARS: Dictionary[String, int] = {"meadow": 3, "riverside": 3, "highlands": 3}
+
+## The tests' own save file, one per process so runs can go side by side
+## (all copies of the project share one user:// folder).
+static var profile_path: String = "user://test_profile_%d.json" % OS.get_process_id()
 
 
 func after_each() -> void:
 	Profile.storage_path = Profile.DEFAULT_PATH
 	Profile.forget_cache()
+	DirAccess.remove_absolute(profile_path)
 
 
 ## Starts from a fresh profile (sound off), optionally with stars already earned.
 func use_profile(stars: Dictionary[String, int] = {}) -> Profile:
-	Profile.storage_path = PROFILE_PATH
+	Profile.storage_path = profile_path
 	Profile.forget_cache()
-	DirAccess.remove_absolute(PROFILE_PATH)
+	DirAccess.remove_absolute(profile_path)
 	var p := Profile.new()
 	p.stars = stars
 	p.sfx = false
@@ -39,6 +45,22 @@ func wait_for_scene(title: String, max_frames: int = 300) -> bool:
 			return true
 	fail("timed out waiting for the %s screen" % title)
 	return false
+
+
+## Starts a level and waits for the game screen (null if it never appeared).
+func open_game(level_id: String) -> GameScene:
+	Router.goto_game(level_id)
+	if not await wait_for_scene("GameScene"):
+		return null
+	return scene()
+
+
+## Towers on the field as "kind@col,row".
+func tower_names(game: GameScene) -> Array[String]:
+	var out: Array[String] = []
+	for t: Tower in game.world.towers:
+		out.append("%s@%d,%d" % [t.kind, t.col, t.row])
+	return out
 
 
 ## Waits (up to `max_frames` frames of 1/60 s) until `condition` returns true.
@@ -69,11 +91,16 @@ func click(x: float, y: float, button: MouseButton = MOUSE_BUTTON_LEFT) -> void:
 ## Taps at a point in game coordinates with a finger (the game sees emulated mouse events).
 func tap(x: float, y: float) -> void:
 	var at: Vector2 = tree.root.get_final_transform() * Vector2(x, y)
+	await tap_window(at.x, at.y)
+
+
+## Taps at a point in window pixels (e.g. on a letterbox bar).
+func tap_window(x: float, y: float) -> void:
 	for pressed: bool in [true, false]:
 		var ev := InputEventScreenTouch.new()
 		ev.index = 0
 		ev.pressed = pressed
-		ev.position = at
+		ev.position = Vector2(x, y)
 		Input.parse_input_event(ev)
 		await frames(1)
 	await frames(1)
@@ -109,3 +136,50 @@ func press_key(keycode: Key) -> void:
 		ev.pressed = pressed
 		tree.root.push_input(ev, true)
 	await frames(1)
+
+
+## Moves the mouse to a point in game coordinates (hover effects, build preview).
+func hover(x: float, y: float) -> void:
+	var motion := InputEventMouseMotion.new()
+	motion.position = Vector2(x, y)
+	motion.global_position = motion.position
+	tree.root.push_input(motion, true)
+	await frames(1)
+
+
+func hover_tile(col: int, row: int) -> void:
+	var p: Vector2 = tile(col, row)
+	await hover(p.x, p.y)
+
+
+## The window loses focus (the player switched to another app).
+func lose_focus() -> void:
+	tree.root.propagate_notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	await frames(1)
+
+
+# ---- pixels --------------------------------------------------------------------
+
+## Whether frames are really drawn (not when running headless).
+func rendering_available() -> bool:
+	return DisplayServer.get_name() != "headless"
+
+
+## The next frame the game draws (scaled like the window, without the
+## letterbox bars). Only call it when rendering_available().
+func screenshot() -> Image:
+	await RenderingServer.frame_post_draw
+	return tree.root.get_texture().get_image()
+
+
+## Colour of the screenshot under a point in game coordinates.
+func pixel_at(img: Image, x: float, y: float) -> Color:
+	var p: Vector2 = Vector2(x, y) * Vector2(img.get_size()) / Vector2(Config.WIDTH, Config.HEIGHT)
+	return img.get_pixel(clampi(floori(p.x), 0, img.get_width() - 1), clampi(floori(p.y), 0, img.get_height() - 1))
+
+
+## Expects two colours to match within `tolerance` per channel (RGB only).
+func expect_color(actual: Color, expected: Color, message: String = "", tolerance: float = 0.04) -> void:
+	if absf(actual.r - expected.r) > tolerance or absf(actual.g - expected.g) > tolerance \
+			or absf(actual.b - expected.b) > tolerance:
+		fail("expected colour #%s, got #%s%s" % [expected.to_html(false), actual.to_html(false), _where(message)])

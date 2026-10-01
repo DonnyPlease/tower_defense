@@ -5,6 +5,8 @@ extends Node2D
 ## The Buy button of each perk, by perk id (tests).
 var buy_buttons: Dictionary[String, GameButton] = {}
 var refund_button: GameButton
+var back_button: GameButton
+var levels_button: GameButton
 
 var _profile: Profile
 var _stars: TextLabel
@@ -25,8 +27,10 @@ func _ready() -> void:
 	ui.add_child(bg)
 	Ui.text(ui, Config.WIDTH / 2.0, 36, "Upgrades", 30, Palette.TEXT, true, Vector2(0.5, 0.5))
 	_stars = Ui.text(ui, Config.WIDTH / 2.0, 66, "", 15, Palette.GOLD, false, Vector2(0.5, 0.5))
-	ui.add_child(GameButton.new(Rect2(20, 18, 100, 40), "‹ Back", Router.goto_menu))
-	ui.add_child(GameButton.new(Rect2(Config.WIDTH - 140, 18, 120, 40), "Levels", Router.goto_levels))
+	back_button = GameButton.new(Rect2(20, 18, 100, 40), "‹ Back", Router.goto_menu)
+	ui.add_child(back_button)
+	levels_button = GameButton.new(Rect2(Config.WIDTH - 140, 18, 120, 40), "Levels", Router.goto_levels)
+	ui.add_child(levels_button)
 
 	# Perk rows.
 	for i: int in Perks.IDS.size():
@@ -115,3 +119,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
 		Router.goto_menu()
+
+
+# ---- what the player sees (read by the scene tests) ---------------------------
+
+func stars_text() -> String:
+	return _stars.text
+
+
+## A perk's effect line ("Next: +$40 starting money").
+func effect_text(id: String) -> String:
+	return _effects[id].text

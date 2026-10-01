@@ -232,6 +232,28 @@ func _refresh_preview() -> void:
 		x += 26 + count.size.x
 
 
-## The next-wave preview as "type count" pairs (tests).
+# ---- what the player sees (read by the scene tests) ---------------------------
+
+func money_text() -> String:
+	return _money.text
+
+
+func lives_text() -> String:
+	return _lives.text
+
+
+func wave_text() -> String:
+	return _wave.text
+
+
+func panel_title_text() -> String:
+	return _panel_title.text
+
+
+func panel_body_text() -> String:
+	return _panel_body.text
+
+
+## The next-wave preview as "type count" pairs, e.g. "scout8,racer5".
 func preview_key() -> String:
 	return _preview_key

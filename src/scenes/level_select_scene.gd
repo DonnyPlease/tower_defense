@@ -8,6 +8,13 @@ const GAP: float = 20
 
 ## The Play button of each card, by level id (tests).
 var play_buttons: Dictionary[String, GameButton] = {}
+var back_button: GameButton
+var upgrades_button: GameButton
+
+var _stars: TextLabel
+## Each card's status line ("★★☆", "Best: 4 waves") and description, by level id.
+var _status: Dictionary[String, TextLabel] = {}
+var _desc: Dictionary[String, TextLabel] = {}
 
 
 class Card:
@@ -35,9 +42,11 @@ func _ready() -> void:
 	ui.add_child(bg)
 
 	Ui.text(ui, Config.WIDTH / 2.0, 36, "Choose a level", 30, Palette.TEXT, true, Vector2(0.5, 0.5))
-	Ui.text(ui, Config.WIDTH / 2.0, 66, "★ %d stars" % profile.total_stars(), 15, Palette.GOLD, false, Vector2(0.5, 0.5))
-	ui.add_child(GameButton.new(Rect2(20, 18, 100, 40), "‹ Back", Router.goto_menu))
-	ui.add_child(GameButton.new(Rect2(Config.WIDTH - 140, 18, 120, 40), "Upgrades", Router.goto_upgrades))
+	_stars = Ui.text(ui, Config.WIDTH / 2.0, 66, "★ %d stars" % profile.total_stars(), 15, Palette.GOLD, false, Vector2(0.5, 0.5))
+	back_button = GameButton.new(Rect2(20, 18, 100, 40), "‹ Back", Router.goto_menu)
+	ui.add_child(back_button)
+	upgrades_button = GameButton.new(Rect2(Config.WIDTH - 140, 18, 120, 40), "Upgrades", Router.goto_upgrades)
+	ui.add_child(upgrades_button)
 
 	var cards: Array[Card] = []
 	for i: int in Levels.LEVELS.size():
@@ -82,9 +91,11 @@ func _ready() -> void:
 		var title: TextLabel = Ui.text(ui, x + 15, y + 124, card.title, 18, Palette.TEXT, true)
 		for label: TextLabel in [status, extra, title]:
 			label.modulate.a = alpha
-		Ui.text(ui, x + 15, y + 148, card.desc if unlocked else "🔒 %s" % card.lock_text, 13, Palette.TEXT_DIM) \
-			.set_wrap(CARD_W - 30)
+		var desc: TextLabel = Ui.text(ui, x + 15, y + 148, card.desc if unlocked else "🔒 %s" % card.lock_text, 13,
+			Palette.TEXT_DIM).set_wrap(CARD_W - 30)
 		var id: String = card.id
+		_status[id] = status
+		_desc[id] = desc
 		var play := GameButton.new(Rect2(x + 15, y + CARD_H - 44, CARD_W - 30, 34), "Play" if unlocked else "Locked",
 			func() -> void:
 				if unlocked:
@@ -113,3 +124,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
 		Router.goto_menu()
+
+
+# ---- what the player sees (read by the scene tests) ---------------------------
+
+func stars_text() -> String:
+	return _stars.text
+
+
+func status_text(id: String) -> String:
+	return _status[id].text
+
+
+func description_text(id: String) -> String:
+	return _desc[id].text

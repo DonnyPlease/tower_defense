@@ -1,262 +1,198 @@
 extends SceneTestCase
-## Plays through the real screens like a player (these replace the browser
-## smoke tests of the web version). Any script error fails the run (tests/run.sh).
-
-const ALL_STARS: Dictionary[String, int] = {"meadow": 3, "riverside": 3, "highlands": 3}
+## The screens around the game: menu, level select, upgrades, and moving
+## between them with the mouse and the keyboard. Checks what the player reads.
 
 
-func tower_names(game: GameScene) -> Array[String]:
-	var out: Array[String] = []
-	for t: Tower in game.world.towers:
-		out.append("%s@%d,%d" % [t.kind, t.col, t.row])
-	return out
-
-
-func open_game(level_id: String) -> GameScene:
-	Router.goto_game(level_id)
-	if not await wait_for_scene("GameScene"):
+func open_menu() -> MenuScene:
+	Router.goto_menu()
+	if not await wait_for_scene("MenuScene"):
 		return null
 	return scene()
 
 
-func test_menu_to_level_select_then_build_upgrade_sell_and_play_a_wave() -> void:
+func test_menu_shows_the_stars_and_offers_play_without_a_saved_game() -> void:
+	use_profile({"meadow": 2})
+	var menu: MenuScene = await open_menu()
+	if menu == null:
+		return
+	expect_eq(menu.stars_text(), "★ 2 stars earned")
+	expect_false(menu.buttons.has("continue"), "nothing to continue")
+	expect_eq(menu.buttons["play"].label_text(), "Play")
+	expect_eq(menu.buttons["music"].label_text(), "♪ Music off")
+	expect_eq(menu.buttons["sfx"].label_text(), "Sound off")
+
+
+func test_menu_sound_buttons_switch_music_and_effects() -> void:
 	use_profile()
-	Router.goto_menu()
-	if not await wait_for_scene("MenuScene"):
+	var menu: MenuScene = await open_menu()
+	if menu == null:
 		return
-	var menu: MenuScene = scene()
-	await click_button(menu.buttons["play"])
-	if not await wait_for_scene("LevelSelectScene"):
-		return
-	var levels: LevelSelectScene = scene()
-	await click_button(levels.play_buttons["meadow"])
-	if not await wait_for_scene("GameScene"):
-		return
-	var game: GameScene = scene()
-
-	# Build a missile tower with the sidebar and a click on the grass.
-	await click_button(game.hud.tower_buttons["missile"])
-	await click_tile(6, 9)
-	expect_eq(tower_names(game), ["missile@6,9"])
-
-	# Select it, upgrade it, change its target, then build a second one and sell it.
-	await click_tile(6, 9)
-	expect_true(game.selected != null and game.selected.kind == "missile", "selected")
-	await click_button(game.hud.upgrade_button)
-	await click_button(game.hud.target_button)
-	if game.selected != null:
-		expect_eq(game.selected.level, 1)
-		expect_eq(game.selected.target_mode, Towers.TargetMode.LAST)
-	await press_key(KEY_2)
-	await click_tile(13, 7)
-	await click_tile(13, 7)
-	await click_button(game.hud.sell_button)
-	expect_eq(game.world.towers.size(), 1)
-
-	# Start the wave and let the tower shoot something.
-	await click_button(game.hud.wave_button)
-	expect_true(await until(func() -> bool: return game.world.kills > 0), "the tower killed something")
-
-
-func test_pausing_leaving_and_continuing_a_saved_game() -> void:
-	use_profile()
-	var game: GameScene = await open_game("meadow")
-	if game == null:
-		return
-	await press_key(KEY_1)
-	await click_tile(3, 9)
-	await press_key(KEY_ESCAPE) # cancel the build tool
-	await press_key(KEY_ESCAPE) # pause
-	expect_true(game.paused)
-	await click_button(game.pause_overlay.button("Main menu"))
-	if not await wait_for_scene("MenuScene"):
-		return
-	Profile.forget_cache() # as if the game had been restarted
-	var p: Profile = Profile.load_profile()
-	expect_not_null(p.save)
-	if p.save != null:
-		expect_eq(p.save.towers.size(), 1)
-
-	Router.goto_menu()
-	if not await wait_for_scene("MenuScene"):
-		return
-	var menu: MenuScene = scene()
-	expect_true(menu.buttons.has("continue"), "Continue is offered")
-	if not menu.buttons.has("continue"):
-		return
-	await click_button(menu.buttons["continue"])
-	if not await wait_for_scene("GameScene"):
-		return
-	game = scene()
-	expect_eq(tower_names(game), ["gun@3,9"])
-	expect_true(game.resumed)
-
-
-func test_winning_a_level_awards_stars_and_unlocks_towers() -> void:
-	use_profile()
-	var game: GameScene = await open_game("meadow")
-	if game == null:
-		return
-	var w: World = game.world
-	w.money = 1_000_000
-	w.wave_index = w.total_waves() - 2
-	for spot: Vector2i in [Vector2i(6, 9), Vector2i(9, 9), Vector2i(13, 8), Vector2i(12, 11), Vector2i(14, 5),
-			Vector2i(9, 7), Vector2i(16, 5), Vector2i(17, 8), Vector2i(13, 10), Vector2i(10, 13)]:
-		var t: Tower = w.build("missile" if spot.x % 2 == 1 else "gun", spot.x, spot.y)
-		if t != null:
-			w.upgrade(t)
-			w.upgrade(t)
-	w.start_next_wave()
-	game.speed = 3
-	expect_true(await until(func() -> bool: return w.status != World.Status.PLAYING), "the game ended")
-	expect_eq(w.status, World.Status.WON)
-	expect_true(game.win_overlay.visible, "victory dialog")
+	await click_button(menu.buttons["music"])
+	expect_eq(menu.buttons["music"].label_text(), "♪ Music on")
+	expect_true(menu.buttons["music"].is_selected())
+	await click_button(menu.buttons["sfx"])
+	expect_eq(menu.buttons["sfx"].label_text(), "Sound on")
 	Profile.forget_cache()
 	var p: Profile = Profile.load_profile()
-	expect_ge(p.stars_on("meadow"), 1)
-	expect_null(p.save)
-
-
-func test_losing_shows_the_defeat_dialog_and_clears_the_save() -> void:
-	use_profile()
-	var game: GameScene = await open_game("meadow")
-	if game == null:
-		return
-	game.world.lives = 1
-	await press_key(KEY_SPACE)
-	game.speed = 3
-	expect_true(await until(func() -> bool: return game.world.status == World.Status.LOST), "lost")
-	expect_true(game.lose_overlay.visible, "defeat dialog")
+	expect_true(p.music, "music saved")
+	expect_true(p.sfx, "effects saved")
+	await click_button(menu.buttons["music"])
+	expect_eq(menu.buttons["music"].label_text(), "♪ Music off")
 	Profile.forget_cache()
-	expect_null(Profile.load_profile().save)
-	await click_button(game.lose_overlay.button("Try again"))
-	expect_true(await wait_for_scene("GameScene"))
-	var again: GameScene = scene()
-	expect_eq(again.world.lives, Levels.by_id("meadow").lives)
+	expect_false(Profile.load_profile().music, "music off saved")
 
 
-func test_every_map_runs_a_busy_wave_without_errors() -> void:
-	for level_id: String in ["meadow", "riverside", "highlands", "openfield", "endless"]:
-		use_profile(ALL_STARS)
-		var game: GameScene = await open_game(level_id)
-		if game == null:
-			return
-		var w: World = game.world
-		w.money = 1_000_000
-		w.lives = 1_000_000
-		var n: int = 0
-		for r: int in Config.ROWS:
-			for c: int in range(2, 18, 3):
-				if n >= 14:
-					break
-				var t: Tower = w.build(Towers.KINDS[n % Towers.KINDS.size()], c, r)
-				if t != null:
-					n += 1
-					if n % 2 == 1:
-						w.upgrade(t)
-		for type: String in ["boss", "splitter", "healer", "drone", "shielded", "armored"]:
-			w.spawn(type)
-		w.start_next_wave()
-		game.speed = 3
-		await frames(240)
-		expect_gt(w.tick, 100, level_id)
-		expect_gt(w.towers.size(), 5, level_id)
-		expect_gt(w.kills, 0, level_id)
-
-
-func test_keyboard_shortcuts() -> void:
+func test_navigating_with_the_buttons() -> void:
 	use_profile()
-	var game: GameScene = await open_game("meadow")
-	if game == null:
+	var menu: MenuScene = await open_menu()
+	if menu == null:
 		return
-	game.world.money = 10_000
-	await press_key(KEY_2)
-	expect_eq(game.tool, "missile")
-	await press_key(KEY_2)
-	expect_eq(game.tool, "", "the same key again puts the tool away")
-	await press_key(KEY_1)
-	await click_tile(6, 9)
-	await click_tile(6, 9)
-	await press_key(KEY_U)
-	await press_key(KEY_T)
-	expect_eq(game.selected.level, 1)
-	expect_eq(game.selected.target_mode, Towers.TargetMode.LAST)
-	await press_key(KEY_F)
-	expect_eq(game.speed, 2)
-	await press_key(KEY_SPACE)
-	expect_eq(game.world.wave_index, 0)
-	await press_key(KEY_S)
-	expect_eq(game.world.towers.size(), 0)
-	await press_key(KEY_ESCAPE)
-	expect_true(game.paused)
-	await press_key(KEY_ESCAPE)
-	expect_false(game.paused)
-
-
-func test_the_build_preview_explains_why_a_tile_is_refused() -> void:
-	use_profile()
-	var game: GameScene = await open_game("meadow")
-	if game == null:
-		return
-	await press_key(KEY_1)
-	await click_tile(3, 10) # the road
-	expect_eq(game.world.towers.size(), 0)
-	game.world.money = 0
-	await click_tile(3, 9)
-	expect_eq(game.world.towers.size(), 0, "not enough money")
-	expect_true(game.hud.tower_buttons["gun"].is_selected())
-
-
-func test_locked_levels_cannot_be_started() -> void:
-	use_profile()
-	Router.goto_levels()
-	if not await wait_for_scene("LevelSelectScene"):
-		return
-	var levels: LevelSelectScene = scene()
-	expect_true(levels.play_buttons["meadow"].is_enabled())
-	expect_false(levels.play_buttons["riverside"].is_enabled())
-	expect_false(levels.play_buttons["endless"].is_enabled())
-	await click_button(levels.play_buttons["riverside"])
-	await frames(5)
-	expect_true(scene() is LevelSelectScene, "still on the level select screen")
-
-
-func test_upgrades_screen_buys_a_perk_with_stars() -> void:
-	use_profile({"meadow": 3})
-	Router.goto_menu()
-	if not await wait_for_scene("MenuScene"):
-		return
-	var menu: MenuScene = scene()
 	await click_button(menu.buttons["upgrades"])
 	if not await wait_for_scene("UpgradesScene"):
 		return
 	var upgrades: UpgradesScene = scene()
-	await click_button(upgrades.buy_buttons["capital"])
-	Profile.forget_cache()
-	expect_eq(Profile.load_profile().perk_rank("capital"), 1)
-
-
-func test_touch_controls_work_on_a_phone() -> void:
-	use_profile()
-	Router.goto_menu()
-	if not await wait_for_scene("MenuScene"):
-		return
-	var menu: MenuScene = scene()
-	await tap_button(menu.buttons["play"])
+	await click_button(upgrades.levels_button)
 	if not await wait_for_scene("LevelSelectScene"):
 		return
 	var levels: LevelSelectScene = scene()
-	await tap_button(levels.play_buttons["meadow"])
+	await click_button(levels.upgrades_button)
+	if not await wait_for_scene("UpgradesScene"):
+		return
+	upgrades = scene()
+	await click_button(upgrades.back_button)
+	if not await wait_for_scene("MenuScene"):
+		return
+	menu = scene()
+	await click_button(menu.buttons["play"])
+	if not await wait_for_scene("LevelSelectScene"):
+		return
+	levels = scene()
+	await click_button(levels.back_button)
+	expect_true(await wait_for_scene("MenuScene"), "back to the menu")
+
+
+func test_navigating_with_the_keyboard() -> void:
+	use_profile()
+	var menu: MenuScene = await open_menu()
+	if menu == null:
+		return
+	await press_key(KEY_ENTER) # no saved game: Enter goes to the levels
+	if not await wait_for_scene("LevelSelectScene"):
+		return
+	await press_key(KEY_ESCAPE)
+	if not await wait_for_scene("MenuScene"):
+		return
+	Router.goto_upgrades()
+	if not await wait_for_scene("UpgradesScene"):
+		return
+	await press_key(KEY_ESCAPE)
+	if not await wait_for_scene("MenuScene"):
+		return
+
+	# With a saved game, Enter continues it.
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	await press_key(KEY_1)
+	await click_tile(3, 9)
+	await press_key(KEY_ESCAPE) # put the tool away
+	await press_key(KEY_ESCAPE) # pause
+	await click_button(game.pause_overlay.button("Main menu"))
+	if not await wait_for_scene("MenuScene"):
+		return
+	await press_key(KEY_ENTER)
+	if not await wait_for_scene("GameScene"):
+		return
+	game = scene()
+	expect_true(game.resumed, "Enter continued the saved game")
+	expect_eq(tower_names(game), ["gun@3,9"])
+
+
+func test_level_select_shows_progress_and_locks() -> void:
+	use_profile({"meadow": 2})
+	Router.goto_levels()
+	if not await wait_for_scene("LevelSelectScene"):
+		return
+	var levels: LevelSelectScene = scene()
+	expect_eq(levels.stars_text(), "★ 2 stars")
+	expect_eq(levels.status_text("meadow"), "★★☆")
+	expect_eq(levels.status_text("riverside"), "☆☆☆")
+	expect_eq(levels.description_text("riverside"), "Two roads, one bridge. Watch the sky.")
+	expect_eq(levels.description_text("highlands"), "🔒 Beat Riverside first")
+	expect_eq(levels.status_text("endless"), "No record yet")
+	expect_eq(levels.description_text("endless"), "🔒 Beat Riverside first")
+	expect_eq(levels.play_buttons["riverside"].label_text(), "Play")
+	expect_eq(levels.play_buttons["highlands"].label_text(), "Locked")
+	expect_true(levels.play_buttons["riverside"].is_enabled())
+	expect_false(levels.play_buttons["highlands"].is_enabled())
+	expect_false(levels.play_buttons["endless"].is_enabled())
+	await click_button(levels.play_buttons["highlands"])
+	await frames(5)
+	expect_true(scene() is LevelSelectScene, "a locked level does not start")
+	await click_button(levels.play_buttons["riverside"])
+	if not await wait_for_scene("GameScene"):
+		return
+	expect_eq((scene() as GameScene).level_id, "riverside")
+
+
+func test_endless_card_shows_the_best_run() -> void:
+	var p: Profile = use_profile(ALL_STARS)
+	p.endless_best = 7
+	Profile.save_profile(p)
+	Router.goto_levels()
+	if not await wait_for_scene("LevelSelectScene"):
+		return
+	var levels: LevelSelectScene = scene()
+	expect_eq(levels.status_text("endless"), "Best: 7 waves")
+	expect_true(levels.play_buttons["endless"].is_enabled())
+
+
+func test_buying_and_refunding_a_perk() -> void:
+	use_profile({"meadow": 3})
+	var menu: MenuScene = await open_menu()
+	if menu == null:
+		return
+	await click_button(menu.buttons["upgrades"])
+	if not await wait_for_scene("UpgradesScene"):
+		return
+	var upgrades: UpgradesScene = scene()
+	expect_eq(upgrades.stars_text(), "★ 3 to spend  (3 earned)")
+	expect_eq(upgrades.effect_text("capital"), "Next: +$40 starting money")
+	expect_eq(upgrades.buy_buttons["capital"].label_text(), "Buy  ★ 1")
+
+	await click_button(upgrades.buy_buttons["capital"])
+	expect_eq(upgrades.stars_text(), "★ 2 to spend  (3 earned)")
+	expect_eq(upgrades.effect_text("capital"), "+$40 starting money   (next: +$80 starting money)")
+	expect_eq(upgrades.buy_buttons["capital"].label_text(), "Buy  ★ 2")
+	Profile.forget_cache()
+	expect_eq(Profile.load_profile().perk_rank("capital"), 1)
+
+	await click_button(upgrades.refund_button)
+	expect_eq(upgrades.stars_text(), "★ 3 to spend  (3 earned)")
+	expect_eq(upgrades.effect_text("capital"), "Next: +$40 starting money")
+	Profile.forget_cache()
+	expect_eq(Profile.load_profile().perk_rank("capital"), 0, "refunded")
+
+	# Buy it again: the next game starts with more money.
+	await click_button(upgrades.buy_buttons["capital"])
+	await click_button(upgrades.levels_button)
+	if not await wait_for_scene("LevelSelectScene"):
+		return
+	await click_button((scene() as LevelSelectScene).play_buttons["meadow"])
 	if not await wait_for_scene("GameScene"):
 		return
 	var game: GameScene = scene()
-	await tap_button(game.hud.tower_buttons["missile"])
-	var p: Vector2 = tile(6, 9)
-	await tap(p.x, p.y)
-	await tap(p.x, p.y)
-	await tap_button(game.hud.upgrade_button)
-	await tap_button(game.hud.wave_button)
-	expect_eq(game.world.towers.size(), 1)
-	if not game.world.towers.is_empty():
-		expect_eq(game.world.towers[0].level, 1)
-	expect_eq(game.world.wave_index, 0)
+	expect_eq(game.world.money, 290)
+	expect_eq(game.hud.money_text(), "$ 290")
+
+
+func test_perks_the_player_cannot_afford_are_disabled() -> void:
+	use_profile({"meadow": 1})
+	Router.goto_upgrades()
+	if not await wait_for_scene("UpgradesScene"):
+		return
+	var upgrades: UpgradesScene = scene()
+	expect_true(upgrades.buy_buttons["capital"].is_enabled(), "costs 1 star")
+	expect_false(upgrades.buy_buttons["engineering"].is_enabled(), "costs 2 stars")
+	await click_button(upgrades.buy_buttons["engineering"])
+	expect_eq(upgrades.stars_text(), "★ 1 to spend  (1 earned)", "nothing was bought")

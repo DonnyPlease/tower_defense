@@ -16,6 +16,7 @@ var field: FieldView
 var buttons: Dictionary[String, GameButton] = {}
 var _clock := FixedStep.new()
 var _profile: Profile
+var _stars: TextLabel
 
 
 func _ready() -> void:
@@ -56,7 +57,7 @@ func _ready() -> void:
 	add_child(ui)
 
 	Ui.text(ui, Config.WIDTH / 2.0, py + 48, "TOWER DEFENSE", 40, Palette.GOLD, true, Vector2(0.5, 0.5)).set_outline(4)
-	Ui.text(ui, Config.WIDTH / 2.0, py + 88, "★ %d stars earned" % _profile.total_stars(), 16, Palette.TEXT_DIM, false,
+	_stars = Ui.text(ui, Config.WIDTH / 2.0, py + 88, "★ %d stars earned" % _profile.total_stars(), 16, Palette.TEXT_DIM, false,
 		Vector2(0.5, 0.5))
 
 	var y: float = py + 118
@@ -132,3 +133,9 @@ func _demo_tick() -> void:
 	if world.tick % MathX.js_round(Config.TICK_RATE * 0.9) == 0 and world.enemies.size() < 14:
 		world.spawn(DEMO_ENEMIES[randi() % DEMO_ENEMIES.size()])
 	world.update()
+
+
+# ---- what the player sees (read by the scene tests) ---------------------------
+
+func stars_text() -> String:
+	return _stars.text

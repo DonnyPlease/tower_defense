@@ -23,6 +23,7 @@ var _title: String
 var _title_color: Color
 var _actions: Array[Action]
 var _panel_h: float
+var _title_label: TextLabel
 var _subtitle: TextLabel
 
 
@@ -42,7 +43,7 @@ func _init(title: String, title_color: Color, actions: Array[Action]) -> void:
 func _ready() -> void:
 	var py: float = (Config.HEIGHT - _panel_h) / 2
 	var px: float = (Config.WIDTH - PANEL_W) / 2
-	Ui.text(self, Config.WIDTH / 2.0, py + 36, _title, 32, _title_color, true, Vector2(0.5, 0.5))
+	_title_label = Ui.text(self, Config.WIDTH / 2.0, py + 36, _title, 32, _title_color, true, Vector2(0.5, 0.5))
 	_subtitle = Ui.text(self, Config.WIDTH / 2.0, py + 66, "", 15, Palette.TEXT_DIM, false, Vector2(0.5, 0))
 	_subtitle.set_line_spacing(4)
 	for i: int in _actions.size():
@@ -77,3 +78,13 @@ func button(label: String) -> GameButton:
 		if b.label_text() == label:
 			return b
 	return null
+
+
+# ---- what the player sees (read by the scene tests) ---------------------------
+
+func title_text() -> String:
+	return _title_label.text
+
+
+func subtitle_text() -> String:
+	return _subtitle.text
