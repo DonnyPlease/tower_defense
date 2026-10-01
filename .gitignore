@@ -1,8 +1,10 @@
+# Godot
+.godot/
+/android/
+/build/
+*.tmp
+
+# Editors and tools
 .vscode
 .venv
 .pytest_cache
-node_modules
-dist
-coverage
-test-results
-playwright-report

@@ -1,0 +1,111 @@
+extends Node
+## Renders every screen to PNG files, for checking the art and layout.
+##
+##   godot --path . res://tools/screenshots.tscn -- <output folder>
+##
+## Needs a display (e.g. xvfb-run); uses a throwaway profile.
+
+
+func _ready() -> void:
+	# This scene is replaced by the screens it visits, so the work is done by
+	# a node that lives next to the scenes, under the root.
+	var driver := Driver.new()
+	var args: PackedStringArray = OS.get_cmdline_user_args()
+	if not args.is_empty():
+		driver.out = args[0]
+	get_tree().root.add_child.call_deferred(driver)
+
+
+class Driver:
+	extends Node
+
+	var out: String = "user://screenshots"
+
+	func _ready() -> void:
+		DirAccess.make_dir_recursive_absolute(out)
+		get_tree().create_timer(120).timeout.connect(func() -> void:
+			push_error("Screenshots timed out")
+			get_tree().quit(2))
+		_run()
+
+
+	func _run() -> void:
+		Profile.storage_path = "user://screenshots_profile.json"
+		Profile.forget_cache()
+		var p: Profile = Profile.reset()
+		p.stars = {"meadow": 3, "riverside": 2, "highlands": 1}
+		p.music = false
+		p.sfx = false
+		Profile.save_profile(p)
+		Audio.set_music(false)
+		Audio.set_sfx(false)
+
+		Router.goto_menu()
+		await _wait_for("MenuScene")
+		await _frames(90)
+		await _snap("menu")
+		Router.goto_levels()
+		await _wait_for("LevelSelectScene")
+		await _snap("levels")
+		Router.goto_upgrades()
+		await _wait_for("UpgradesScene")
+		await _snap("upgrades")
+
+		for id: String in ["meadow", "riverside", "highlands", "openfield"]:
+			Router.goto_game(id)
+			await _wait_for("GameScene")
+			var s: GameScene = get_tree().current_scene
+			_busy_wave(s)
+			await _frames(150)
+			await _snap("game_" + id)
+
+		var game: GameScene = get_tree().current_scene
+		game.toggle_pause()
+		await _frames(3)
+		await _snap("paused")
+		print("Screenshots saved to ", ProjectSettings.globalize_path(out))
+		Profile.storage_path = Profile.DEFAULT_PATH
+		Profile.forget_cache()
+		get_tree().quit()
+
+
+	## Lots of towers, a mixed wave with a boss, a selected tower, a build preview.
+	func _busy_wave(s: GameScene) -> void:
+		var w: World = s.world
+		w.money = 100000
+		var n: int = 0
+		for r: int in Config.ROWS:
+			for c: int in range(2, 18, 3):
+				if n >= 14:
+					break
+				var t: Tower = w.build(Towers.KINDS[n % Towers.KINDS.size()], c, r)
+				if t != null:
+					n += 1
+					if n % 2 == 1:
+						w.upgrade(t)
+		for type: String in ["boss", "splitter", "healer", "drone", "shielded", "armored", "tank", "scout"]:
+			w.spawn(type)
+		w.start_next_wave()
+		s.selected = w.towers[1]
+		s.speed = 2
+
+
+	func _wait_for(class_title: String) -> void:
+		for i: int in 300:
+			await get_tree().process_frame
+			var scene: Node = get_tree().current_scene
+			if scene != null and scene.get_script() != null and (scene.get_script() as Script).get_global_name() == class_title:
+				await _frames(3)
+				return
+		push_error("Timed out waiting for %s" % class_title)
+
+
+	func _frames(n: int) -> void:
+		for i: int in n:
+			await get_tree().process_frame
+
+
+	func _snap(name: String) -> void:
+		await RenderingServer.frame_post_draw
+		var path: String = out.path_join(name + ".png")
+		get_viewport().get_texture().get_image().save_png(path)
