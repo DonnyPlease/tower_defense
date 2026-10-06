@@ -80,8 +80,9 @@ them in the menu or the sidebar.
 Set `GODOT` if the Godot binary isn't on your `PATH` as `godot`:
 
 ```bash
-tests/run.sh                        # unit, scene and phone tests (about 2 min)
+tests/run.sh                        # unit, scene, phone and boot tests (about 4 min)
 tests/run.sh balance                # balance tests (several minutes)
+tests/run.sh web                    # the exported web build in a browser (about 4 min)
 tests/run.sh unit --filter=maze     # only tests whose name contains "maze"
 tests/run.sh smoke --filter=wave,maze
 ```
@@ -103,16 +104,35 @@ tests/run.sh smoke --filter=wave,maze
   and refunds, and every map with a busy wave. `test_pixels.gd` checks pixels
   of real frames (terrain, sidebar, health bars, the build preview, dimmed
   dialogs), so the drawing code is tested too.
+- **Playthroughs** (`test_playthrough.gd`) play whole games from the title
+  screen with nothing but clicks and keys, spending only the money the game
+  gives (they read the sidebar to decide what to do and never touch the game's
+  state): Meadow is won, with its stars, unlocks and saved result checked, and
+  a game without towers is lost.
 - **Phone tests** (`tests/phone/`) run in an 844 x 390 window (a phone held
   sideways): the game is scaled and letterboxed, taps land where the finger
   does, and taps on the black bars do nothing.
+- **Boot test** (`tests/boot/`) starts the project like a player does, with
+  its real main scene and no test runner, records the first 90 frames and
+  checks the title screen is drawn, its demo game is moving, nothing was logged
+  as an error, and the game quits cleanly.
+- **Web tests** (`tests/web/`, Playwright) export the game for the web and play
+  it in Chromium: it loads without console errors, a level is played (build a
+  tower, start a wave), a saved game and the music setting survive reloading
+  the page (browser storage), the window can be resized, and on a phone-sized
+  window it is letterboxed and played by touch. They only look at the pixels
+  of the page and use real mouse clicks and finger taps. The first run installs
+  the Web export templates (it downloads a 1.2 GB archive, keeps 18 MB of it)
+  and needs `npx playwright install chromium` in `tests/web/`. The tests run
+  on a debug export, since release builds don't print script errors; the main
+  flows also run on the release export that players get.
 - **Balance tests** (`tests/balance/`) guard the difficulty curve (see below).
 
 Unit and balance tests run headless. Headless Godot draws nothing and ignores
-the window size, so the scene and phone tests run in a virtual display:
+the window size, so the scene, phone and boot tests run in a virtual display:
 `tests/run.sh` uses `xvfb-run` when it is installed (`apt install xvfb
-libgl1-mesa-dri`), otherwise your `$DISPLAY`. Without either they run headless
-and skip the checks that need real frames.
+libgl1-mesa-dri`), otherwise your `$DISPLAY`. Without either, the scene and
+phone tests run headless and skip the checks that need real frames.
 
 GDScript has no exceptions: a runtime error only ends the function it happens
 in and prints a `SCRIPT ERROR`. So the runner reads the engine's log after
@@ -127,9 +147,9 @@ godot --path . res://tools/screenshots.tscn -- /tmp/screenshots
 ```
 
 **CI:** `.github/workflows/ci.yml` runs on every pull request and push to
-`main`: the unit, scene and phone tests (with a virtual display), the balance
-tests (split over five parallel jobs), and a job that renders every screen and
-uploads the screenshots.
+`main`: the unit, scene, phone and boot tests (with a virtual display), the web
+build in a browser, the balance tests (split over five parallel jobs), and a
+job that renders every screen and uploads the screenshots.
 
 ## Typed GDScript
 

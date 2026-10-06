@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Runs the test suites; fails on test failures and on any script or engine error.
 #
-#   tests/run.sh                     unit, smoke and phone tests
+#   tests/run.sh                     unit, smoke, phone and boot tests
 #   tests/run.sh balance             balance tests (slow)
 #   tests/run.sh smoke --filter=wave only scene tests whose name contains "wave"
+#   tests/run.sh boot                start the game as a player does and look at the first frames
+#   tests/run.sh web                 the exported web build in a real browser (Playwright)
 #
 # Unit and balance tests run headless. The scene tests (smoke, phone) need a
 # display, so the game is really drawn and the window has its real size: they
@@ -60,8 +62,64 @@ run_suite() {
   return "$status"
 }
 
+# Starts the game the way a player does (its real main scene, a real window,
+# no test runner), records the first 90 frames, and checks the title screen is
+# drawn, its demo is moving, nothing was logged as an error, and it quit cleanly.
+run_boot() {
+  local frames=90
+  local dir="$TMP/boot"
+  mkdir -p "$dir"
+  local -a cmd=("$GODOT" --path "$ROOT" --fixed-fps 60 --audio-driver Dummy --resolution 1000x600
+    --rendering-driver opengl3 --write-movie "$dir/frame.png" --quit-after "$frames" --log-file "$dir/godot.log")
+  if command -v xvfb-run >/dev/null 2>&1; then
+    cmd=(xvfb-run -a -s "-screen 0 1280x800x24" "${cmd[@]}")
+  elif [ -z "${DISPLAY:-}" ]; then
+    echo "The boot test needs a display (install xvfb)."
+    return 1
+  fi
+  echo "boot: starting the game"
+  "${cmd[@]}" >"$dir/stdout.log" 2>&1
+  local status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "  ✗ the game exited with status $status"
+    cat "$dir/stdout.log"
+    return 1
+  fi
+  if grep -qE "^(SCRIPT ERROR|ERROR:|USER ERROR|USER SCRIPT ERROR)" "$dir/godot.log"; then
+    echo "  ✗ errors were logged while starting:"
+    grep -E -A1 "^(SCRIPT ERROR|ERROR:|USER ERROR|USER SCRIPT ERROR)" "$dir/godot.log"
+    return 1
+  fi
+  "$GODOT" --headless --path "$ROOT" -s res://tests/boot/check_boot.gd -- "$dir" "$frames"
+}
+
+# The web build in a real browser (needs node, python3 and network access the
+# first time): exports it with the Web templates, then plays it with Playwright.
+run_web() {
+  local version
+  version="$("$GODOT" --version | cut -d. -f1-4)" # e.g. 4.4.1.stable
+  local templates="${XDG_DATA_HOME:-$HOME/.local/share}/godot/export_templates/$version"
+  if [ ! -f "$templates/web_nothreads_release.zip" ] || [ ! -f "$templates/web_nothreads_debug.zip" ]; then
+    echo "Installing the Web export templates for Godot $version..."
+    python3 -m venv "$TMP/venv" && "$TMP/venv/bin/pip" install --quiet remotezip \
+      && "$TMP/venv/bin/python" "$ROOT/tests/web/install_template.py" "$version" "$templates" || return 1
+  fi
+  # The debug build prints script errors to the browser console (the release
+  # build, which players get, doesn't), so the tests use both.
+  rm -rf "$ROOT/build/web" "$ROOT/build/web-debug"
+  mkdir -p "$ROOT/build/web" "$ROOT/build/web-debug"
+  "$GODOT" --headless --path "$ROOT" --export-release Web "$ROOT/build/web/index.html" >"$TMP/export-release.out" 2>&1
+  "$GODOT" --headless --path "$ROOT" --export-debug Web "$ROOT/build/web-debug/index.html" >"$TMP/export-debug.out" 2>&1
+  if [ ! -s "$ROOT/build/web/index.pck" ] || [ ! -s "$ROOT/build/web-debug/index.pck" ]; then
+    echo "The Web export failed:"
+    cat "$TMP/export-release.out" "$TMP/export-debug.out"
+    return 1
+  fi
+  (cd "$ROOT/tests/web" && npm ci --no-audit --no-fund --silent && npx playwright test "$@")
+}
+
 if [ $# -eq 0 ] || [[ "$1" == --* ]]; then
-  suites=(unit smoke phone)
+  suites=(unit smoke phone boot)
 else
   suites=("$1")
   shift
@@ -69,6 +127,10 @@ fi
 
 failed=0
 for suite in "${suites[@]}"; do
-  run_suite "$suite" "$@" || failed=1
+  case "$suite" in
+    web) run_web "$@" || failed=1 ;;
+    boot) run_boot || failed=1 ;;
+    *) run_suite "$suite" "$@" || failed=1 ;;
+  esac
 done
 exit "$failed"

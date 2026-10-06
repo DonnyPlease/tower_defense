@@ -8,3 +8,6 @@
 .vscode
 .venv
 .pytest_cache
+/tests/web/node_modules/
+/tests/web/test-results/
+/tests/web/playwright-report/

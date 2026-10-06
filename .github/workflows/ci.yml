@@ -19,18 +19,51 @@ env:
 
 jobs:
   test:
-    name: Unit, scene and phone tests
+    name: Unit, scene, phone and boot tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-godot
-      # The scene and phone tests draw real frames in a virtual display.
+      # The scene, phone and boot tests draw real frames in a virtual display.
       - name: Install a virtual display
         run: sudo apt-get update -q && sudo apt-get install -yq xvfb libgl1-mesa-dri
       # Also compiles every script with the strict typing rules (tests/unit/test_scripts.gd)
       # and fails on any script or engine error.
       - run: tests/run.sh
+
+  web:
+    name: Web build in a browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-godot
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/web/package-lock.json
+      # The Web export templates (the full archive is 1.2 GB; only two small files are kept).
+      - name: Cache the Web export templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates
+          key: godot-web-templates-${{ env.GODOT_VERSION }}
+      - name: Install the browser
+        working-directory: tests/web
+        run: npm ci && npx playwright install --with-deps chromium
+      # Exports the game and plays it in Chromium (desktop with the mouse, a phone with touch).
+      - run: tests/run.sh web
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-test-report
+          path: |
+            tests/web/playwright-report/
+            tests/web/test-results/
+          retention-days: 14
 
   balance:
     name: Balance (${{ matrix.name }})
