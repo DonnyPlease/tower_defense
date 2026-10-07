@@ -326,9 +326,9 @@ func test_mortar_has_a_minimum_range_and_does_not_lead() -> void:
 	far.nav = StillNav.new(t.x + 200, t.y)
 	far.x = t.x + 200
 	far.y = t.y
-	far.vx = 3
+	far.vx = 1 # slower than the shell: leading would aim ahead of it
 	far.vy = 0
-	far.prev_x = far.x - 3
+	far.prev_x = far.x - 1
 	t.cooldown = 0
 	w.bullets.clear()
 	t.update(w)

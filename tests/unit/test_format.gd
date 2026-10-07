@@ -56,3 +56,12 @@ func test_describes_every_branch_and_what_makes_it_special() -> void:
 	expect_contains(Format.tower_stats_text("support", 3, -1, 0, "command"), "+15% range")
 	# Without the branch, levels 4 and 5 fall back to level 3 (they can't exist).
 	expect_eq(Format.tower_stats_text("gun", 3), Format.tower_stats_text("gun", 2))
+
+
+func test_failure_messages_name_objects_instead_of_serialising_them() -> void:
+	var w := World.new(Levels.by_id("meadow"))
+	var t: Tower = w.build("gun", 0, 0)
+	expect_match(TestCase.describe_value(t), "^<Tower#-?\\d+>$")
+	expect_match(TestCase.describe_value(w.towers), "^\\[<Tower#-?\\d+>\\]$")
+	expect_eq(TestCase.describe_value(3), "3")
+	expect_eq(TestCase.describe_value("a"), '"a"')

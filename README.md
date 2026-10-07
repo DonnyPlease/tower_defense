@@ -195,12 +195,14 @@ tests/run.sh smoke --filter=wave,maze
 ```
 
 - **Unit tests** (`tests/unit/`) cover the simulation (including every wall
-  rule and every ability), the game data, the saved profile, the synthesiser and
+  rule, every ability, every tower branch, every run perk, the newer enemies,
+  the magnet's weighted pathfinding and the level variants), the tech tree and
+  converting old profiles, the game data, the saved profile, the synthesiser and
   audio engine, and the UI formatting helpers. `test_scripts.gd` loads every script in the project, so a type error
   anywhere fails the run.
 - **Determinism tests** (`test_determinism.gd`) check that the random numbers
-  and endless waves are exactly those of the original JavaScript version of
-  the game.
+  and the classic endless waves are exactly those of the original JavaScript
+  version of the game.
 - **Scene tests** (`tests/smoke/`) start the real screens and click and type
   like a player, then check what the player sees: the sidebar's money, lives
   and wave, the context panel, button labels, banners, dialog texts, floating
@@ -209,11 +211,14 @@ tests/run.sh smoke --filter=wave,maze
   maze rule, walls (on grass and on the road, selling them, towers on them),
   every ability (button, hotkey, aiming, cooldowns, messages), waves, calling a
   wave early, pausing (button, keys, focus loss), game speed, saving and
-  continuing (walls and mines too), winning, losing and endless mode, perks and
-  refunds, and every map with a busy wave. `test_pixels.gd` checks pixels
+  continuing (walls and mines too), winning, losing and endless mode, the tech
+  tree (buying, refunding, what the game then offers), choosing branches,
+  level variants, field orders, the newer enemies and the Citadel, the
+  magnet, tap-to-build, holding a button, the back button, the tutorial, and
+  every map with a busy wave. `test_pixels.gd` checks pixels
   of real frames (terrain, sidebar, health bars, the build preview, dimmed
-  dialogs, walls, mines, the ability bar and effects), so the drawing code is
-  tested too.
+  dialogs, walls, mines, the ability bar and effects; also branch art, rail
+  tracers, night, and the glow on shots), so the drawing code is tested too.
 - **Playthroughs** (`test_playthrough.gd`) play whole games from the title
   screen with nothing but clicks and keys, spending only the money the game
   gives (they read the sidebar to decide what to do and never touch the game's
@@ -230,7 +235,8 @@ tests/run.sh smoke --filter=wave,maze
   it in Chromium: it loads without console errors, a level is played (build a
   tower, start a wave), a saved game and the music setting survive reloading
   the page (browser storage), the window can be resized, and on a phone-sized
-  window it is letterboxed and played by touch. They only look at the pixels
+  window it is letterboxed and played by touch, and the build can be
+  installed as an app (manifest, icons, service worker). They only look at the pixels
   of the page and use real mouse clicks and finger taps. The first run installs
   the Web export templates (it downloads a 1.2 GB archive, keeps 18 MB of it)
   and needs `npx playwright install chromium` in `tests/web/`. The tests run
@@ -258,7 +264,7 @@ godot --path . res://tools/screenshots.tscn -- /tmp/screenshots
 
 **CI:** `.github/workflows/ci.yml` runs on every pull request and push to
 `main`: the unit, scene, phone and boot tests (with a virtual display), the web
-build in a browser, the balance tests (split over five parallel jobs), and a
+build in a browser, the balance tests (split over six parallel jobs), and a
 job that renders every screen and uploads the screenshots.
 
 ## Typed GDScript

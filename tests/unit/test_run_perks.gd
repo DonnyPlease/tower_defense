@@ -261,3 +261,16 @@ func test_overcharge_heats_lasers_twice_as_fast() -> void:
 	e.max_hitpoints = 1e9
 	run(w, 61)
 	expect_near(t.heat_fraction, 1.0, 1, "full heat in half the time")
+
+
+func test_an_offer_holds_only_perks_not_taken_yet() -> void:
+	for seed_value: int in 20:
+		var w := World.new(level())
+		var left: Array[String] = RunPerks.IDS.duplicate()
+		while left.size() > 2:
+			var taken: String = left.pop_back()
+			w.add_run_perk(taken)
+		w.enable_drafts(3, seed_value)
+		expect_eq(w.perk_offer.size(), 2, "only two are left (seed %d)" % seed_value)
+		for id: String in w.perk_offer:
+			expect_true(left.has(id), "%s isn't taken yet (seed %d)" % [id, seed_value])
