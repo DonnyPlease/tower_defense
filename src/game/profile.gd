@@ -22,6 +22,7 @@ var tech: Dictionary[String, bool] = {} ## tech tree nodes bought with stars
 ## unlocked). They can't be refunded.
 var free_tech: Dictionary[String, bool] = {}
 var endless_best: int = 0 ## most waves cleared in endless mode
+var tutorial_done: bool = false ## the first-game hints on Meadow were finished or skipped
 var sfx: bool = true
 var music: bool = true
 var save: WorldSnapshot = null ## game in progress
@@ -80,7 +81,7 @@ static func forget_cache() -> void:
 func to_dict() -> Dictionary:
 	return {
 		"v": VERSION, "stars": stars, "tech": tech.keys(), "free_tech": free_tech.keys(), "endless_best": endless_best,
-		"sfx": sfx, "music": music, "save": save.to_dict() if save != null else null,
+		"tutorial_done": tutorial_done, "sfx": sfx, "music": music, "save": save.to_dict() if save != null else null,
 	}
 
 
@@ -99,6 +100,8 @@ static func from_dict(d: Variant) -> Profile:
 	p.sfx = dict.get("sfx") != false
 	p.music = dict.get("music") != false
 	p.save = WorldSnapshot.from_dict(dict.get("save"))
+	# Players from before the tutorial existed have played already.
+	p.tutorial_done = dict.get("tutorial_done") == true or (version == 1 and p.total_stars() > 0)
 	if version == 1:
 		p._convert_version_1(_int_map(dict.get("perks")))
 	else:

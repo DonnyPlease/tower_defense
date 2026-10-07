@@ -43,7 +43,7 @@ func _ready() -> void:
 	_profile = Profile.load_profile()
 	var save: WorldSnapshot = _profile.save
 	var panel_w: float = 420
-	var panel_h: float = 420 if save != null else 360
+	var panel_h: float = 430 if save != null else 370
 	var px: float = (Config.WIDTH - panel_w) / 2
 	var py: float = (Config.HEIGHT - panel_h) / 2
 	var panel := DrawNode.new(func(g: CanvasItem) -> void:
@@ -57,10 +57,17 @@ func _ready() -> void:
 	add_child(ui)
 
 	Ui.text(ui, Config.WIDTH / 2.0, py + 48, "TOWER DEFENSE", 40, Palette.GOLD, true, Vector2(0.5, 0.5)).set_outline(4)
-	_stars = Ui.text(ui, Config.WIDTH / 2.0, py + 88, "★ %d stars earned" % _profile.total_stars(), 16, Palette.TEXT_DIM, false,
+	# A row of the towers under the title.
+	var row := DrawNode.new(func(g: CanvasItem) -> void:
+		var n: int = Towers.KINDS.size()
+		for i: int in n:
+			var x: float = Config.WIDTH / 2.0 + (i - (n - 1) / 2.0) * 38
+			TowerArt.draw_icon(g, Towers.KINDS[i], Vector2(x, py + 86), 30), 102)
+	add_child(row)
+	_stars = Ui.text(ui, Config.WIDTH / 2.0, py + 112, "★ %d stars earned" % _profile.total_stars(), 16, Palette.TEXT_DIM, false,
 		Vector2(0.5, 0.5))
 
-	var y: float = py + 118
+	var y: float = py + 128
 	if save != null:
 		var name: String = "Endless" if save.endless else Levels.by_id(save.level_id).name
 		buttons["continue"] = _button(ui, y, "Continue", _continue, true).sublabel("%s · wave %d" % [name, save.wave_index + 2])
@@ -76,7 +83,7 @@ func _ready() -> void:
 	ui.add_child(buttons["sfx"])
 	_refresh_sound_buttons()
 
-	Ui.text(ui, Config.WIDTH / 2.0, py + panel_h - 22, "1-6 build  ·  U upgrade  ·  S sell  ·  T target  ·  Space wave  ·  F speed",
+	Ui.text(ui, Config.WIDTH / 2.0, py + panel_h - 22, "1-7 build  ·  U upgrade  ·  S sell  ·  T target  ·  Space wave  ·  F speed",
 		12, Palette.TEXT_DIM, false, Vector2(0.5, 0.5))
 
 

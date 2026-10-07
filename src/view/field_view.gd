@@ -12,6 +12,7 @@ const D_MINES: int = 3
 const D_WALLS: int = 4
 const D_BULLETS: int = 30
 const D_BEAMS: int = 32
+const D_GLOW: int = 33 ## additive light over bullets and beams
 const D_BARS: int = 40
 const D_ABILITIES: int = 41
 const D_OVERLAY: int = 45
@@ -44,6 +45,8 @@ var _mines: DrawNode
 var _abilities: DrawNode
 var _bullets: DrawNode
 var _beams: DrawNode
+## Soft additive light around bullets, beams and rail shots.
+var glow: DrawNode
 var _bars: DrawNode
 var _rings: RingLayer
 ## Darkness of night variants (null otherwise).
@@ -71,6 +74,11 @@ func _init(p_world: World) -> void:
 	add_child(_bullets)
 	_beams = DrawNode.new(_draw_beams, D_BEAMS)
 	add_child(_beams)
+	glow = DrawNode.new(_draw_glow, D_GLOW)
+	var additive := CanvasItemMaterial.new()
+	additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = additive
+	add_child(glow)
 	_bars = DrawNode.new(_draw_bars, D_BARS)
 	add_child(_bars)
 	_abilities = DrawNode.new(_draw_abilities, D_ABILITIES)
@@ -284,6 +292,7 @@ func sync(alpha: float) -> void:
 		_rails = _rails.filter(func(r: PackedFloat32Array) -> bool: return r[4] > 0)
 	_bullets.queue_redraw()
 	_beams.queue_redraw()
+	glow.queue_redraw()
 	_bars.queue_redraw()
 
 
@@ -353,6 +362,40 @@ func _draw_beams(g: CanvasItem) -> void:
 		var a: float = clampf(r[4] / RAIL_TIME, 0.0, 1.0)
 		Paint.line(g, r[0], r[1], r[2], r[3], 7 * a + 1, Color(gold, 0.35 * a))
 		Paint.line(g, r[0], r[1], r[2], r[3], 2, Color(1, 1, 1, 0.95 * a))
+
+
+## Light added on top of the bullets and beams (blend mode: add), so shots
+## glow against the field.
+func _draw_glow(g: CanvasItem) -> void:
+	for b: Bullet in world.bullets:
+		var x: float = Format.lerp_value(b.prev_x, b.x, _alpha)
+		var y: float = Format.lerp_value(b.prev_y, b.y, _alpha)
+		var color: Color
+		match b.type:
+			Towers.BulletType.MISSILE:
+				color = Palette.rgb(0xff8c42)
+				x -= cos(b.angle) * 6 * b.radius / 4.0 # the exhaust
+				y -= sin(b.angle) * 6 * b.radius / 4.0
+			Towers.BulletType.SHELL:
+				continue # shells are dark iron balls
+			_:
+				color = Palette.rgb(0xffe08a)
+		g.draw_circle(Vector2(x, y), 9, Color(color, 0.18))
+		g.draw_circle(Vector2(x, y), 4.5, Color(color, 0.3))
+	for t: Tower in world.towers:
+		if t.def.behavior != Towers.Behavior.BEAM:
+			continue
+		var c: Color = t.branch.color if t.branch != null else Palette.rgb(0xd35cff)
+		for e: Enemy in t.targets:
+			if not e.alive:
+				continue
+			var tx: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var ty: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			Paint.line(g, t.x, t.y, tx, ty, 14 + 10 * t.heat_fraction, Color(c, 0.12))
+			g.draw_circle(Vector2(tx, ty), 10 + 8 * t.heat_fraction, Color(c, 0.25))
+	for r: PackedFloat32Array in _rails:
+		var a: float = clampf(r[4] / RAIL_TIME, 0.0, 1.0)
+		Paint.line(g, r[0], r[1], r[2], r[3], 16 * a, Color(1.0, 0.85, 0.4, 0.25 * a))
 
 
 func _draw_bullets(g: CanvasItem) -> void:

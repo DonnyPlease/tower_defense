@@ -40,6 +40,7 @@ func use_profile(stars: Dictionary[String, int] = {}, tech: Array[String] = []) 
 	p.stars = stars
 	for id: String in tech:
 		p.free_tech[id] = true
+	p.tutorial_done = true # the tutorial has tests of its own
 	p.sfx = false
 	p.music = false
 	Profile.save_profile(p)

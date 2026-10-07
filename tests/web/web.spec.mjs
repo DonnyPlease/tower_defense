@@ -118,3 +118,21 @@ test.describe('phone', () => {
     game.expectNoProblems();
   });
 });
+
+test('can be installed as an app: manifest, icons and offline support @release', async ({ page }) => {
+  const manifest = await (await page.request.get('/index.manifest.json')).json();
+  expect(manifest.name).toBe('Tower Defense');
+  expect(manifest.orientation).toBe('landscape'); // the field plays sideways
+  expect(manifest.icons.length).toBeGreaterThan(0);
+  for (const icon of manifest.icons) {
+    expect((await page.request.get('/' + icon.src)).ok(), icon.src).toBeTruthy();
+  }
+  expect((await page.request.get('/index.service.worker.js')).ok()).toBeTruthy();
+  expect((await page.request.get('/index.offline.html')).ok()).toBeTruthy();
+  await game.open();
+  // The page registers the service worker that makes it work offline.
+  await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length), {
+    timeout: 20_000,
+  }).toBeGreaterThan(0);
+  game.expectNoProblems();
+});

@@ -15,6 +15,8 @@ You need **Godot 4.4 or newer** (the standard build; the .NET build isn't needed
 To ship the game, use *Project → Export* in the editor (install the export
 templates when it asks). Web, Windows, Linux, macOS and Android all work; the
 project uses the Compatibility renderer, which is what web builds need.
+The web export is a progressive web app: served over HTTPS it can be installed
+from the browser (also on iPhones) and starts offline.
 
 ## The game
 
@@ -136,6 +138,10 @@ They are in `src/data/run_perks.gd`:
 | Overcharge | Lasers heat up twice as fast |
 | Reinforcements | +10 lives |
 | Stonework | Every wall costs $10 |
+
+**First game.** On Meadow, a new player gets short hints at the top of the
+field (build, start a wave, select, upgrade, walls); they move on as you do
+each step, and can be skipped.
 
 **Economy.** You get a bonus for every wave you clear, plus 5% interest on
 unspent money. Call the next wave early for extra cash. The sidebar shows what

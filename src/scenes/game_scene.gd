@@ -36,6 +36,8 @@ var fx: ScreenFx
 var ability_bar: AbilityBar
 var draft: DraftOverlay
 var build_menu: BuildMenu
+## The first-game hints (Meadow only, until finished or skipped), or null.
+var tutorial: Tutorial = null
 
 var _stage: Node2D
 var _clock := FixedStep.new()
@@ -98,6 +100,9 @@ func _ready() -> void:
 	_stage.add_child(ability_bar)
 	build_menu = BuildMenu.new(self)
 	_stage.add_child(build_menu)
+	if level_id == "meadow" and not profile.tutorial_done:
+		tutorial = Tutorial.new(self)
+		_stage.add_child(tutorial)
 
 	var restart: Callable = func() -> void: Router.goto_game(level_id)
 	pause_overlay = Overlay.new("Paused", Palette.TEXT, [
@@ -515,6 +520,8 @@ func _process(delta: float) -> void:
 	ability_bar.refresh()
 	draft.refresh()
 	build_menu.refresh()
+	if tutorial != null:
+		tutorial.refresh(delta)
 	Audio.set_intensity(1 if world.wave_in_progress() and not is_modal_open() else 0)
 
 
