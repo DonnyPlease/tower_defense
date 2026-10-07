@@ -18,12 +18,18 @@ enum Type {
 	WAVE_CLEARED, ## wave, bonus, interest
 	WON,
 	LOST,
+	WALL_BUILT, ## x, y, amount (price)
+	WALL_SOLD, ## x, y, amount
+	ABILITY, ## x, y, kind (ability id), radius; used (at the spot, if it has one)
+	STRIKE, ## x, y, radius: an airstrike landed
+	MINE_PLACED, ## x, y
+	MINE_BLAST, ## x, y, radius
 }
 
 var type: Type
 var x: float = 0.0
 var y: float = 0.0
-var kind: String = "" ## tower kind (build, shot)
+var kind: String = "" ## tower kind (build, shot) or ability id
 var enemy: String = "" ## enemy type (kill)
 var level: int = 0
 var amount: int = 0

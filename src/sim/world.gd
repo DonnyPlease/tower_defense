@@ -4,7 +4,9 @@ extends RefCounted
 ## or input, so it can run headless (see tests/).
 
 enum Status { PLAYING, WON, LOST }
-enum BlockReason { NONE, TERRAIN, OCCUPIED, ENEMY, BLOCKS_PATH }
+enum BlockReason { NONE, TERRAIN, OCCUPIED, ENEMY, BLOCKS_PATH, NEEDS_WALL }
+## Why an ability can't be used right now.
+enum AbilityBlock { NONE, OFF, GAME_OVER, COOLING, MONEY, USED, LIMIT }
 
 
 class SpawnEntry:
@@ -16,6 +18,34 @@ class SpawnEntry:
 		tick = p_tick
 		type = p_type
 		order = p_order
+
+
+## A landmine waiting for a ground enemy.
+class Mine:
+	var col: int
+	var row: int
+	var x: float
+	var y: float
+
+	func _init(p_col: int, p_row: int) -> void:
+		col = p_col
+		row = p_row
+		x = p_col * Config.TILE + Config.TILE * 0.5
+		y = p_row * Config.TILE + Config.TILE * 0.5
+
+
+## An airstrike on its way down.
+class Strike:
+	var x: float
+	var y: float
+	var due: int ## the tick it lands
+	var radius: float
+
+	func _init(p_x: float, p_y: float, p_due: int, p_radius: float) -> void:
+		x = p_x
+		y = p_y
+		due = p_due
+		radius = p_radius
 
 
 var map: GameMap
@@ -35,7 +65,16 @@ var waves_cleared: int = 0
 var kills: int = 0
 var status: Status = Status.PLAYING
 var events: Array[WorldEvent] = []
+## Walls by tile, with what each cost (the refund when it is sold).
+var walls: Dictionary[Vector2i, int] = {}
+var mines: Array[Mine] = []
+var strikes: Array[Strike] = []
+## Damage multiplier of every tower: perks, and the damage boost while it lasts.
+var damage_multiplier: float = 1.0
 
+var _cooldowns: Dictionary[String, int] = {} ## ticks until an ability can be used again
+var _effects: Dictionary[String, int] = {} ## ticks left of timed abilities (slow, boost, bounty)
+var _used: Dictionary[String, bool] = {} ## once-per-game abilities already used
 var _unlocked: Dictionary[String, bool] = {}
 var _static_waves: Array[Wave]
 var _endless_waves: Callable
@@ -46,14 +85,14 @@ var _spawn_counter: int = 0
 var _lane_counter: int = 0 # gives every enemy its own lane
 var _flow: FlowField
 var _tower_grid: Array[Tower] = []
-var _tower_mask: PackedByteArray
+var _block_mask: PackedByteArray ## 1 where a tower or wall stands
 
 
 ## `endless_waves(index) -> Wave` turns on endless mode: waves come from it
 ## and never run out. `unlocked` lists the towers the player may build.
 func _init(level: LevelDef, endless_waves: Callable = Callable(), p_modifiers: Perks.Modifiers = null,
 		unlocked: Array[String] = Towers.KINDS) -> void:
-	map = GameMap.new(level.name, level.tiles, level.maze)
+	map = GameMap.new(level.name, level.tiles, level.maze, level.road_walls)
 	assert(map.error.is_empty(), map.error)
 	level_id = level.id
 	modifiers = p_modifiers if p_modifiers != null else Perks.no_modifiers()
@@ -66,9 +105,10 @@ func _init(level: LevelDef, endless_waves: Callable = Callable(), p_modifiers: P
 	start_lives = level.lives + modifiers.lives
 	lives = start_lives
 	hp_scale = level.hp_scale
+	damage_multiplier = modifiers.damage_multiplier
 	_tower_grid.resize(Config.COLS * Config.ROWS)
-	_tower_mask.resize(Config.COLS * Config.ROWS)
-	_flow = FlowField.new(map.distance_field(_tower_mask))
+	_block_mask.resize(Config.COLS * Config.ROWS)
+	_flow = FlowField.new(map.distance_field(_block_mask))
 
 
 # ---- waves -------------------------------------------------------------------
@@ -149,22 +189,39 @@ func can_afford(kind: String) -> bool:
 	return money >= cost_of(kind)
 
 
+## Why a tower can't be built here (NONE if it can). A tower may stand on a
+## wall anywhere; on the road of wall levels it may only stand on a wall.
 func build_block_reason(col: int, row: int) -> BlockReason:
-	if not map.is_buildable_terrain(col, row):
-		return BlockReason.TERRAIN
+	var walled: bool = has_wall(col, row)
+	if not map.is_buildable_terrain(col, row) and not walled:
+		return BlockReason.NEEDS_WALL if map.can_hold_wall(col, row) else BlockReason.TERRAIN
 	if tower_at(col, row) != null:
 		return BlockReason.OCCUPIED
-	if not map.maze:
-		return BlockReason.NONE
+	if walled:
+		return BlockReason.NONE # the wall already is an obstacle: the path stays as it is
+	return _path_block_reason(col, row)
 
-	# Maze levels: never trap enemies or cut off the exit.
+
+## Why a wall can't be built here (NONE if it can).
+func wall_block_reason(col: int, row: int) -> BlockReason:
+	if not map.can_hold_wall(col, row):
+		return BlockReason.TERRAIN
+	if has_wall(col, row) or tower_at(col, row) != null:
+		return BlockReason.OCCUPIED
+	return _path_block_reason(col, row)
+
+
+## Levels where enemies re-route: never trap enemies or cut off the exit.
+func _path_block_reason(col: int, row: int) -> BlockReason:
+	if not map.flow or not map.is_walkable(col, row):
+		return BlockReason.NONE # nothing walks here, so nothing changes
 	var tile := Vector2i(col, row)
 	for e: Enemy in enemies:
 		if e.flying:
 			continue
 		if (floori(e.x / Config.TILE) == col and floori(e.y / Config.TILE) == row) or e.nav.target_tile() == tile:
 			return BlockReason.ENEMY
-	var mask: PackedByteArray = _tower_mask.duplicate()
+	var mask: PackedByteArray = _block_mask.duplicate()
 	mask[row * Config.COLS + col] = 1
 	var field: PackedInt32Array = map.distance_field(mask)
 	for s: Vector2i in map.starts:
@@ -181,6 +238,10 @@ func can_build_at(col: int, row: int) -> bool:
 	return build_block_reason(col, row) == BlockReason.NONE
 
 
+func has_wall(col: int, row: int) -> bool:
+	return walls.has(Vector2i(col, row))
+
+
 ## Current distance field (maze levels), for drawing the enemy path.
 var distance_field: PackedInt32Array:
 	get:
@@ -193,10 +254,11 @@ func build(kind: String, col: int, row: int) -> Tower:
 	if status != Status.PLAYING or not is_unlocked(kind) or not can_afford(kind) or not can_build_at(col, row):
 		return null
 	var cost: int = cost_of(kind)
-	var tower := Tower.new(kind, col, row, map.is_high_ground(col, row), cost)
+	# A wall under a tower raises it like high ground does.
+	var tower := Tower.new(kind, col, row, map.is_high_ground(col, row) or has_wall(col, row), cost)
 	towers.append(tower)
 	money -= cost
-	_towers_changed()
+	_obstacles_changed()
 	var ev := WorldEvent.new(WorldEvent.Type.BUILD, tower.x, tower.y)
 	ev.kind = kind
 	events.append(ev)
@@ -222,9 +284,49 @@ func sell(tower: Tower) -> bool:
 		return false
 	towers.remove_at(i)
 	money += tower.sell_value()
-	_towers_changed()
+	_obstacles_changed()
 	var ev := WorldEvent.new(WorldEvent.Type.SELL, tower.x, tower.y)
 	ev.amount = tower.sell_value()
+	events.append(ev)
+	return true
+
+
+## Price of the next wall.
+func wall_cost() -> int:
+	return Abilities.wall_cost(walls.size())
+
+
+func can_build_wall_at(col: int, row: int) -> bool:
+	return status == Status.PLAYING and Abilities.ENABLED.get("wall", false) and money >= wall_cost() \
+		and wall_block_reason(col, row) == BlockReason.NONE
+
+
+## Builds a wall. Enemies walk around it where there is room (on levels where
+## they re-route); it is refused if it would block the path.
+func build_wall(col: int, row: int) -> bool:
+	if not can_build_wall_at(col, row):
+		return false
+	var cost: int = wall_cost()
+	money -= cost
+	walls[Vector2i(col, row)] = cost
+	_obstacles_changed()
+	var ev := WorldEvent.new(WorldEvent.Type.WALL_BUILT, col * Config.TILE + Config.TILE * 0.5, row * Config.TILE + Config.TILE * 0.5)
+	ev.amount = cost
+	events.append(ev)
+	return true
+
+
+## Sells a wall for what it cost. A wall with a tower on it can't be sold (sell the tower first).
+func sell_wall(col: int, row: int) -> bool:
+	var tile := Vector2i(col, row)
+	if status != Status.PLAYING or not walls.has(tile) or tower_at(col, row) != null:
+		return false
+	var paid: int = walls[tile]
+	walls.erase(tile)
+	money += paid
+	_obstacles_changed()
+	var ev := WorldEvent.new(WorldEvent.Type.WALL_SOLD, col * Config.TILE + Config.TILE * 0.5, row * Config.TILE + Config.TILE * 0.5)
+	ev.amount = paid
 	events.append(ev)
 	return true
 
@@ -255,15 +357,18 @@ func start_next_wave() -> bool:
 	return true
 
 
-func _towers_changed() -> void:
+## Towers or walls were added or removed: enemies re-plan their way.
+func _obstacles_changed() -> void:
 	_tower_grid.fill(null)
-	_tower_mask.fill(0)
+	_block_mask.fill(0)
 	for t: Tower in towers:
 		var k: int = t.row * Config.COLS + t.col
 		_tower_grid[k] = t
-		_tower_mask[k] = 1
-	if map.maze:
-		_flow.dist = map.distance_field(_tower_mask)
+		_block_mask[k] = 1
+	for tile: Vector2i in walls:
+		_block_mask[tile.y * Config.COLS + tile.x] = 1
+	if map.flow:
+		_flow.dist = map.distance_field(_block_mask)
 
 
 # ---- enemies -----------------------------------------------------------------
@@ -283,7 +388,7 @@ func spawn(type: String, from: Enemy = null) -> Enemy:
 		if Enemies.get_def(type).flying:
 			var flights: Array[Route] = map.flight_routes
 			nav = RouteNav.new(flights[i % flights.size()], lane_seed, true)
-		elif map.maze:
+		elif map.flow:
 			nav = FlowNav.new(map, _flow, map.starts[i % map.starts.size()], lane_seed)
 		else:
 			var roads: Array[Route] = map.routes
@@ -293,15 +398,17 @@ func spawn(type: String, from: Enemy = null) -> Enemy:
 	return enemy
 
 
-## Damages an enemy (armor and shields apply); pays the reward and splits
-## splitters when it dies.
+## Damages an enemy (armor and shields apply, a focus mark doubles it); pays
+## the reward (doubled during a bounty) and splits splitters when it dies.
 func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: bool = true) -> void:
-	if not e.hit(amount, ignores_armor, flash):
+	var dealt: float = amount * e.mark_factor if e.mark_ticks > 0 else amount
+	if not e.hit(dealt, ignores_armor, flash):
 		return
 	kills += 1
-	money += e.def.reward
+	var reward: int = e.def.reward * (roundi(Abilities.get_def("bounty").power) if is_active("bounty") else 1)
+	money += reward
 	var ev := WorldEvent.new(WorldEvent.Type.KILL, e.x, e.y)
-	ev.amount = e.def.reward
+	ev.amount = reward
 	ev.enemy = e.type
 	events.append(ev)
 	var split: EnemyDef.Split = e.def.split
@@ -356,20 +463,197 @@ func _update_abilities(e: Enemy) -> void:
 		events.append(WorldEvent.new(WorldEvent.Type.SUMMON, e.x, e.y))
 
 
+# ---- abilities ---------------------------------------------------------------
+
+static func ticks_of(seconds: float) -> int:
+	return MathX.js_round(seconds * Config.TICK_RATE)
+
+
+func ability_cost(id: String) -> int:
+	return wall_cost() if id == "wall" else Abilities.get_def(id).cost
+
+
+## Ticks until the ability can be used again (0 when it is ready).
+func cooldown_left(id: String) -> int:
+	var left: int = _cooldowns.get(id, 0)
+	return left
+
+
+## Ticks left of a timed ability (time slow, damage boost, bounty).
+func effect_left(id: String) -> int:
+	var left: int = _effects.get(id, 0)
+	return left
+
+
+func is_active(id: String) -> bool:
+	return effect_left(id) > 0
+
+
+func is_used(id: String) -> bool:
+	return _used.has(id)
+
+
+## Why the ability can't be used right now (NONE if it can). Where it is
+## aimed (a tile, a spot, an enemy) may still turn out to be wrong.
+func ability_block(id: String) -> AbilityBlock:
+	if status != Status.PLAYING:
+		return AbilityBlock.GAME_OVER
+	if not Abilities.ENABLED.get(id, false):
+		return AbilityBlock.OFF
+	var d: Abilities.AbilityDef = Abilities.get_def(id)
+	if d.once and is_used(id):
+		return AbilityBlock.USED
+	if cooldown_left(id) > 0:
+		return AbilityBlock.COOLING
+	if d.limit > 0 and id == "mine" and mines.size() >= d.limit:
+		return AbilityBlock.LIMIT
+	if money < ability_cost(id):
+		return AbilityBlock.MONEY
+	return AbilityBlock.NONE
+
+
+## Uses an ability that is not placed on a tile: time slow, damage boost,
+## bounty, second wind, and (aimed at the spot `at`) the airstrike and the
+## focus mark (the enemy nearest to `at`). False if it can't be used.
+func use_ability(id: String, at: Vector2 = Vector2.ZERO) -> bool:
+	var d: Abilities.AbilityDef = Abilities.get_def(id)
+	if d.target == Abilities.Target.TILE or ability_block(id) != AbilityBlock.NONE:
+		return false
+	var ev := WorldEvent.new(WorldEvent.Type.ABILITY, at.x, at.y)
+	ev.kind = id
+	ev.radius = d.radius
+	match id:
+		"slow", "boost", "bounty":
+			_effects[id] = ticks_of(d.duration)
+		"strike":
+			strikes.append(Strike.new(at.x, at.y, tick + ticks_of(d.duration), d.radius))
+		"mark":
+			var target: Enemy = enemy_near(at)
+			if target == null:
+				return false
+			target.mark(ticks_of(d.duration), d.power)
+			ev.x = target.x
+			ev.y = target.y
+		"wind":
+			lives += roundi(d.power)
+			_used[id] = true
+	_pay_for(id)
+	events.append(ev)
+	return true
+
+
+## The enemy closest to a spot, if the spot is on it (or near).
+func enemy_near(at: Vector2, slack: float = 14.0) -> Enemy:
+	var best: Enemy = null
+	var best_dist: float = INF
+	for e: Enemy in enemies:
+		var dist: float = MathX.hypot(e.x - at.x, e.y - at.y)
+		if e.alive and dist <= e.radius + slack and dist < best_dist:
+			best = e
+			best_dist = dist
+	return best
+
+
+func mine_at(col: int, row: int) -> Mine:
+	for m: Mine in mines:
+		if m.col == col and m.row == row:
+			return m
+	return null
+
+
+## Why a mine can't be placed on this tile (NONE if it can): ground enemies must walk there.
+func mine_block_reason(col: int, row: int) -> BlockReason:
+	if not map.is_walkable(col, row):
+		return BlockReason.TERRAIN
+	if _block_mask[row * Config.COLS + col] != 0 or mine_at(col, row) != null:
+		return BlockReason.OCCUPIED
+	return BlockReason.NONE
+
+
+func place_mine(col: int, row: int) -> bool:
+	if ability_block("mine") != AbilityBlock.NONE or mine_block_reason(col, row) != BlockReason.NONE:
+		return false
+	var m := Mine.new(col, row)
+	mines.append(m)
+	_pay_for("mine")
+	events.append(WorldEvent.new(WorldEvent.Type.MINE_PLACED, m.x, m.y))
+	return true
+
+
+func _pay_for(id: String) -> void:
+	money -= ability_cost(id)
+	var cooldown: float = Abilities.get_def(id).cooldown
+	if cooldown > 0:
+		_cooldowns[id] = ticks_of(cooldown)
+
+
+## Cooldowns and timed effects run down by one tick.
+func _tick_abilities() -> void:
+	for id: String in _cooldowns.keys():
+		_cooldowns[id] -= 1
+		if _cooldowns[id] <= 0:
+			_cooldowns.erase(id)
+	for id: String in _effects.keys():
+		_effects[id] -= 1
+		if _effects[id] <= 0:
+			_effects.erase(id)
+	damage_multiplier = modifiers.damage_multiplier
+	if is_active("boost"):
+		damage_multiplier *= 1.0 + Abilities.get_def("boost").power
+
+
+## A ground enemy near a mine sets it off: it and everything around it takes damage.
+func _update_mines() -> void:
+	for m: Mine in mines.duplicate():
+		var triggered: bool = false
+		for e: Enemy in enemies:
+			if e.alive and not e.flying and MathX.hypot(e.x - m.x, e.y - m.y) <= Abilities.MINE_TRIGGER + e.radius:
+				triggered = true
+				break
+		if not triggered:
+			continue
+		mines.erase(m)
+		var d: Abilities.AbilityDef = Abilities.get_def("mine")
+		var ev := WorldEvent.new(WorldEvent.Type.MINE_BLAST, m.x, m.y)
+		ev.radius = d.radius
+		events.append(ev)
+		var damage: float = d.power * hp_multiplier()
+		for e: Enemy in enemies.duplicate():
+			if e.alive and not e.flying and MathX.hypot(e.x - m.x, e.y - m.y) <= d.radius + e.radius:
+				damage_enemy(e, damage)
+
+
+## Airstrikes that are due land: everything around the spot takes damage.
+func _update_strikes() -> void:
+	for st: Strike in strikes.duplicate():
+		if st.due > tick:
+			continue
+		strikes.erase(st)
+		var ev := WorldEvent.new(WorldEvent.Type.STRIKE, st.x, st.y)
+		ev.radius = st.radius
+		events.append(ev)
+		var damage: float = Abilities.get_def("strike").power * hp_multiplier()
+		for e: Enemy in enemies.duplicate():
+			if e.alive and MathX.hypot(e.x - st.x, e.y - st.y) <= st.radius + e.radius:
+				damage_enemy(e, damage)
+
+
 # ---- simulation --------------------------------------------------------------
 
 func update() -> void:
 	if status != Status.PLAYING:
 		return
 	tick += 1
+	_tick_abilities()
 	var had_wave: bool = wave_in_progress()
 
 	while not _spawn_queue.is_empty() and _spawn_queue[0].tick <= tick:
 		var entry: SpawnEntry = _spawn_queue.pop_front()
 		spawn(entry.type)
 
+	var extra_slow: float = Abilities.get_def("slow").power if is_active("slow") else 0.0
 	for e: Enemy in enemies.duplicate():
-		e.update()
+		e.update(extra_slow)
 		if e.escaped:
 			lives = maxi(0, lives - e.def.damage)
 			var ev := WorldEvent.new(WorldEvent.Type.LEAK, e.x, e.y)
@@ -378,6 +662,8 @@ func update() -> void:
 		else:
 			_update_abilities(e)
 
+	_update_mines()
+	_update_strikes()
 	_update_buffs()
 	for t: Tower in towers:
 		t.update(self)
@@ -444,7 +730,8 @@ func _update_buffs() -> void:
 
 # ---- save / resume -------------------------------------------------------------
 
-## A snapshot can only be taken between waves; null otherwise.
+## A snapshot can only be taken between waves; null otherwise. Timed effects
+## (time slow and so on) are not kept; cooldowns are.
 func snapshot() -> WorldSnapshot:
 	if wave_in_progress() or status != Status.PLAYING:
 		return null
@@ -464,6 +751,18 @@ func snapshot() -> WorldSnapshot:
 		save.target_mode = t.target_mode
 		save.invested = t.invested
 		s.towers.append(save)
+	for tile: Vector2i in walls:
+		var wall := WorldSnapshot.WallSave.new()
+		wall.col = tile.x
+		wall.row = tile.y
+		wall.paid = walls[tile]
+		s.walls.append(wall)
+	for m: Mine in mines:
+		s.mines.append(Vector2i(m.col, m.row))
+	for id: String in _cooldowns:
+		s.cooldowns[id] = _cooldowns[id]
+	for id: String in _used:
+		s.used.append(id)
 	return s
 
 
@@ -472,12 +771,31 @@ func restore(s: WorldSnapshot) -> void:
 	lives = s.lives
 	wave_index = s.wave_index
 	waves_cleared = s.waves_cleared
+	walls = {}
+	for save: WorldSnapshot.WallSave in s.walls:
+		var tile := Vector2i(save.col, save.row)
+		if map.can_hold_wall(save.col, save.row) and not walls.has(tile):
+			walls[tile] = save.paid
 	towers = []
 	for save: WorldSnapshot.TowerSave in s.towers:
-		if not map.is_buildable_terrain(save.col, save.row) or not Towers.is_kind(save.kind):
+		var walled: bool = has_wall(save.col, save.row)
+		if not (map.is_buildable_terrain(save.col, save.row) or walled) or not Towers.is_kind(save.kind):
 			continue
-		var tower := Tower.new(save.kind, save.col, save.row, map.is_high_ground(save.col, save.row), save.invested)
+		var tower := Tower.new(save.kind, save.col, save.row, map.is_high_ground(save.col, save.row) or walled, save.invested)
 		tower.level = clampi(save.level, 0, 2)
 		tower.target_mode = save.target_mode
 		towers.append(tower)
-	_towers_changed()
+	_obstacles_changed()
+	mines = []
+	for tile: Vector2i in s.mines:
+		if map.is_walkable(tile.x, tile.y) and mine_block_reason(tile.x, tile.y) == BlockReason.NONE:
+			mines.append(Mine.new(tile.x, tile.y))
+	_cooldowns = {}
+	for id: String in s.cooldowns:
+		_cooldowns[id] = s.cooldowns[id]
+	_used = {}
+	for id: String in s.used:
+		_used[id] = true
+	_effects = {}
+	strikes = []
+	damage_multiplier = modifiers.damage_multiplier

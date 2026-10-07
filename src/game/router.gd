@@ -62,4 +62,4 @@ func _warm_up_routes() -> void:
 	sources.append(Levels.ENDLESS)
 	_warm_up_task = WorkerThreadPool.add_task(func() -> void:
 		for level: LevelDef in sources:
-			GameMap.new(level.name, level.tiles, level.maze).warm_up(), false, "Build enemy routes")
+			GameMap.new(level.name, level.tiles, level.maze, level.road_walls).warm_up(), false, "Build enemy routes")

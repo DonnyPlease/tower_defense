@@ -21,7 +21,7 @@ static func _g(type: String, count: int, interval: float, delay: float = 0.0) ->
 
 
 static func _level(id: String, name: String, description: String, money: int, lives: int, hp_scale: float,
-		tiles: PackedStringArray, waves: Array[Wave], maze: bool = false) -> LevelDef:
+		tiles: PackedStringArray, waves: Array[Wave], maze: bool = false, road_walls: bool = false) -> LevelDef:
 	var l := LevelDef.new()
 	l.id = id
 	l.name = name
@@ -32,6 +32,7 @@ static func _level(id: String, name: String, description: String, money: int, li
 	l.tiles = tiles
 	l.waves = waves
 	l.maze = maze
+	l.road_walls = road_walls
 	return l
 
 

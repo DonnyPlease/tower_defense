@@ -9,12 +9,15 @@ extends RefCounted
 ##   R  rock (blocked)             ~  water (blocked)     =  bridge (road over water)
 ## In maze levels enemies may also walk on grass and high ground, so the
 ## towers themselves form the walls.
+## In `road_walls` levels enemies stay on the road, but walls (and towers on
+## walls) can be built on it where it is wide enough, and enemies walk around them.
 
 var id: String
 var name: String
 var description: String
 var tiles: PackedStringArray
 var maze: bool = false
+var road_walls: bool = false
 var money: int
 var lives: int
 ## Multiplies every enemy's hitpoints on this level (the main difficulty knob).
@@ -30,6 +33,7 @@ func with_hp_scale(value: float) -> LevelDef:
 	copy.description = description
 	copy.tiles = tiles
 	copy.maze = maze
+	copy.road_walls = road_walls
 	copy.money = money
 	copy.lives = lives
 	copy.hp_scale = value

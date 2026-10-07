@@ -176,7 +176,7 @@ func _update_projectile(world: World) -> void:
 		y + sin(angle) * MUZZLE,
 		angle,
 		speed,
-		stats.damage * world.modifiers.damage_multiplier,
+		stats.damage * world.damage_multiplier,
 		def.bullet,
 		def.hits_air,
 		def.hits_ground,
@@ -199,7 +199,7 @@ func _update_beam(world: World) -> void:
 		return
 	heat = heat + 1 if target == previous else 0
 	angle = atan2(target.y - y, target.x - x)
-	var per_tick: float = (stats.damage * (1 + buff) * world.modifiers.damage_multiplier) / Config.TICK_RATE
+	var per_tick: float = (stats.damage * (1 + buff) * world.damage_multiplier) / Config.TICK_RATE
 	world.damage_enemy(target, per_tick * (1 + LASER_MAX_HEAT * heat_fraction), def.ignores_armor, false)
 
 
@@ -219,5 +219,5 @@ func _update_aura(world: World) -> void:
 	while i < world.enemies.size():
 		var e: Enemy = world.enemies[i]
 		if can_target(e) and in_range(e.x, e.y, e.radius):
-			world.damage_enemy(e, stats.damage * world.modifiers.damage_multiplier, false, true)
+			world.damage_enemy(e, stats.damage * world.damage_multiplier, false, true)
 		i += 1

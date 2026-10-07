@@ -55,7 +55,7 @@ func _ready() -> void:
 		card.id = level.id
 		card.title = "%d. %s" % [i + 1, level.name]
 		card.desc = level.description
-		card.map = GameMap.new(level.name, level.tiles, level.maze)
+		card.map = GameMap.new(level.name, level.tiles, level.maze, level.road_walls)
 		card.unlocked = profile.is_level_unlocked(i)
 		card.lock_text = "Beat %s first" % Levels.LEVELS[i - 1].name if i > 0 else ""
 		card.status = Format.star_string(profile.stars_on(level.id))

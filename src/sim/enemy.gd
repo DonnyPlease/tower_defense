@@ -33,6 +33,8 @@ var escaped: bool = false
 
 var slow: float = 0.0 ## current speed reduction 0..1
 var hit_flash: int = 0 ## ticks left of the white "got hit" flash
+var mark_ticks: int = 0 ## ticks left of a focus mark (it takes more damage while marked)
+var mark_factor: float = 1.0 ## damage multiplier while marked
 var ability_timer: int = 0 ## ticks until the next heal / summon
 
 var _slow_ticks: int = 0
@@ -71,13 +73,16 @@ func _init(p_type: String, p_nav: Nav, hp_multiplier: float = 1.0) -> void:
 	remaining = nav.remaining()
 
 
-## Walks along the path (the Nav decides how).
-func update() -> void:
+## Walks along the path (the Nav decides how). `extra_slow` (0..1) is a speed
+## reduction on top of frost that applies to every enemy, flying ones too (time slow).
+func update(extra_slow: float = 0.0) -> void:
 	prev_x = x
 	prev_y = y
 	prev_angle = angle
 	if hit_flash > 0:
 		hit_flash -= 1
+	if mark_ticks > 0:
+		mark_ticks -= 1
 	if _slow_ticks > 0:
 		_slow_ticks -= 1
 		if _slow_ticks == 0:
@@ -88,7 +93,7 @@ func update() -> void:
 		else:
 			shield = minf(max_shield, shield + max_shield * SHIELD_REGEN)
 
-	if not nav.move(speed):
+	if not nav.move(def.speed * (1 - maxf(slow, extra_slow))):
 		alive = false
 		escaped = true
 	x = nav.x
@@ -99,6 +104,15 @@ func update() -> void:
 
 	# Turn the sprite smoothly instead of snapping at corners.
 	angle += MathX.angle_diff(angle, nav.heading) * 0.25
+
+
+func is_marked() -> bool:
+	return mark_ticks > 0
+
+
+func mark(ticks: int, factor: float) -> void:
+	mark_ticks = ticks
+	mark_factor = factor
 
 
 func apply_slow(amount: float, ticks: int) -> void:

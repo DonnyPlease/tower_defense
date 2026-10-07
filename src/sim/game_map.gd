@@ -37,7 +37,10 @@ static var _shared: Dictionary[String, Shared] = {}
 static var _shared_lock: Mutex = Mutex.new()
 
 var name: String
+## Enemies may also walk on grass and high ground (towers form the walls).
 var maze: bool
+## Enemies stay on the road, but walls can be built on it (see can_hold_wall).
+var road_walls: bool
 var starts: Array[Vector2i] = []
 var ends: Array[Vector2i] = []
 ## Why the map is invalid, or "" for a valid map.
@@ -55,9 +58,10 @@ var _obstacle_x0: PackedFloat64Array
 var _obstacle_y0: PackedFloat64Array
 
 
-func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> void:
+func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false, p_road_walls: bool = false) -> void:
 	name = p_name
 	maze = p_maze
+	road_walls = p_road_walls
 	if tiles.size() != Config.ROWS or Array(tiles).any(func(r: String) -> bool: return r.length() != Config.COLS):
 		error = 'Map "%s" must be %dx%d tiles' % [name, Config.COLS, Config.ROWS]
 		return
@@ -79,7 +83,7 @@ func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> vo
 	if starts.is_empty() or ends.is_empty():
 		error = 'Map "%s" needs at least one S and one E tile' % name
 		return
-	_key = "\n".join(tiles) + ("m" if maze else "")
+	_key = "\n".join(tiles) + ("m" if maze else "") + ("w" if road_walls else "")
 	_shared_lock.lock()
 	var shared: Shared = _shared.get(_key)
 	if shared == null:
@@ -94,6 +98,13 @@ func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> vo
 				shared.paths.append(path)
 		_shared[_key] = shared
 	_shared_lock.unlock()
+
+
+## Whether enemies re-route when something is built (maze and wall levels):
+## they steer with the flow field instead of following a fixed route.
+var flow: bool:
+	get:
+		return maze or road_walls
 
 
 ## Road levels: one smooth route along the middle of the road per start/end pair.
@@ -125,8 +136,8 @@ func _shared_routes() -> Shared:
 					pts.add(t.x * Config.TILE + Config.TILE * 0.5, t.y * Config.TILE + Config.TILE * 0.5)
 				var finish: Vector2 = outside(e)
 				pts.add(finish.x, finish.y)
-				# Maze levels steer with the flow field instead, so skip the smoothing.
-				shared.routes.append(Route.new(pts, _road_width, Callable() if maze else _clearance_at))
+				# Levels with walls steer with the flow field instead, so skip the smoothing.
+				shared.routes.append(Route.new(pts, _road_width, Callable() if flow else _clearance_at))
 				var flight := Route.Polyline.new()
 				flight.add(start.x, start.y)
 				flight.add(s.x * Config.TILE + Config.TILE * 0.5, s.y * Config.TILE + Config.TILE * 0.5)
@@ -140,7 +151,7 @@ func _shared_routes() -> Shared:
 	return shared
 
 
-## Identifies the map's tiles (and maze flag): maps with the same key are the same.
+## Identifies the map's tiles and flags: maps with the same key are the same.
 func key() -> String:
 	return _key
 
@@ -177,6 +188,21 @@ func is_buildable_terrain(col: int, row: int) -> bool:
 
 func is_high_ground(col: int, row: int) -> bool:
 	return terrain_at(col, row) == Terrain.HIGH
+
+
+## Where enemies enter or leave the map (these can never be built on).
+func is_gate(col: int, row: int) -> bool:
+	var t := Vector2i(col, row)
+	return starts.has(t) or ends.has(t)
+
+
+## Whether a wall may stand here: on grass and high ground, and on the road
+## of levels where enemies re-route (but never on the tiles where they enter
+## and leave). Whether it is allowed right now also depends on the path (World).
+func can_hold_wall(col: int, row: int) -> bool:
+	if is_buildable_terrain(col, row):
+		return true
+	return flow and terrain_at(col, row) == Terrain.ROAD and not is_gate(col, row)
 
 
 ## Whether ground enemies may walk here, ignoring towers.
