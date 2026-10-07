@@ -47,6 +47,29 @@ test('a saved game survives reloading the page @release', async ({ page }) => {
   game.expectNoProblems();
 });
 
+test('a wall can be built on the road and an ability used @release', async () => {
+  await game.open();
+  await game.startMeadow();
+  const road = AT.tile(5, 11);
+  // (The dotted path preview runs through the middle of the tile, so look beside it.)
+  await game.waitForColor([road[0] + 12, road[1] + 12], COLORS.path, { tolerance: 20, what: 'free road' });
+  await game.click(AT.abilityButton(0)); // the wall tool
+  await game.click(road);
+  // The wall is stone, not road (the pointer's preview is gone once the tool is put away).
+  await game.page.keyboard.press('Escape');
+  await game.waitForColor([road[0], road[1] - 12], COLORS.stone, { tolerance: 25, what: 'a wall on the road' });
+
+  const [r0, , b0] = await game.channels(AT.fieldFrame);
+  await game.click(AT.abilityButton(1)); // time slow
+  await expect
+    .poll(async () => {
+      const [r, , b] = await game.channels(AT.fieldFrame);
+      return b - r - (b0 - r0);
+    }, { message: 'the blue frame of time slow', timeout: 15_000 })
+    .toBeGreaterThan(40);
+  game.expectNoProblems();
+});
+
 test('the music setting is remembered after a reload', async ({ page }) => {
   await game.open();
   // Music starts on: its button has a gold outline.

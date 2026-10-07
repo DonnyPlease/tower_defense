@@ -38,7 +38,7 @@ static func _level(id: String, name: String, description: String, money: int, li
 
 static func _build() -> Array[LevelDef]:
 	var meadow := _level("meadow", "Meadow", "A gentle start. Learn the basics.", 250, 20,
-		0.88, # tuned with the balance tuner
+		1.01, # tuned with the balance tuner (without walls or abilities)
 		PackedStringArray([
 			"....................",
 			"....................",
@@ -64,7 +64,7 @@ static func _build() -> Array[LevelDef]:
 			Wave.new([_g("tank", 4, 2), _g("scout", 12, 0.5, 1)]),
 			Wave.new([_g("tank", 6, 1.6), _g("racer", 10, 0.45, 3)]),
 			Wave.new([_g("brute", 1, 1), _g("scout", 14, 0.6, 2), _g("tank", 3, 2, 6)]),
-		])
+		], false, true)
 
 	var riverside := _level("riverside", "Riverside", "Two roads, one bridge. Watch the sky.", 350, 20,
 		0.97, # tuned with the balance tuner
@@ -98,21 +98,21 @@ static func _build() -> Array[LevelDef]:
 		])
 
 	var highlands := _level("highlands", "Highlands", "A long winding road. Hold the high ground.", 320, 20,
-		1.04, # tuned with the balance tuner
+		0.99, # tuned with the balance tuner (without walls or abilities)
 		PackedStringArray([
 			"....................",
 			"S##########HH.......",
-			"..........#.RR......",
-			"..HH......#.........",
-			"..HH......#####.....",
+			"..#########.RR......",
+			"..HH.....##.........",
+			"..HH.....######.....",
 			"..............#..R..",
 			"..#############.....",
-			"..#.......RR........",
-			"..#.....HH..........",
-			"..#.....HH..........",
+			"..########RR........",
+			"..##....HH..........",
+			"..##....HH..........",
 			"..###########.......",
-			"............#...HH..",
-			"..RR........#...HH..",
+			"..###########...HH..",
+			"..RR........####HH..",
 			"............#######E",
 			"....................",
 		]), [
@@ -128,7 +128,7 @@ static func _build() -> Array[LevelDef]:
 			Wave.new([_g("racer", 25, 0.25), _g("drone", 12, 0.5, 4)]),
 			Wave.new([_g("armored", 10, 1), _g("shielded", 12, 0.5, 3), _g("healer", 4, 2.5, 5)]),
 			Wave.new([_g("boss", 2, 8), _g("splitter", 10, 0.9, 3), _g("tank", 8, 1.2, 8)]),
-		])
+		], false, true)
 
 	var openfield := _level("openfield", "Open Field", "No road at all. Build a maze with your towers.", 500, 20,
 		0.94, # tuned with the balance tuner
@@ -171,7 +171,7 @@ static func _build() -> Array[LevelDef]:
 static func _build_endless() -> LevelDef:
 	return _level("endless", "Endless", "Waves never stop. How long can you last?", 350, 20,
 		1.45, # tuned: average players survive about 20 waves
-		LEVELS[2].tiles, [])
+		LEVELS[2].tiles, [], false, true)
 
 
 ## Threat cost of each enemy type, and the first endless wave it may appear in.

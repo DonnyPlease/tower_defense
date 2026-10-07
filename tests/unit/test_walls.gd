@@ -332,3 +332,48 @@ func test_a_saved_wall_on_ground_that_cannot_hold_one_is_dropped() -> void:
 	var w2 := World.new(level(CORRIDOR, false)) # same tiles, but the road takes no walls here
 	w2.restore(snap)
 	expect_eq(w2.walls.size(), 0)
+
+
+# ---- the levels --------------------------------------------------------------------
+
+func test_the_levels_with_walls_have_room_for_them_and_the_others_do_not() -> void:
+	for level: LevelDef in Levels.LEVELS + [Levels.ENDLESS]:
+		var w := World.new(level)
+		var spots: int = 0
+		for row: int in Config.ROWS:
+			for col: int in Config.COLS:
+				if w.map.terrain_at(col, row) == GameMap.Terrain.ROAD and w.wall_block_reason(col, row) == World.BlockReason.NONE:
+					spots += 1
+		if level.road_walls:
+			expect_ge(spots, 10, "%s: room for walls on the road" % level.name)
+		else:
+			expect_eq(spots, 0, "%s: no walls on the road" % level.name)
+
+
+func test_walls_on_every_road_tile_never_close_the_road() -> void:
+	for level: LevelDef in Levels.LEVELS + [Levels.ENDLESS]:
+		if not level.road_walls:
+			continue
+		var w := World.new(level)
+		w.money = 1_000_000
+		var built: int = 0
+		var refused: int = 0
+		for row: int in Config.ROWS:
+			for col: int in Config.COLS:
+				if w.map.terrain_at(col, row) == GameMap.Terrain.ROAD:
+					if w.build_wall(col, row):
+						built += 1
+					else:
+						refused += 1
+		expect_gt(built, 5, level.name)
+		expect_gt(refused, 5, "%s: the road is never closed" % level.name)
+		for s: Vector2i in w.map.starts:
+			expect_lt(GameMap.dist_at(w.distance_field, s.x, s.y), GameMap.UNREACHABLE, "%s: from %s" % [level.name, s])
+		# And enemies really get through.
+		for i: int in 4:
+			w.spawn("scout")
+		var steps: int = 0
+		while steps < 6000 and not w.enemies.is_empty():
+			w.update()
+			steps += 1
+		expect_true(w.enemies.is_empty(), "%s: everybody got out" % level.name)

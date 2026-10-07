@@ -31,6 +31,7 @@ var _preview_label: TextLabel
 var _preview: Control
 var _preview_key: String = "-"
 var _hovered: String = ""
+var _hovered_ability: String = ""
 
 
 func _init(host: GameScene) -> void:
@@ -102,6 +103,11 @@ func _draw() -> void:
 	Paint.fill_rounded_rect(self, X, PANEL_Y, W, PANEL_H, 8, Color(Palette.PANEL_LIGHT, 0.6))
 
 
+## Shows an ability's help in the panel while the pointer is over its button ("" to stop).
+func show_ability_help(id: String) -> void:
+	_hovered_ability = id
+
+
 func _on_tower_hover(kind: String, on: bool) -> void:
 	if on:
 		_hovered = kind
@@ -160,7 +166,10 @@ func _refresh_panel() -> void:
 	if selected != null:
 		var d: TowerDef = selected.def
 		_panel_title.show_text("%s  ·  Level %d" % [d.name, selected.level + 1])
-		var extra: String = "\nHigh ground: +25% range" if selected.high_ground else ""
+		var extra: String = ""
+		if selected.high_ground:
+			var on_wall: bool = world.has_wall(selected.col, selected.row) and not world.map.is_high_ground(selected.col, selected.row)
+			extra = "\nOn a wall: +25% range" if on_wall else "\nHigh ground: +25% range"
 		_panel_body.show_text(Format.tower_stats_text(selected.kind, selected.level, selected.attack_range, selected.buff) + extra)
 		var cost: int = world.upgrade_cost_of(selected)
 		if cost == Tower.NO_UPGRADE:
@@ -170,6 +179,24 @@ func _refresh_panel() -> void:
 				.set_enabled(world.money >= cost and world.status == World.Status.PLAYING)
 		target_button.set_label("Target: %s" % MODE_LABEL[selected.target_mode])
 		sell_button.set_label("Sell  +$%d" % selected.sell_value())
+		return
+
+	var wall_tile: Vector2i = _host.selected_wall
+	if wall_tile != GameMap.NO_TILE:
+		var paid: int = world.walls.get(wall_tile, 0)
+		sell_button.visible = true
+		sell_button.set_label("Sell  +$%d" % paid)
+		_panel_title.show_text("Wall")
+		_panel_body.show_text("Enemies walk around it, if there is room: it can never block the path completely.\n\nBuild a tower on top of it for +25% range.")
+		return
+
+	var help: String = _hovered_ability
+	if help.is_empty() and _hovered.is_empty() and _host.tool.is_empty():
+		help = _host.aim
+	if not help.is_empty():
+		var def: Abilities.AbilityDef = Abilities.get_def(help)
+		_panel_title.show_text("%s  ·  $%d" % [def.name, world.ability_cost(help)])
+		_panel_body.show_text(_ability_text(def))
 		return
 
 	var kind: String = _hovered if not _hovered.is_empty() else _host.tool
@@ -193,9 +220,22 @@ func _refresh_panel() -> void:
 
 	_panel_title.show_text("Tips")
 	if world.map.maze:
-		_panel_body.show_text("No road here: enemies walk around your towers. Build walls to make their path long.\n\nClick a tower to upgrade or sell it.")
+		_panel_body.show_text("No road here: enemies walk around your towers and walls.\n\nClick a tower or wall to upgrade or sell it.\nQ: wall. Bottom bar: abilities.")
 	else:
-		_panel_body.show_text("Pick a tower above, then click the grass to build.\n\nClick a placed tower to upgrade it, change its target or sell it.")
+		_panel_body.show_text("Pick a tower above, then click the grass to build.\n\nClick a placed tower to upgrade it, change its target or sell it.\nQ: wall. Bottom bar: abilities.")
+
+
+func _ability_text(def: Abilities.AbilityDef) -> String:
+	var facts: PackedStringArray = ["key %s" % def.key_label()]
+	if def.cooldown > 0:
+		facts.append("cooldown %d s" % roundi(def.cooldown))
+	if def.duration > 0 and def.target != Abilities.Target.POINT:
+		facts.append("lasts %d s" % roundi(def.duration))
+	if def.cost_step > 0:
+		facts.append("+$%d per wall" % def.cost_step)
+	if def.limit > 0:
+		facts.append("at most %d" % def.limit)
+	return "%s\n\n%s" % [def.description, " · ".join(facts)]
 
 
 ## Small icons showing what the next wave brings.

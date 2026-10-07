@@ -396,11 +396,12 @@ func test_refused_builds_explain_why() -> void:
 	if game == null:
 		return
 	await press_key(KEY_1)
-	await hover_tile(3, 10) # the road
-	expect_eq(game.ghost_state(), "hidden", "no preview on the road")
+	await hover_tile(3, 10) # the road of a level with walls: a tower needs a wall there
+	expect_eq(game.ghost_state(), "blocked", "red preview")
+	expect_eq(game.hint_text(), "Build a wall first")
 	await click_tile(3, 10)
 	expect_eq(game.world.towers.size(), 0)
-	expect_true(game.field.floating_texts().has("Can't build here"), "says why")
+	expect_true(game.field.floating_texts().has("Build a wall first"), "says why")
 
 	await hover_tile(3, 9)
 	expect_eq(game.ghost_state(), "ok", "white preview on free grass")
@@ -420,6 +421,19 @@ func test_refused_builds_explain_why() -> void:
 
 	await hover(900, 300) # the sidebar
 	expect_eq(game.ghost_state(), "hidden")
+
+
+func test_the_road_of_a_level_without_walls_cannot_be_built_on() -> void:
+	use_profile(ALL_STARS)
+	var game: GameScene = await open_game("riverside")
+	if game == null:
+		return
+	await press_key(KEY_1)
+	await hover_tile(3, 3) # the road
+	expect_eq(game.ghost_state(), "hidden", "no preview on the road")
+	await click_tile(3, 3)
+	expect_eq(game.world.towers.size(), 0)
+	expect_true(game.field.floating_texts().has("Can't build here"), "says why")
 
 
 func test_maze_levels_refuse_to_block_the_path() -> void:

@@ -312,17 +312,21 @@ func test_a_mine_hurts_everything_close_to_it_but_not_the_far_away() -> void:
 	expect_eq(damage_taken(far), 0.0)
 
 
-func test_a_mine_ignores_flyers_and_enemies_that_are_far() -> void:
+func test_a_mine_ignores_flyers_that_pass_over_it() -> void:
 	var w := World.new(level())
-	stationary(w, "drone")
-	w.place_mine(0, 10)
+	var drone: Enemy = w.spawn("drone")
+	w.place_mine(0, 10) # the drone flies right over the middle of this tile
+	run(w, 60)
+	expect_gt(drone.x, 40.0, "it has flown past the mine")
+	expect_eq(w.mines.size(), 1, "and didn't set it off")
+
+
+func test_a_mine_ignores_enemies_that_are_far_away() -> void:
+	var w := World.new(level())
+	stationary(w)
+	w.place_mine(8, 10)
 	w.update()
-	expect_eq(w.mines.size(), 1, "a flyer doesn't set it off")
-	var w2 := World.new(level())
-	stationary(w2)
-	w2.place_mine(8, 10)
-	w2.update()
-	expect_eq(w2.mines.size(), 1, "nobody came near")
+	expect_eq(w.mines.size(), 1)
 
 
 func test_a_mine_catches_a_walking_enemy() -> void:

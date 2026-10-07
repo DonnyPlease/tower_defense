@@ -60,7 +60,7 @@ func _ready() -> void:
 		card.lock_text = "Beat %s first" % Levels.LEVELS[i - 1].name if i > 0 else ""
 		card.status = Format.star_string(profile.stars_on(level.id))
 		card.status_color = Palette.GOLD
-		card.extra = "%d waves%s" % [level.waves.size(), " · maze" if level.maze else ""]
+		card.extra = "%d waves%s" % [level.waves.size(), " · maze" if level.maze else (" · walls" if level.road_walls else "")]
 		cards.append(card)
 	var endless := Card.new()
 	endless.id = Levels.ENDLESS.id

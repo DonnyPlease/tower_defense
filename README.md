@@ -22,9 +22,9 @@ project uses the Compatibility renderer, which is what web builds need.
 
 | Level | What's special |
 | --- | --- |
-| Meadow | The tutorial: 8 waves, ends with the first boss |
+| Meadow | The tutorial: 8 waves, ends with the first boss. A wide road: walls reshape it |
 | Riverside | Two entrances, a river you can't build on, and flying drones |
-| Highlands | A long road, rocks, and high ground (+25% tower range) |
+| Highlands | A long road with wide stretches, rocks, and high ground (+25% tower range) |
 | Open Field | No road: enemies walk around your towers, so you build the maze |
 | Endless | Waves never stop, with a boss every 10 waves. Beat your best score |
 
@@ -41,6 +41,29 @@ project uses the Compatibility renderer, which is what web builds need.
 
 Click a placed tower to upgrade it, sell it (50% of everything you spent), or
 choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
+
+**Walls and abilities.** The bar along the bottom of the field holds the wall
+tool and seven abilities. Each costs money (and most have a cooldown), so using
+them is a decision. Everything about them (prices, cooldowns, strength, and an
+on/off switch for each) is in `src/data/abilities.gd`.
+
+| Key | Ability | What it does |
+| --- | --- | --- |
+| `Q` | Wall | A block enemies must walk around, if there is room. It is refused if it would block the path completely. A tower built on it gets +25% range. The price rises with every wall standing, and selling refunds what it cost |
+| `W` | Time slow | Every enemy moves at half speed for 6 s |
+| `E` | Damage boost | Towers deal +50% damage for 8 s |
+| `R` | Airstrike | Click a spot: a blast lands a second later and hurts everything around it |
+| `Z` | Landmine | Place on ground enemies walk on; the first one to come near sets it off (3 at a time) |
+| `X` | Bounty | Kills pay double for 15 s |
+| `C` | Focus mark | Click an enemy: it takes double damage from all towers for 6 s |
+| `V` | Second wind | Restores 3 lives, once per game |
+
+On levels where the road is wide (Meadow, Highlands, endless), walls can be built
+on the road itself, and enemies find a new way around them, so a few well-placed
+walls make the way longer and give your towers more time. A tower on the road
+needs a wall under it first. Enemies and the path never get trapped: a wall
+that would close the last gap is refused. In Open Field walls are a cheap way
+to shape the maze.
 
 **10 enemy types:** Scout, Racer, Tank, Armored (flat damage reduction),
 Shielded (recharging shield), Splitter (breaks into 3 minis), Medic (heals
@@ -67,8 +90,9 @@ them in the menu or the sidebar.
 | Input | Action |
 | --- | --- |
 | Click a tower in the sidebar, then the grass | Build |
-| Click a placed tower | Select it (upgrade / target / sell) |
+| Click a placed tower or wall | Select it (upgrade / target / sell) |
 | `1`–`6` | Pick a tower to build |
+| `Q` `W` `E` `R` `Z` `X` `C` `V` | Wall and abilities (see above) |
 | `U` / `S` / `T` | Upgrade / sell / change target of the selected tower |
 | `Space` | Start the next wave (or call it early) |
 | `Esc` / right click | Cancel, or pause |
@@ -87,9 +111,9 @@ tests/run.sh unit --filter=maze     # only tests whose name contains "maze"
 tests/run.sh smoke --filter=wave,maze
 ```
 
-- **Unit tests** (`tests/unit/`) cover the simulation, the game data, the
-  saved profile, the synthesiser and audio engine, and the UI formatting
-  helpers. `test_scripts.gd` loads every script in the project, so a type error
+- **Unit tests** (`tests/unit/`) cover the simulation (including every wall
+  rule and every ability), the game data, the saved profile, the synthesiser and
+  audio engine, and the UI formatting helpers. `test_scripts.gd` loads every script in the project, so a type error
   anywhere fails the run.
 - **Determinism tests** (`test_determinism.gd`) check that the random numbers
   and endless waves are exactly those of the original JavaScript version of
@@ -99,11 +123,14 @@ tests/run.sh smoke --filter=wave,maze
   and wave, the context panel, button labels, banners, dialog texts, floating
   texts and hints. They cover the menus and their navigation (buttons, Esc,
   Enter), sound buttons, building, upgrading, selling, refused builds and the
-  maze rule, waves, calling a wave early, pausing (button, keys, focus loss),
-  game speed, saving and continuing, winning, losing and endless mode, perks
-  and refunds, and every map with a busy wave. `test_pixels.gd` checks pixels
+  maze rule, walls (on grass and on the road, selling them, towers on them),
+  every ability (button, hotkey, aiming, cooldowns, messages), waves, calling a
+  wave early, pausing (button, keys, focus loss), game speed, saving and
+  continuing (walls and mines too), winning, losing and endless mode, perks and
+  refunds, and every map with a busy wave. `test_pixels.gd` checks pixels
   of real frames (terrain, sidebar, health bars, the build preview, dimmed
-  dialogs), so the drawing code is tested too.
+  dialogs, walls, mines, the ability bar and effects), so the drawing code is
+  tested too.
 - **Playthroughs** (`test_playthrough.gd`) play whole games from the title
   screen with nothing but clicks and keys, spending only the money the game
   gives (they read the sidebar to decide what to do and never touch the game's
@@ -183,6 +210,9 @@ novices; Riverside, Highlands and Open Field by about 75%, 70% and 60% of
 average players; the best strategy found keeps all lives on every level. Each
 level's `hp_scale` in `src/data/levels.gd` is the main difficulty knob.
 
+The simulated players don't build walls or use abilities, so these numbers are
+the difficulty *without* them: a human who uses them well has an easier game.
+
 ## Project layout
 
 ```
@@ -195,12 +225,13 @@ src/
     enemies.gd       enemy stats and abilities
     levels.gd        maps, waves, endless wave generator
     perks.gd         permanent upgrades bought with stars
+    abilities.gd     the wall and the seven abilities: prices, cooldowns, strength, on/off
   sim/               the game rules; no nodes, no rendering
     world.gd         one game: money, lives, waves, building, the update tick
     game_map.gd      map parsing, terrain, pathfinding, distance fields
     route.gd         smooth curved routes along the middle of the road, with lane widths
-    route_nav.gd     how enemies walk roads: lanes and weaving
-    flow_nav.gd      how enemies walk mazes: vehicle-like steering
+    route_nav.gd     how enemies walk roads: lanes and weaving (and how flyers fly)
+    flow_nav.gd      how enemies walk mazes and wall levels: vehicle-like steering
     enemy.gd  tower.gd  bullet.gd  aim.gd
     fixed_step.gd    fixed-timestep loop helper
     math_x.gd  mulberry32.gd   JavaScript-exact maths and random numbers
@@ -215,11 +246,14 @@ tests/               test runner, unit, scene and balance tests
 tools/               screenshot renderer
 ```
 
-**Enemy movement.** Roads are turned into smooth curves that keep to the
-middle of the road. Every enemy picks its own lane and weaves a little, so a
-wave spreads over wide roads and swings through corners instead of marching in
-single file. In Open Field, enemies steer like vehicles: they start turning
-before a corner, turn at a limited rate and slow down for sharp turns.
+**Enemy movement.** On Riverside, roads are turned into smooth curves that keep
+to the middle of the road. Every enemy picks its own lane and weaves a little,
+so a wave spreads over wide roads and swings through corners instead of
+marching in single file. Where walls can be built (Meadow, Highlands, endless,
+and Open Field), enemies instead follow a distance field that is recomputed
+whenever a tower or wall is built or sold, and steer like vehicles: they start
+turning before a corner, turn at a limited rate and slow down for sharp turns.
+Flyers always fly straight.
 
 The **simulation** (`src/sim`) and the **view** are kept apart. The simulation
 runs at a fixed 60 ticks per second, whatever the monitor's refresh rate. The

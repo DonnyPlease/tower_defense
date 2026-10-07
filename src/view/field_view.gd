@@ -8,9 +8,12 @@ extends Node2D
 ## and enemies (5, 20, 26) set their own; see TowerView and EnemyView.
 const D_MAP: int = 0
 const D_PATH_PREVIEW: int = 2
+const D_MINES: int = 3
+const D_WALLS: int = 4
 const D_BULLETS: int = 30
 const D_BEAMS: int = 32
 const D_BARS: int = 40
+const D_ABILITIES: int = 41
 const D_OVERLAY: int = 45
 const D_EFFECTS: int = 50
 const D_FLOATERS: int = 60
@@ -28,7 +31,12 @@ var _enemies: Dictionary[Enemy, EnemyView] = {}
 var _alpha: float = 0.0
 var _frame_count: int = 0
 var _path_key: String = "-"
+var _wall_key: String = "-"
+var _mines_drawn: bool = false
 var _path_preview: DrawNode
+var _walls: DrawNode
+var _mines: DrawNode
+var _abilities: DrawNode
 var _bullets: DrawNode
 var _beams: DrawNode
 var _bars: DrawNode
@@ -46,12 +54,18 @@ func _init(p_world: World) -> void:
 	add_child(DrawNode.new(_draw_map, D_MAP))
 	_path_preview = DrawNode.new(_draw_path_preview, D_PATH_PREVIEW)
 	add_child(_path_preview)
+	_mines = DrawNode.new(_draw_mines, D_MINES)
+	add_child(_mines)
+	_walls = DrawNode.new(_draw_walls, D_WALLS)
+	add_child(_walls)
 	_bullets = DrawNode.new(_draw_bullets, D_BULLETS)
 	add_child(_bullets)
 	_beams = DrawNode.new(_draw_beams, D_BEAMS)
 	add_child(_beams)
 	_bars = DrawNode.new(_draw_bars, D_BARS)
 	add_child(_bars)
+	_abilities = DrawNode.new(_draw_abilities, D_ABILITIES)
+	add_child(_abilities)
 	_rings = RingLayer.new(D_EFFECTS)
 	add_child(_rings)
 
@@ -154,10 +168,10 @@ func _arrow(g: CanvasItem, t: Vector2i, inward: bool) -> void:
 		p.x - ax * 6 + ay * 8, p.y - ay * 6 + ax * 8, Color(1, 1, 1, 0.55))
 
 
-## Maze levels: dotted line showing the route enemies will take right now.
+## Levels where enemies re-route: dotted line showing the route they will take right now.
 func _draw_path_preview(g: CanvasItem) -> void:
 	var map: GameMap = world.map
-	if not map.maze:
+	if not map.flow:
 		return
 	var dist: PackedInt32Array = world.distance_field
 	var dot := Color(1, 1, 1, 0.35)
@@ -176,17 +190,71 @@ func _draw_path_preview(g: CanvasItem) -> void:
 			i += 1
 
 
+## Walls (and the stone under towers on the road).
+func _draw_walls(g: CanvasItem) -> void:
+	for tile: Vector2i in world.walls:
+		AbilityArt.draw_wall_tile(g, tile.x * Config.TILE, tile.y * Config.TILE)
+
+
+func _draw_mines(g: CanvasItem) -> void:
+	var blink: float = 0.5 + 0.5 * sin(_frame_count * 0.18)
+	for m: World.Mine in world.mines:
+		AbilityArt.draw_mine(g, Vector2(m.x, m.y), blink)
+
+
+## What the abilities show on the field: tint and frame while one lasts,
+## airstrikes on their way, focus marks.
+func _draw_abilities(g: CanvasItem) -> void:
+	var field := Rect2(0, 0, Config.FIELD_W, Config.FIELD_H)
+	var effects: Dictionary[String, Color] = {
+		"slow": Color(0.35, 0.65, 1.0), "boost": Color(1.0, 0.6, 0.2), "bounty": Color(1.0, 0.85, 0.25),
+	}
+	var inset: float = 1.0
+	for id: String in effects:
+		if world.is_active(id):
+			var c: Color = effects[id]
+			g.draw_rect(field, Color(c, 0.06))
+			g.draw_rect(field.grow(-inset), Color(c, 0.55), false, 3)
+			inset += 4.0
+	for st: World.Strike in world.strikes:
+		var total: float = Abilities.get_def("strike").duration * Config.TICK_RATE
+		var progress: float = clampf(1.0 - (st.due - world.tick) / total, 0.0, 1.0)
+		var orange: Color = Palette.rgb(0xff8c42)
+		g.draw_circle(Vector2(st.x, st.y), st.radius * progress, Color(orange, 0.22))
+		Paint.stroke_circle(g, st.x, st.y, st.radius, 3, Color(orange, 0.9))
+		Paint.line(g, st.x - 10, st.y, st.x + 10, st.y, 2, orange)
+		Paint.line(g, st.x, st.y - 10, st.x, st.y + 10, 2, orange)
+	for e: Enemy in world.enemies:
+		if e.mark_ticks > 0:
+			var x: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var y: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			var r: float = e.radius + 7
+			Paint.stroke_circle(g, x, y, r, 2.5, Palette.RED)
+			for k: int in 4:
+				var a: float = k * PI / 2 + _frame_count * 0.05
+				Paint.line(g, x + cos(a) * (r - 3), y + sin(a) * (r - 3), x + cos(a) * (r + 5), y + sin(a) * (r + 5), 2.5, Palette.RED)
+
+
 # ---- per-frame sync ----------------------------------------------------------
 
 ## Syncs the views with the world. `alpha` is the fraction between ticks.
 func sync(alpha: float) -> void:
 	_alpha = alpha
 	_frame_count += 1
-	if world.map.maze:
+	if world.map.flow:
 		var key: String = ";".join(world.towers.map(func(t: Tower) -> String: return "%d,%d" % [t.col, t.row]))
+		key += "|" + ";".join(world.walls.keys().map(func(t: Vector2i) -> String: return "%d,%d" % [t.x, t.y]))
 		if key != _path_key:
 			_path_key = key
 			_path_preview.queue_redraw()
+	var walls_key: String = ";".join(world.walls.keys().map(func(t: Vector2i) -> String: return "%d,%d" % [t.x, t.y]))
+	if walls_key != _wall_key:
+		_wall_key = walls_key
+		_walls.queue_redraw()
+	if not world.mines.is_empty() or _mines_drawn:
+		_mines.queue_redraw()
+	_mines_drawn = not world.mines.is_empty()
+	_abilities.queue_redraw()
 	_sync_towers()
 	_sync_enemies()
 	if _frame_count % 3 == 0:
@@ -372,6 +440,29 @@ func handle_events(events: Array[WorldEvent]) -> void:
 				_dust.explode(10, ev.x, ev.y)
 				float_text(ev.x, ev.y - 10, "+$%d" % ev.amount, Palette.GOLD)
 				_sound("sell")
+			WorldEvent.Type.WALL_BUILT:
+				_dust.explode(10, ev.x, ev.y + 8)
+				_sound("build")
+			WorldEvent.Type.WALL_SOLD:
+				_dust.explode(10, ev.x, ev.y)
+				float_text(ev.x, ev.y - 10, "+$%d" % ev.amount, Palette.GOLD)
+				_sound("sell")
+			WorldEvent.Type.MINE_PLACED:
+				_dust.explode(6, ev.x, ev.y)
+				_sound("build")
+			WorldEvent.Type.MINE_BLAST:
+				_explosion.explode(18, ev.x, ev.y)
+				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xffb347), 350)
+				_shake(120, 0.003)
+				_sound("explode")
+			WorldEvent.Type.STRIKE:
+				_explosion.explode(40, ev.x, ev.y)
+				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xffb347), 450)
+				_rings.add(ev.x, ev.y, ev.radius * 0.6, Palette.rgb(0xff6b6b), 300)
+				_shake(260, 0.007)
+				_sound("bigExplosion")
+			WorldEvent.Type.ABILITY:
+				_ability_used(ev)
 			WorldEvent.Type.LEAK:
 				if quiet:
 					continue
@@ -382,6 +473,35 @@ func handle_events(events: Array[WorldEvent]) -> void:
 					fx.flash(160, Color8(180, 30, 30))
 				_sound("leak")
 	events.clear()
+
+
+## Effects and sounds when an ability is used.
+func _ability_used(ev: WorldEvent) -> void:
+	var middle := Vector2(Config.FIELD_W / 2.0, Config.FIELD_H / 2.0)
+	match ev.kind:
+		"slow":
+			_rings.add(middle.x, middle.y, 520, Palette.rgb(0x7ad3ff), 800)
+			float_text(middle.x, 120, "Time slow", Palette.rgb(0x7ad3ff))
+			_sound("frost")
+		"boost":
+			for t: Tower in world.towers:
+				_rings.add(t.x, t.y, 34, Palette.GOLD, 450)
+			float_text(middle.x, 120, "Damage boost", Palette.rgb(0xffb347))
+			_sound("upgrade")
+		"bounty":
+			_stars.explode(20, middle.x, 90)
+			float_text(middle.x, 120, "Bounty: kills pay double", Palette.GOLD)
+			_sound("upgrade")
+		"wind":
+			_stars.explode(24, middle.x, 90)
+			float_text(middle.x, 120, "+%d ♥" % roundi(Abilities.get_def("wind").power), Palette.GREEN)
+			_sound("heal")
+		"strike":
+			_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xff8c42), 1000)
+			_sound("click")
+		"mark":
+			_rings.add(ev.x, ev.y, 34, Palette.RED, 500)
+			_sound("click")
 
 
 ## Text that floats up and fades out.
