@@ -170,7 +170,7 @@ static func _build() -> Array[LevelDef]:
 
 static func _build_endless() -> LevelDef:
 	return _level("endless", "Endless", "Waves never stop. How long can you last?", 350, 20,
-		1.45, # tuned: average players survive about 20 waves
+		1.37, # tuned (balance/tune.gd -- endless): average players survive about 20 waves, without walls or abilities
 		LEVELS[2].tiles, [], false, true)
 
 
