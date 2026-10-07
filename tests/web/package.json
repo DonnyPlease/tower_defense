@@ -1,0 +1,13 @@
+{
+  "name": "tower-defense-web-tests",
+  "private": true,
+  "type": "module",
+  "description": "Plays the exported web build in a real browser (tests/run.sh web).",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "pngjs": "7.0.0"
+  }
+}
