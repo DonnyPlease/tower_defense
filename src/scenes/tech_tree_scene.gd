@@ -185,6 +185,12 @@ func requirement_text(id: String) -> String:
 	return "(Needs %s first.)" % " and ".join(names)
 
 
+## Android's back button goes back to the menu.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		Router.goto_menu()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE:

@@ -64,8 +64,9 @@ Other polish:
 Current layout: 1000 x 600 logical size (`src/config.gd`): an 800 x 600 field
 (20 x 15 tiles of 40 px) plus a 200 px sidebar. The sidebar holds the tower
 buttons, the selected-tower panel, the next-wave preview, Start wave and
-pause/speed/music/sound buttons. Perks are bought on a separate screen
-(`upgrades_scene.gd`), not in the game.
+pause/speed/music/sound buttons (a 2 x 4 tower grid now). Stars are spent in
+the tech tree screen, not in the game. Tap-to-build (a menu on an empty tile),
+holding a button for its help, and the Android back button (pause) exist.
 
 Problems:
 
@@ -80,21 +81,17 @@ Ideas:
 - **Expanding / collapsing menus** instead of a fixed sidebar. For example a
   slim tower bar that opens a build menu, and a context card for the selected
   tower that appears only when something is selected.
-- **Tap-to-build on a tile.** Tap an empty tile and a small popup lists only
-  the towers you can build there. This is the usual mobile pattern and means
-  the tower list doesn't need to be on screen all the time.
 - **A slim top bar** for money, lives and wave, with Start wave as a floating
   button and pause/speed in a corner.
 - **Let the field use the full screen** and overlay the UI on it, instead of
   keeping a fixed sidebar. This needs a different stretch mode (such as
   `expand`) or a layout that adapts to the aspect ratio, rather than letterboxing.
-- **Safe-area handling** (`DisplayServer.get_display_safe_area()`).
+- **Safe-area handling** (`DisplayServer.get_display_safe_area()`). Needs a
+  phone with a notch to test; today the letterbox bars of a wide phone happen
+  to cover the notch.
 - **Bigger tap targets** (aim for about 9-10 mm / 44-48 dp on a phone).
 - **Portrait mode?** Probably not: a wide field plays better sideways. Decide
   once and test.
-- **Android back button** should pause (`NOTIFICATION_WM_GO_BACK_REQUEST`).
-- A **range preview** and tower info shown when you press and hold, since touch
-  has no hover (hover is used today in `hud.gd`).
 
 Decisions needed before building: one layout for desktop and phone, or two?
 (One adaptive layout is more work up front and much less to maintain.)
@@ -120,10 +117,10 @@ Decisions needed before building: one layout for desktop and phone, or two?
 ## 9. Suggested order (if we want one)
 
 1. Decide the visual direction (cheap to decide, affects everything else).
-3. UI rework: tap-to-build popup, slimmer HUD.
+3. UI rework: slimmer HUD (tap-to-build is done).
 7. More levels to fill the tree (Citadel is level 5) (variants exist: night, reversed, last stand,
    no gun; an *ever-narrower road* variant is still an idea).
-8. Android preset, safe area, back button, tap sizes.
+8. Android preset, safe area, tap sizes (the back button pauses already).
 
 ## 10. Open questions
 

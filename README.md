@@ -164,14 +164,17 @@ them in the menu or the sidebar.
 | Input | Action |
 | --- | --- |
 | Click a tower in the sidebar, then the grass | Build |
+| Click (tap) an empty tile | A small menu of what can be built there (tap-to-build) |
 | Click a placed tower or wall | Select it (upgrade / target / sell) |
-| `1`–`6` | Pick a tower to build |
+| Hold a button | Show its help without pressing it (for touch screens) |
+| `1`–`7` | Pick a tower to build (or a field order while they are offered) |
 | `Q` `W` `E` `R` `Z` `X` `C` `V` | Wall and abilities (see above) |
 | `U` / `S` / `T` | Upgrade / sell / change target of the selected tower |
 | `Space` | Start the next wave (or call it early) |
 | `Esc` / right click | Cancel, or pause |
 | `F` | Speed 1x / 2x / 3x |
 | `M` | Music on/off |
+| Android back button | Pause (again: resume); back to the menu from other screens |
 
 ## Testing
 

@@ -5,8 +5,14 @@ extends Control
 ## with the chainable methods before adding it to the tree:
 ##
 ##   add_child(GameButton.new(Rect2(10, 10, 200, 50), "Play", start).primary())
+##
+## It acts when it is released. Held down for LONG_PRESS seconds it shows its
+## help instead (the hover callback, which touch screens can't otherwise
+## reach) and does nothing when released.
 
 enum Variant { DEFAULT, PRIMARY, DANGER }
+
+const LONG_PRESS: float = 0.45 ## seconds
 enum Layout { ROW, TILE } ## ROW: icon left of the text; TILE: icon on top, text underneath
 
 var on_click: Callable
@@ -29,6 +35,9 @@ var _icon: PainterView = null
 var _hover: bool = false
 var _enabled: bool = true
 var _selected: bool = false
+var _pressed: bool = false
+var _held: float = 0.0
+var _long: bool = false
 
 
 func _init(rect: Rect2, label: String, click: Callable) -> void:
@@ -85,6 +94,7 @@ func sublabel(text: String) -> GameButton:
 
 
 func _ready() -> void:
+	set_process(false)
 	var w: float = size.x
 	var h: float = size.y
 	var text_x: float = w / 2
@@ -126,14 +136,45 @@ func _draw() -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
-	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+	if mb == null or mb.button_index != MOUSE_BUTTON_LEFT:
 		return
 	accept_event()
+	if mb.pressed:
+		_pressed = true
+		_held = 0.0
+		_long = false
+		set_process(true)
+		return
+	if not _pressed:
+		return
+	_pressed = false
+	set_process(false)
+	if _long:
+		# It was held for its help: let go without acting.
+		_long = false
+		if on_hover.is_valid() and not _hover:
+			on_hover.call(false)
+		return
 	if _enabled:
 		Audio.play("click")
 		on_click.call()
 	else:
 		Audio.play("error")
+
+
+func _process(delta: float) -> void:
+	if not _pressed or _long:
+		return
+	_held += delta
+	if _held >= LONG_PRESS:
+		_long = true
+		if on_hover.is_valid():
+			on_hover.call(true)
+
+
+## Whether it is being held down long enough to show its help.
+func is_long_pressed() -> bool:
+	return _long
 
 
 func is_enabled() -> bool:
@@ -210,5 +251,8 @@ func _on_mouse_exited() -> void:
 
 
 func _on_visibility_changed() -> void:
+	if not visible:
+		_pressed = false
+		_long = false
 	if not visible and _hover:
 		_on_mouse_exited()

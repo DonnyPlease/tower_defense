@@ -110,3 +110,18 @@ func test_walls_and_abilities_work_by_touch() -> void:
 	await tap_button(game.ability_bar.buttons["slow"])
 	expect_true(game.world.is_active("slow"))
 	expect_eq(game.hud.money_text(), "$ %d" % (250 - 15 - 60))
+
+
+func test_tap_to_build_by_touch() -> void:
+	use_profile()
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	var p: Vector2 = tile(6, 9)
+	await tap(p.x, p.y)
+	expect_true(game.build_menu.is_open(), "a tap on grass opens the build menu")
+	if not game.build_menu.is_open():
+		return
+	await tap_button(game.build_menu.buttons["gun"])
+	expect_eq(tower_names(game), ["gun@6,9"])
+	expect_false(game.build_menu.is_open())

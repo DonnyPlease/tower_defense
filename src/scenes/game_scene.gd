@@ -35,6 +35,7 @@ var lose_overlay: Overlay
 var fx: ScreenFx
 var ability_bar: AbilityBar
 var draft: DraftOverlay
+var build_menu: BuildMenu
 
 var _stage: Node2D
 var _clock := FixedStep.new()
@@ -95,6 +96,8 @@ func _ready() -> void:
 	_stage.add_child(hud)
 	ability_bar = AbilityBar.new(self)
 	_stage.add_child(ability_bar)
+	build_menu = BuildMenu.new(self)
+	_stage.add_child(build_menu)
 
 	var restart: Callable = func() -> void: Router.goto_game(level_id)
 	pause_overlay = Overlay.new("Paused", Palette.TEXT, [
@@ -147,6 +150,7 @@ func select_tool(kind: String) -> void:
 		Audio.play("error")
 		return
 	tool = kind
+	build_menu.close()
 	if not kind.is_empty():
 		selected = null
 		selected_wall = GameMap.NO_TILE
@@ -251,6 +255,7 @@ func press_ability(id: String) -> void:
 	tool = ""
 	selected = null
 	selected_wall = GameMap.NO_TILE
+	build_menu.close()
 	aim = id
 
 
@@ -276,6 +281,7 @@ func _refuse(text: String, at: Vector2) -> void:
 
 
 func _cancel_picks() -> void:
+	build_menu.close()
 	tool = ""
 	selected = null
 	selected_wall = GameMap.NO_TILE
@@ -354,6 +360,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_hover(mb.position)
 		if is_modal_open():
 			return
+		if build_menu.is_open():
+			# A click outside the build menu just closes it.
+			build_menu.close()
+			get_viewport().set_input_as_handled()
+			return
 		if mb.button_index == MOUSE_BUTTON_RIGHT:
 			_cancel_picks()
 		elif mb.button_index == MOUSE_BUTTON_LEFT and _hover_tile != GameMap.NO_TILE:
@@ -367,8 +378,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	match key.keycode:
 		KEY_ESCAPE:
-			if (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE) \
-					and not is_modal_open():
+			if (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE \
+					or build_menu.is_open()) and not is_modal_open():
 				_cancel_picks()
 			else:
 				toggle_pause()
@@ -410,8 +421,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
-	# Pause automatically when the window loses focus.
+	# Pause automatically when the window loses focus, and on Android's back
+	# button (pressed again it resumes).
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and world != null and not is_modal_open():
+		toggle_pause()
+	elif what == NOTIFICATION_WM_GO_BACK_REQUEST and world != null:
 		toggle_pause()
 
 
@@ -451,6 +465,7 @@ func click_tile(col: int, row: int) -> void:
 		world.build(tool, col, row)
 		_autosave()
 		return
+	var had_selection: bool = selected != null or selected_wall != GameMap.NO_TILE
 	selected = existing
 	selected_wall = GameMap.NO_TILE
 	if existing != null:
@@ -458,6 +473,26 @@ func click_tile(col: int, row: int) -> void:
 	elif world.has_wall(col, row):
 		selected_wall = Vector2i(col, row)
 		Audio.play("click")
+	elif not had_selection and build_menu.open(col, row):
+		Audio.play("click") # tap-to-build: what can go on this tile
+
+
+## Builds a tower (or a wall) on a tile, from the build menu.
+func build_here(id: String, at: Vector2i) -> void:
+	var where := Vector2(at.x * Config.TILE + Config.TILE / 2.0, at.y * Config.TILE)
+	if id == "wall":
+		if world.build_wall(at.x, at.y):
+			_autosave()
+		else:
+			_refuse("Can't build a wall here", where)
+		return
+	var reason: World.BlockReason = world.build_block_reason(at.x, at.y)
+	if reason != World.BlockReason.NONE:
+		_refuse(BLOCK_MESSAGE[reason], where)
+	elif world.build(id, at.x, at.y) == null:
+		_refuse("Not enough money", where)
+	else:
+		_autosave()
 
 
 # ---- frame -------------------------------------------------------------------
@@ -474,9 +509,12 @@ func _process(delta: float) -> void:
 	field.sync(_alpha)
 	_update_hover_objects()
 	_boss_bar.queue_redraw()
+	if is_modal_open() and build_menu.is_open():
+		build_menu.close()
 	hud.refresh()
 	ability_bar.refresh()
 	draft.refresh()
+	build_menu.refresh()
 	Audio.set_intensity(1 if world.wave_in_progress() and not is_modal_open() else 0)
 
 

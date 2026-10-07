@@ -139,6 +139,12 @@ func show_ability_help(id: String) -> void:
 	_hovered_ability = id
 
 
+## Shows a tower's help in the panel while the pointer is over a button for it
+## (the build menu's too).
+func show_tower_help(kind: String, on: bool) -> void:
+	_on_tower_hover(kind, on)
+
+
 func _on_tower_hover(kind: String, on: bool) -> void:
 	if on:
 		_hovered = kind
