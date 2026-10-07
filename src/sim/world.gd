@@ -77,6 +77,10 @@ var strikes: Array[Strike] = []
 var damage_multiplier: float = 1.0
 ## Tower branches the player can't choose yet (all are open by default).
 var locked_branches: Dictionary[String, bool] = {}
+## Starting bonuses from the tech tree: walls still free in this game, and
+## whether the next tower built starts at level 2.
+var free_walls_left: int = 0
+var veteran_left: bool = false
 
 var _cooldowns: Dictionary[String, int] = {} ## ticks until an ability can be used again
 var _effects: Dictionary[String, int] = {} ## ticks left of timed abilities (slow, boost, bounty)
@@ -112,6 +116,8 @@ func _init(level: LevelDef, endless_waves: Callable = Callable(), p_modifiers: P
 	lives = start_lives
 	hp_scale = level.hp_scale
 	damage_multiplier = modifiers.damage_multiplier
+	free_walls_left = modifiers.free_walls
+	veteran_left = modifiers.veteran
 	_tower_grid.resize(Config.COLS * Config.ROWS)
 	_block_mask.resize(Config.COLS * Config.ROWS)
 	_flow = FlowField.new(map.distance_field(_block_mask))
@@ -276,6 +282,9 @@ func build(kind: String, col: int, row: int) -> Tower:
 	var cost: int = cost_of(kind)
 	# A wall under a tower raises it like high ground does.
 	var tower := Tower.new(kind, col, row, map.is_high_ground(col, row) or has_wall(col, row), cost)
+	if veteran_left:
+		tower.level = 1 # Veterans: the first tower starts at level 2
+		veteran_left = false
 	towers.append(tower)
 	money -= cost
 	_obstacles_changed()
@@ -327,9 +336,9 @@ func sell(tower: Tower) -> bool:
 	return true
 
 
-## Price of the next wall.
+## Price of the next wall (0 while Masonry's free walls last).
 func wall_cost() -> int:
-	return Abilities.wall_cost(walls.size())
+	return 0 if free_walls_left > 0 else Abilities.wall_cost(walls.size())
 
 
 func can_build_wall_at(col: int, row: int) -> bool:
@@ -343,6 +352,8 @@ func build_wall(col: int, row: int) -> bool:
 	if not can_build_wall_at(col, row):
 		return false
 	var cost: int = wall_cost()
+	if free_walls_left > 0:
+		free_walls_left -= 1
 	money -= cost
 	walls[Vector2i(col, row)] = cost
 	_obstacles_changed()
@@ -842,6 +853,8 @@ func snapshot() -> WorldSnapshot:
 		s.cooldowns[id] = _cooldowns[id]
 	for id: String in _used:
 		s.used.append(id)
+	s.free_walls = free_walls_left
+	s.veteran = veteran_left
 	return s
 
 
@@ -883,3 +896,6 @@ func restore(s: WorldSnapshot) -> void:
 	_effects = {}
 	strikes = []
 	damage_multiplier = modifiers.damage_multiplier
+	if s.free_walls >= 0:
+		free_walls_left = mini(s.free_walls, modifiers.free_walls)
+	veteran_left = modifiers.veteran and s.veteran

@@ -67,7 +67,7 @@ func _ready() -> void:
 		y += 60
 	buttons["play"] = _button(ui, y, "Play", Router.goto_levels, save == null)
 	y += 60
-	buttons["upgrades"] = _button(ui, y, "Upgrades", Router.goto_upgrades, false)
+	buttons["tech"] = _button(ui, y, "Tech tree", Router.goto_tech, false)
 	y += 60
 
 	buttons["music"] = GameButton.new(Rect2(Config.WIDTH / 2.0 - 130, y + 6, 125, 40), "", _toggle_music).font(14)

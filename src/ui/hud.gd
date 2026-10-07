@@ -11,7 +11,10 @@ const PANEL_H: float = 196.0
 const MODE_LABEL: Array[String] = ["First", "Last", "Strongest", "Closest"]
 const UNAFFORDABLE: Color = Color("#ffd0cc")
 
+## Build buttons of the towers the player owns (locked ones live in the tech tree).
 var tower_buttons: Dictionary[String, GameButton] = {}
+## The "?" slot after them while some towers are still locked (null when all are owned).
+var teaser_button: GameButton = null
 var upgrade_button: GameButton
 ## The two branches a level-3 tower can grow into (shown instead of Upgrade).
 var branch_buttons: Array[GameButton] = []
@@ -51,20 +54,20 @@ func _ready() -> void:
 	_lives = Ui.text(self, X + 4, 36, "", 19, Palette.RED, true)
 	_wave = Ui.text(self, X + 4, 62, "", 19, Palette.TEXT, true)
 
-	# 2 x 3 grid of build buttons.
-	var cell_w: float = (W - 8) / 2
-	var cell_h: float = 54.0
-	for i: int in Towers.KINDS.size():
-		var kind: String = Towers.KINDS[i]
-		@warning_ignore("integer_division")
-		var row: int = i / 2
-		var b := GameButton.new(Rect2(X + (i % 2) * (cell_w + 8), 94 + row * (cell_h + 6), cell_w, cell_h), "",
-			func() -> void: _host.select_tool("" if _host.tool == kind else kind))
+	# 2 x 3 grid of build buttons: the towers the player owns, then a "?".
+	var kinds: Array[String] = _host.buildable_kinds()
+	for i: int in kinds.size():
+		var kind: String = kinds[i]
+		var b := GameButton.new(_cell(i), "", func() -> void: _host.select_tool("" if _host.tool == kind else kind))
 		b.tile().font(13).key(str(i + 1)).icon(func(ci: CanvasItem, center: Vector2, s: float) -> void:
 			TowerArt.draw_icon(ci, kind, center, s))
 		b.hover_callback(func(on: bool) -> void: _on_tower_hover(kind, on))
 		add_child(b)
 		tower_buttons[kind] = b
+	if kinds.size() < Towers.KINDS.size():
+		teaser_button = GameButton.new(_cell(kinds.size()), "?", func() -> void: Audio.play("error")).tile().font(22)
+		teaser_button.hover_callback(func(on: bool) -> void: _on_tower_hover("?", on))
+		add_child(teaser_button)
 
 	# Context panel: the selected tower, or info about a tower type, or tips.
 	_panel_title = Ui.text(self, X + 10, PANEL_Y + 8, "", 15, Palette.TEXT, true)
@@ -110,6 +113,15 @@ func _ready() -> void:
 	sfx_button = _small(3, q, "FX", _host.toggle_sfx)
 
 
+## Where the build button in slot `i` of the 2 x 3 grid goes.
+func _cell(i: int) -> Rect2:
+	var cell_w: float = (W - 8) / 2
+	var cell_h: float = 54.0
+	@warning_ignore("integer_division")
+	var row: int = i / 2
+	return Rect2(X + (i % 2) * (cell_w + 8), 94 + row * (cell_h + 6), cell_w, cell_h)
+
+
 func _small(i: int, q: float, label: String, on_click: Callable) -> GameButton:
 	var b := GameButton.new(Rect2(X + i * (q + 6), 552, q, 38), label, on_click).font(14)
 	add_child(b)
@@ -144,12 +156,9 @@ func refresh() -> void:
 
 	for kind: String in tower_buttons:
 		var b: GameButton = tower_buttons[kind]
-		if not world.is_unlocked(kind):
-			b.set_label("★ %d" % Towers.get_def(kind).unlock_stars, Palette.TEXT_DIM).set_enabled(false).set_selected(false)
-		else:
-			var cost: int = world.cost_of(kind)
-			b.set_label("$%d" % cost, Palette.TEXT if world.money >= cost else Palette.RED) \
-				.set_selected(_host.tool == kind).set_enabled(world.status == World.Status.PLAYING)
+		var cost: int = world.cost_of(kind)
+		b.set_label("$%d" % cost, Palette.TEXT if world.money >= cost else Palette.RED) \
+			.set_selected(_host.tool == kind).set_enabled(world.status == World.Status.PLAYING)
 
 	_refresh_panel()
 	_refresh_preview()
@@ -234,10 +243,13 @@ func _refresh_panel() -> void:
 		_panel_body.show_text(_ability_text(def))
 		return
 
+	if _hovered == "?":
+		_panel_title.show_text("More towers")
+		_panel_body.show_text("Spend your stars in the tech tree (main menu) to unlock more towers and their branches.")
+		return
 	var kind: String = _hovered if not _hovered.is_empty() else _host.tool
 	if not kind.is_empty():
 		var d: TowerDef = Towers.get_def(kind)
-		var locked: bool = not world.is_unlocked(kind)
 		_panel_title.show_text("%s  ·  $%d" % [d.name, world.cost_of(kind)])
 		var hits: PackedStringArray = []
 		if d.hits_ground:
@@ -249,7 +261,6 @@ func _refresh_panel() -> void:
 			"Hits: %s" % (" + ".join(hits) if not hits.is_empty() else "—"),
 			"",
 			d.description,
-			("\nUnlocks at ★ %d total stars." % d.unlock_stars) if locked else "",
 		])))
 		return
 

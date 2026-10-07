@@ -21,39 +21,11 @@ What it lacks is **one thing that makes it special**. Today:
 - The most distinctive mechanic is **Open Field** (no road, enemies path around
   your towers, you build the maze). It's one level of four.
 - Perks are flat stat bumps (+money, +lives, cheaper, +8% damage). They don't
-  change how you play.
+  change how you play. (They are now cheap nodes in the tech tree.)
 - Three of the four levels are "enemies follow a fixed road", where the only
   decision is where to put towers beside it.
 - Visuals are drawn in code and look like a prototype.
 - The in-game screen is getting crowded.
-
----
-
-## 2. Tech tree
-
-The star system already unlocks towers and buys perks. Grow it into a **tech
-tree** that is the long-term progression of the game: a screen where you see
-what you have, what's next and what it costs.
-
-- **Nodes** unlock: new towers, **tower branches**, perks, new
-  levels or map variants, and starting bonuses.
-- **Currency:** keep stars (earned per level, 1-3 each) or add a separate
-  research currency earned per run. Stars are simple and already work.
-- **Gating:** nodes can need a parent node *and* a number of stars, so you
-  choose the order but can't skip the early game.
-- **The tree is where locked content lives.** The game screen shows only what
-  you own (see section 7); the tech tree shows the whole picture, including the
-  things you haven't got yet.
-- More levels, or **several levels on the same map**, make the tree satisfying:
-  a short sense of progress after every run. Examples of same-map variants:
-  night (short sight range), reversed route, fewer lives, a "no Gun" challenge,
-  an ever-narrower road.
-- Save data: unlocked node ids, so adding a node never breaks an old save.
-
-Open questions:
-
-- Is the tree one big graph or one branch per tower?
-- Can you *refund* a node (respec), or is each choice permanent?
 
 ---
 
@@ -85,7 +57,6 @@ Firepower) with **choices that change how you play**.
 - Examples: Gun bullets pierce; Frost also weakens shields; Beacon also boosts
   range; interest rate doubled but lives halved; towers cost less on high
   ground; the first tower of each kind is free.
-- The flat perks can stay in the tech tree as cheap early nodes.
 
 ---
 
@@ -149,9 +120,6 @@ Problems:
 
 Ideas:
 
-- **Hide locked towers** in the game. Show only what you own. Locked and
-  upcoming content is shown in the tech tree instead. (Maybe one "?" slot as a
-  teaser, to be decided.)
 - **Expanding / collapsing menus** instead of a fixed sidebar. For example a
   slim tower bar that opens a build menu, and a context card for the selected
   tower that appears only when something is selected.
@@ -195,8 +163,7 @@ Decisions needed before building: one layout for desktop and phone, or two?
 ## 9. Suggested order (if we want one)
 
 1. Decide the visual direction (cheap to decide, affects everything else).
-3. UI rework: hide locked towers, tap-to-build popup, slimmer HUD.
-4. Tech tree screen (needs branches to be worth having).
+3. UI rework: tap-to-build popup, slimmer HUD.
 5. Pathing in more levels and path-interacting towers.
 6. Run-defining perks.
 7. More levels / map variants to fill the tree.
@@ -207,7 +174,6 @@ Decisions needed before building: one layout for desktop and phone, or two?
 - What is the *one thing* that makes this game special: pathing, branching
   armies, or something else? (Play each level and note when it felt boring and
   when it felt exciting.)
-- Stars only, or a second currency for the tech tree?
 - One layout for all screens, or separate desktop and phone layouts?
 - Which visual direction?
 - How many levels is "enough" for the tech tree to feel worth it?

@@ -5,7 +5,7 @@ extends Node
 
 const MENU: String = "res://scenes/menu.tscn"
 const LEVELS: String = "res://scenes/level_select.tscn"
-const UPGRADES: String = "res://scenes/upgrades.tscn"
+const TECH: String = "res://scenes/tech_tree.tscn"
 const GAME: String = "res://scenes/game.tscn"
 
 ## The level the game screen starts (a level id, or "endless").
@@ -38,8 +38,8 @@ func goto_levels() -> void:
 	_change(LEVELS)
 
 
-func goto_upgrades() -> void:
-	_change(UPGRADES)
+func goto_tech() -> void:
+	_change(TECH)
 
 
 ## Starts a level ("endless" for endless mode), or continues the saved game with `resume`.

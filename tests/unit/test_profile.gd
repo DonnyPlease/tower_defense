@@ -24,13 +24,13 @@ func test_awards_stars_by_lives_left() -> void:
 	expect_eq(Profile.stars_for(1, 20), 1)
 
 
-func test_keeps_the_best_result_and_unlocks_levels_and_towers() -> void:
+func test_keeps_the_best_result_and_unlocks_levels() -> void:
 	var p: Profile = Profile.load_profile()
 	expect_false(p.is_level_unlocked(1))
-	expect_eq(p.unlocked_towers(), ["gun", "missile"])
-	var new_towers: Array[String] = p.record_win("meadow", 2)
-	expect_true(new_towers.has("cannon"))
-	p.record_win("meadow", 1)
+	expect_eq(p.record_win("meadow", 2), 2, "2 new stars")
+	expect_eq(p.record_win("meadow", 1), 0, "no new stars")
+	expect_eq(p.record_win("meadow", 3), 1, "one more")
+	p.stars["meadow"] = 2
 	expect_eq(p.stars["meadow"], 2)
 	expect_true(p.is_level_unlocked(1))
 	expect_false(p.is_endless_unlocked())
@@ -42,12 +42,12 @@ func test_keeps_the_best_result_and_unlocks_levels_and_towers() -> void:
 func test_spends_stars_on_perks_and_refunds_them() -> void:
 	var p: Profile = Profile.load_profile()
 	p.record_win("meadow", 3)
-	expect_true(p.buy_perk("capital"), "rank 1 costs 1")
-	expect_true(p.buy_perk("capital"), "rank 2 costs 2")
+	expect_true(p.buy_tech("capital1"), "rank 1 costs 1")
+	expect_true(p.buy_tech("capital2"), "rank 2 costs 2")
 	expect_eq(p.available_stars(), 0)
-	expect_false(p.buy_perk("fortify"))
+	expect_false(p.buy_tech("fortify1"))
 	expect_eq(p.modifiers().money, 80)
-	p.refund_perks()
+	p.refund_tech()
 	expect_eq(p.available_stars(), 3)
 
 
@@ -55,10 +55,10 @@ func test_maxed_perks_cost_nothing_more() -> void:
 	var p: Profile = Profile.load_profile()
 	for level: String in ["meadow", "riverside", "highlands", "openfield"]:
 		p.record_win(level, 3)
-	expect_true(p.buy_perk("fortify"))
-	expect_true(p.buy_perk("fortify"))
-	expect_eq(p.next_perk_cost("fortify"), -1)
-	expect_false(p.buy_perk("fortify"))
+	expect_true(p.buy_tech("fortify1"))
+	expect_true(p.buy_tech("fortify2"))
+	expect_false(Tech.is_node("fortify3"), "two ranks only")
+	expect_eq(p.perk_rank("fortify"), 2)
 
 
 func test_records_the_best_endless_run() -> void:

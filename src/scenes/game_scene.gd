@@ -55,6 +55,7 @@ func _ready() -> void:
 	var endless: bool = level_id == Levels.ENDLESS.id
 	world = World.new(Levels.by_id(level_id), Levels.endless_wave if endless else Callable(),
 		profile.modifiers(), profile.unlocked_towers())
+	world.locked_branches = profile.locked_branches()
 	var save: WorldSnapshot = profile.save
 	if Router.launch_resume and save != null and save.level_id == world.level_id:
 		world.restore(save)
@@ -101,6 +102,7 @@ func _ready() -> void:
 	])
 	win_overlay = Overlay.new("Victory!", Palette.GOLD, [
 		Overlay.Action.new("Level select", Router.goto_levels, true),
+		Overlay.Action.new("Tech tree", Router.goto_tech),
 		Overlay.Action.new("Play again", restart),
 	])
 	lose_overlay = Overlay.new("Overrun!" if endless else "Defeat", Palette.RED, [
@@ -123,6 +125,15 @@ func music_on() -> bool:
 
 func sfx_on() -> bool:
 	return Profile.load_profile().sfx
+
+
+## The towers the player can build here, in sidebar order (keys 1, 2, ...).
+func buildable_kinds() -> Array[String]:
+	var out: Array[String] = []
+	for kind: String in Towers.KINDS:
+		if world.is_unlocked(kind):
+			out.append(kind)
+	return out
 
 
 ## Picks the tower to build ("" for none).
@@ -362,8 +373,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			press_ability(id)
 			return
 	var n: int = key.keycode - KEY_0
-	if n >= 1 and n <= Towers.KINDS.size():
-		var kind: String = Towers.KINDS[n - 1]
+	var kinds: Array[String] = buildable_kinds()
+	if n >= 1 and n <= kinds.size():
+		var kind: String = kinds[n - 1]
 		select_tool("" if tool == kind else kind)
 		return
 	match key.keycode:
@@ -486,14 +498,9 @@ func _on_game_over(won: bool) -> void:
 		return
 	if won:
 		var stars: int = Profile.stars_for(world.lives, world.start_lives)
-		var new_towers: Array[String] = p.record_win(world.level_id, stars)
-		var unlocked: String = ""
-		if not new_towers.is_empty():
-			var names: PackedStringArray = []
-			for kind: String in new_towers:
-				names.append(Towers.get_def(kind).name)
-			unlocked = "\nUnlocked: %s!" % ", ".join(names)
-		win_overlay.show_dialog("%s\n%d of %d lives left.%s" % [Format.star_string(stars), world.lives, world.start_lives, unlocked])
+		var added: int = p.record_win(world.level_id, stars)
+		var spend: String = "\n+%d ★ to spend in the tech tree!" % added if added > 0 else ""
+		win_overlay.show_dialog("%s\n%d of %d lives left.%s" % [Format.star_string(stars), world.lives, world.start_lives, spend])
 	else:
 		lose_overlay.show_dialog("You reached wave %d of %d." % [world.wave_index + 1, world.total_waves()])
 

@@ -174,7 +174,7 @@ func test_a_wall_is_refused_where_nothing_can_stand_and_without_the_money() -> v
 
 
 func test_walls_on_a_level_without_walls_go_on_grass_only() -> void:
-	use_profile(ALL_STARS)
+	use_profile(ALL_STARS, ALL_TECH)
 	var game: GameScene = await open_game("riverside")
 	if game == null:
 		return

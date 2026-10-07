@@ -327,7 +327,7 @@ func test_clearing_a_wave_pays_a_bonus() -> void:
 
 
 func test_boss_and_final_wave_banners() -> void:
-	use_profile(ALL_STARS)
+	use_profile(ALL_STARS, ALL_TECH)
 	var game: GameScene = await open_game("highlands")
 	if game == null:
 		return
@@ -424,7 +424,7 @@ func test_refused_builds_explain_why() -> void:
 
 
 func test_the_road_of_a_level_without_walls_cannot_be_built_on() -> void:
-	use_profile(ALL_STARS)
+	use_profile(ALL_STARS, ALL_TECH)
 	var game: GameScene = await open_game("riverside")
 	if game == null:
 		return
@@ -437,7 +437,7 @@ func test_the_road_of_a_level_without_walls_cannot_be_built_on() -> void:
 
 
 func test_maze_levels_refuse_to_block_the_path() -> void:
-	use_profile(ALL_STARS)
+	use_profile(ALL_STARS, ALL_TECH)
 	var game: GameScene = await open_game("openfield")
 	if game == null:
 		return
@@ -457,7 +457,7 @@ func test_maze_levels_refuse_to_block_the_path() -> void:
 	expect_eq(game.hint_text(), "")
 
 
-func test_winning_a_level_awards_stars_and_unlocks_towers() -> void:
+func test_winning_a_level_awards_stars_to_spend_in_the_tech_tree() -> void:
 	use_profile()
 	var game: GameScene = await open_game("meadow")
 	if game == null:
@@ -477,14 +477,22 @@ func test_winning_a_level_awards_stars_and_unlocks_towers() -> void:
 	expect_eq(w.status, World.Status.WON)
 	expect_true(game.win_overlay.visible, "victory dialog")
 	expect_eq(game.win_overlay.title_text(), "Victory!")
-	expect_eq(game.win_overlay.subtitle_text(), "★★★\n20 of 20 lives left.\nUnlocked: Cannon, Frost!")
+	expect_eq(game.win_overlay.subtitle_text(), "★★★\n20 of 20 lives left.\n+3 ★ to spend in the tech tree!")
 	expect_eq(game.hud.wave_button.label_text(), "Game over")
 	Profile.forget_cache()
 	var p: Profile = Profile.load_profile()
 	expect_eq(p.stars_on("meadow"), 3)
 	expect_null(p.save)
 
-	await click_button(game.win_overlay.button("Level select"))
+	# Spend them on the cannon, then play the next level with it.
+	await click_button(game.win_overlay.button("Tech tree"))
+	if not await wait_for_scene("TechTreeScene"):
+		return
+	var tree: TechTreeScene = scene()
+	expect_eq(tree.stars_text(), "★ 3 to spend  (3 earned)")
+	await click_button(tree.node_buttons["cannon"])
+	expect_eq(tree.state_text("cannon"), "Owned")
+	await click_button(tree.levels_button)
 	if not await wait_for_scene("LevelSelectScene"):
 		return
 	var levels: LevelSelectScene = scene()
@@ -523,7 +531,7 @@ func test_losing_shows_the_defeat_dialog_and_clears_the_save() -> void:
 
 
 func test_endless_mode_ends_with_the_survived_waves_and_the_record() -> void:
-	use_profile(ALL_STARS)
+	use_profile(ALL_STARS, ALL_TECH)
 	var game: GameScene = await open_game("endless")
 	if game == null:
 		return
@@ -561,7 +569,7 @@ func test_endless_mode_ends_with_the_survived_waves_and_the_record() -> void:
 
 func test_every_map_runs_a_busy_wave_without_errors() -> void:
 	for level_id: String in ["meadow", "riverside", "highlands", "openfield", "endless"]:
-		use_profile(ALL_STARS)
+		use_profile(ALL_STARS, ALL_TECH)
 		var game: GameScene = await open_game(level_id)
 		if game == null:
 			return

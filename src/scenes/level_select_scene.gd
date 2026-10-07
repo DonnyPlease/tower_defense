@@ -9,7 +9,7 @@ const GAP: float = 20
 ## The Play button of each card, by level id (tests).
 var play_buttons: Dictionary[String, GameButton] = {}
 var back_button: GameButton
-var upgrades_button: GameButton
+var tech_button: GameButton
 
 var _stars: TextLabel
 ## Each card's status line ("★★☆", "Best: 4 waves") and description, by level id.
@@ -45,8 +45,8 @@ func _ready() -> void:
 	_stars = Ui.text(ui, Config.WIDTH / 2.0, 66, "★ %d stars" % profile.total_stars(), 15, Palette.GOLD, false, Vector2(0.5, 0.5))
 	back_button = GameButton.new(Rect2(20, 18, 100, 40), "‹ Back", Router.goto_menu)
 	ui.add_child(back_button)
-	upgrades_button = GameButton.new(Rect2(Config.WIDTH - 140, 18, 120, 40), "Upgrades", Router.goto_upgrades)
-	ui.add_child(upgrades_button)
+	tech_button = GameButton.new(Rect2(Config.WIDTH - 140, 18, 120, 40), "Tech tree", Router.goto_tech)
+	ui.add_child(tech_button)
 
 	var cards: Array[Card] = []
 	for i: int in Levels.LEVELS.size():

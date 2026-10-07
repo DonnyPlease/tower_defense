@@ -1,6 +1,7 @@
 class_name Perks
 extends RefCounted
-## Permanent upgrades bought with stars earned in levels.
+## Permanent upgrades bought with stars in the tech tree (each rank is a node,
+## see Tech), and what the tree changes in a game (Modifiers).
 
 const IDS: Array[String] = ["capital", "fortify", "engineering", "firepower"]
 
@@ -43,6 +44,8 @@ class Modifiers:
 	var lives: int = 0
 	var cost_multiplier: float = 1.0
 	var damage_multiplier: float = 1.0
+	var free_walls: int = 0 ## Masonry: walls that cost nothing, per game
+	var veteran: bool = false ## Veterans: the first tower built starts at level 2
 
 
 static func no_modifiers() -> Modifiers:

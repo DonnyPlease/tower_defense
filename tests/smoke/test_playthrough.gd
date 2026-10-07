@@ -104,7 +104,7 @@ func test_a_level_won_with_clicks_and_keys_only() -> void:
 		return
 	var lives: int = dollars(hud.lives_text().replace("♥", "$")) # "♥ 13" -> 13
 	expect_eq(game.win_overlay.title_text(), "Victory!")
-	expect_match(game.win_overlay.subtitle_text(), "^★+☆*\\n%d of 20 lives left\\.\\nUnlocked: Cannon(, Frost)?!$" % lives)
+	expect_match(game.win_overlay.subtitle_text(), "^★+☆*\\n%d of 20 lives left\\.\\n\\+[1-3] ★ to spend in the tech tree!$" % lives)
 	expect_eq(hud.wave_button.label_text(), "Game over")
 
 	# The result is kept: the level select screen and the title screen show it.

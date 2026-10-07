@@ -30,14 +30,14 @@ project uses the Compatibility renderer, which is what web builds need.
 
 **6 towers, each with 3 upgrade levels**
 
-| Tower | Role | Unlock |
+| Tower | Role | In the tech tree |
 | --- | --- | --- |
-| Gun | Rapid fire, aims ahead of moving targets, hits air | start |
-| Missile | Cheap homing missiles, hits air | start |
-| Cannon | Splash damage, strong against armor, ground only | ★ 1 |
-| Frost | Slows everything in range and chills with pulses | ★ 3 |
-| Laser | Beam that heats up to 3x on one target, ignores armor | ★ 5 |
-| Beacon | Boosts the fire rate of nearby towers | ★ 7 |
+| Gun | Rapid fire, aims ahead of moving targets, hits air | owned from the start |
+| Missile | Cheap homing missiles, hits air | owned from the start |
+| Cannon | Splash damage, strong against armor, ground only | ★ 1, after the Missile, 1 star earned |
+| Frost | Slows everything in range and chills with pulses | ★ 2, after the Cannon, 3 stars earned |
+| Laser | Beam that heats up to 3x on one target, ignores armor | ★ 2, after Frost, 5 stars earned |
+| Beacon | Boosts the fire rate of nearby towers | ★ 3, after the Laser, 7 stars earned |
 
 Click a placed tower to upgrade it, sell it (50% of everything you spent), or
 choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
@@ -92,9 +92,16 @@ the Warlord boss (armored, summons reinforcements).
 unspent money. Call the next wave early for extra cash. The sidebar shows what
 the next wave contains.
 
-**Progression.** Earn 1–3 stars per level: 3 for losing no lives, 2 for keeping
-at least half. Stars unlock towers and buy permanent upgrades (starting money,
-lives, cheaper towers, damage). Progress and a game in progress are saved
+**Progression: the tech tree.** Earn 1–3 stars per level: 3 for losing no
+lives, 2 for keeping at least half. Spend them in the **tech tree** (main menu,
+level select, or the victory dialog): towers, every tower branch, perks
+(starting money, lives, cheaper towers, damage; one node per rank) and starting
+bonuses (*Masonry*: the first 3 walls of every game are free; *Veterans*: the
+first tower you build starts at level 2). A node needs its parents first and a
+number of stars earned in total, so you choose the order but can't skip the
+early game. Every star can be refunded. The game screen only shows the towers
+you own (a **?** slot hints at the rest); locked content lives in the tree.
+The tree's nodes, prices and layout are in `src/data/tech.gd`. Progress and a game in progress are saved
 automatically (in Godot's `user://` folder; the browser's storage in web
 builds), and **Continue** on the main menu resumes where you left off (at the
 start of the wave).
@@ -235,14 +242,15 @@ the difficulty *without* them: a human who uses them well has an easier game.
 
 ```
 project.godot        engine settings (1000 x 600 logical size, strict typing)
-scenes/              the four screens: menu, level select, upgrades, game
+scenes/              the four screens: menu, level select, tech tree, game
 src/
   config.gd          global constants (sizes, tick rate, economy formulas)
   data/              game content, which is the place to tweak and add things
-    towers.gd        tower stats per level
+    towers.gd        tower stats per level, and their branches
+    tech.gd          the tech tree: nodes, prices, requirements, layout
     enemies.gd       enemy stats and abilities
     levels.gd        maps, waves, endless wave generator
-    perks.gd         permanent upgrades bought with stars
+    perks.gd         permanent upgrades (ranks bought in the tech tree)
     abilities.gd     the wall and the seven abilities: prices, cooldowns, strength, on/off
   sim/               the game rules; no nodes, no rendering
     world.gd         one game: money, lives, waves, building, the update tick

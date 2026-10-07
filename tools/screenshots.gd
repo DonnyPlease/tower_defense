@@ -47,9 +47,9 @@ class Driver:
 		Router.goto_levels()
 		await _wait_for("LevelSelectScene")
 		await _snap("levels")
-		Router.goto_upgrades()
-		await _wait_for("UpgradesScene")
-		await _snap("upgrades")
+		Router.goto_tech()
+		await _wait_for("TechTreeScene")
+		await _snap("tech_tree")
 
 		for id: String in ["meadow", "riverside", "highlands", "openfield"]:
 			Router.goto_game(id)

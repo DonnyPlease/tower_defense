@@ -17,7 +17,8 @@ var ignores_armor: bool = false
 ## otherwise the art is drawn in code (src/view/tower_art.gd).
 var sprite: String = ""
 var frames: int = 1
-## Total stars needed before the tower can be used.
+## Total stars that unlocked the tower before the tech tree (Tech): old
+## profiles keep these towers, and simulated players use it as "typical unlocks".
 var unlock_stars: int
 var color: Color ## accent colour for UI and effects
 var levels: Array[TowerLevel]

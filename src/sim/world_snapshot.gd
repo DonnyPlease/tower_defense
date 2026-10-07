@@ -33,6 +33,9 @@ var mines: Array[Vector2i] = []
 ## Ticks left of each ability's cooldown, and the once-per-game abilities used.
 var cooldowns: Dictionary[String, int] = {}
 var used: Array[String] = []
+## Starting bonuses not used up yet (-1: a save from before they existed).
+var free_walls: int = -1
+var veteran: bool = true
 
 
 func to_dict() -> Dictionary:
@@ -55,6 +58,7 @@ func to_dict() -> Dictionary:
 		"v": VERSION, "level_id": level_id, "endless": endless, "money": money, "lives": lives,
 		"wave_index": wave_index, "waves_cleared": waves_cleared, "towers": list,
 		"walls": wall_list, "mines": mine_list, "cooldowns": cooldowns, "used": used,
+		"free_walls": free_walls, "veteran": veteran,
 	}
 
 
@@ -102,6 +106,8 @@ static func from_dict(d: Variant) -> WorldSnapshot:
 		save.invested = JsonRead.int_or(t.get("invested"), Towers.get_def(save.kind).levels[0].cost)
 		s.towers.append(save)
 	_read_walls(dict, s)
+	s.free_walls = JsonRead.int_or(dict.get("free_walls"), -1)
+	s.veteran = dict.get("veteran") != false
 	return s
 
 

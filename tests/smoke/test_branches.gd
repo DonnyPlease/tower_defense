@@ -4,6 +4,9 @@ extends SceneTestCase
 ## one grows the tower.
 
 
+const BRANCHES: Array[String] = ["minigun", "sniper"]
+
+
 func near(a: Color, b: Color, tolerance: float = 0.04) -> bool:
 	return absf(a.r - b.r) <= tolerance and absf(a.g - b.g) <= tolerance and absf(a.b - b.b) <= tolerance
 
@@ -20,7 +23,7 @@ func level_3_gun(game: GameScene, col: int = 6, row: int = 9) -> Tower:
 
 
 func test_a_level_3_tower_offers_its_two_branches() -> void:
-	use_profile()
+	use_profile({}, BRANCHES)
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
@@ -68,7 +71,7 @@ func test_a_level_3_tower_offers_its_two_branches() -> void:
 
 
 func test_u_at_level_3_asks_for_a_branch() -> void:
-	use_profile()
+	use_profile({}, BRANCHES)
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
@@ -83,7 +86,7 @@ func test_u_at_level_3_asks_for_a_branch() -> void:
 
 
 func test_locked_and_unaffordable_branches_cannot_be_chosen() -> void:
-	use_profile()
+	use_profile({}, BRANCHES)
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
@@ -109,7 +112,7 @@ func test_locked_and_unaffordable_branches_cannot_be_chosen() -> void:
 
 
 func test_a_branched_tower_is_still_there_after_resuming() -> void:
-	use_profile()
+	use_profile({}, BRANCHES)
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
@@ -143,7 +146,7 @@ func test_a_branch_looks_different_from_its_tower() -> void:
 	if not rendering_available():
 		skip("needs a display; tests/run.sh uses xvfb-run")
 		return
-	use_profile()
+	use_profile({}, BRANCHES)
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
@@ -170,7 +173,7 @@ func test_a_sniper_shot_draws_a_tracer() -> void:
 	if not rendering_available():
 		skip("needs a display; tests/run.sh uses xvfb-run")
 		return
-	use_profile()
+	use_profile({}, BRANCHES)
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
