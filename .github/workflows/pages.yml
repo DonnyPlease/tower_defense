@@ -1,0 +1,66 @@
+name: Play in the browser
+
+# Exports the Web build and publishes it on GitHub Pages, so the game can be
+# opened on any phone or computer without building anything:
+#   https://donnyplease.github.io/tower_defense/
+#
+# One-time setup in the repository settings:
+#   - Settings > Pages > Source: "GitHub Actions".
+#   - Settings > Environments > github-pages: allow the branch below to deploy
+#     (by default only the default branch may).
+
+on:
+  push:
+    branches: [main_godot]
+  workflow_dispatch: # run it by hand from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only the newest deployment matters; don't cancel one that is publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: 4.4.1
+
+jobs:
+  deploy:
+    name: Export and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-godot
+      # Same cache key as ci.yml, so the two workflows share the templates.
+      - name: Cache the Web export templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates
+          key: godot-web-templates-${{ env.GODOT_VERSION }}
+      - name: Install the Web export templates
+        run: |
+          templates="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          if [ ! -f "$templates/web_nothreads_release.zip" ]; then
+            python3 -m venv "$RUNNER_TEMP/venv"
+            "$RUNNER_TEMP/venv/bin/pip" install --quiet remotezip
+            "$RUNNER_TEMP/venv/bin/python" tests/web/install_template.py "${GODOT_VERSION}.stable" "$templates"
+          fi
+      - name: Export the Web build
+        run: |
+          "$GODOT" --headless --import >/dev/null 2>&1 || true
+          mkdir -p build/web
+          "$GODOT" --headless --export-release Web build/web/index.html
+          test -s build/web/index.pck
+          ls -l build/web
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+      - id: deployment
+        uses: actions/deploy-pages@v4

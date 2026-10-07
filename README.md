@@ -11,6 +11,10 @@ You need **Godot 4.4 or newer** (the standard build; the .NET build isn't needed
 - **Editor:** open Godot, choose *Import*, pick `project.godot`, then press
   <kbd>F5</kbd> to play.
 - **Command line:** `godot --path .` from this folder.
+- **In a browser, nothing to install:** every push to `main_godot` publishes the
+  Web build to GitHub Pages (`.github/workflows/pages.yml`):
+  <https://donnyplease.github.io/tower_defense/>. It works on phones too. The
+  repository needs *Settings → Pages → Source: GitHub Actions* once.
 
 To ship the game, use *Project → Export* in the editor (install the export
 templates when it asks). Web, Windows, Linux, macOS and Android all work; the

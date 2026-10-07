@@ -106,11 +106,76 @@ Decisions needed before building: one layout for desktop and phone, or two?
 
 ---
 
-## 4. Shipping / platforms
+## 4. Performance (frame rate is poor on the phone)
 
-- **Web** is ready (preset, tests, installable PWA). Host it on HTTPS (GitHub
-  Pages, itch.io, Netlify) so it can be installed from the browser, including
-  on iPhones.
+Reported while playing the web build on a phone: the FPS is low. Nothing has
+been measured yet, so the list below is a set of suspects, not findings.
+**Measure first, then change things.**
+
+How to measure:
+
+- Note which device and browser, which level, which wave, and which game speed
+  (1x / 2x / 3x) it happens at. Does it start low, or get worse as the wave grows?
+- In the editor: *Debugger → Monitors* (FPS, draw calls, objects) and *Profiler*.
+  A debug build of the web export shows an FPS counter and script errors in the
+  browser console.
+- Compare the phone with a desktop browser. If the desktop is also slow, the
+  problem is in the game; if only the phone is, it is mostly fill rate / draw
+  calls / CPU speed.
+
+Suspects (from reading the code, not from a profile):
+
+- **Everything is drawn in code.** The views use `DrawNode` (`src/view/draw_node.gd`)
+  with `_draw()` callbacks, and the bullets, beams and health bars layers
+  redraw **every frame** (`field_view.gd`, `sync()`). Thousands of small
+  `draw_circle` / `draw_polyline` / `draw_arc` calls per frame add up on a
+  phone, and a lot of them run in GDScript on a single thread (and in the
+  browser, WebAssembly is slower than a native build).
+- **Per-tower and per-enemy nodes.** Each tower and enemy is its own node
+  with its own draw callbacks. Many of them redrawing every frame is costly.
+- **Simulation catch-up.** The fixed-step loop (`fixed_step.gd`) runs up to
+  `10 * speed` simulation ticks in one frame. If a frame is slow, the next one
+  has more ticks to run, which makes it slower still. At 3x speed this is the
+  most likely place for the frame rate to collapse.
+- **Pathing:** the flow field and the path preview in the maze level
+  (`flow_field.gd`, the key string built every `sync()` in `field_view.gd`) may
+  cost a lot with many towers.
+- **Transparency and glow:** large translucent areas, range circles and
+  screen effects (`screen_fx.gd`, `burst.gd`) cost fill rate on a phone GPU.
+  Since these notes, shots and beams also draw an additive glow layer
+  (`field_view.gd`, `_draw_glow`), night levels a full-field shader
+  (`night.gdshader`), and magnets an animated dashed ring.
+- **Resolution:** the viewport is 1000 x 600 and scaled up. On a high-DPI
+  phone this may still be heavy for the browser's canvas.
+- **Audio:** sound is synthesised on a background thread at start. Without
+  threads (the Web preset has them off) it falls back to something else
+  (`audio_engine.gd`), which could cause a hitch at start.
+
+Ideas, roughly from cheapest:
+
+1. Redraw only what changed: static things (terrain, tower bases, the path)
+   are drawn once and cached, and only moving things redraw.
+2. Draw bullets, particles and health bars in **batches**, with
+   `MultiMeshInstance2D`, or fewer, larger draw calls instead of many small ones.
+3. Pre-render tower and enemy art into **textures** once (or use real sprite
+   textures, which also helps the look, see section 1) and draw sprites instead
+   of vector shapes every frame.
+4. Cap the catch-up: run fewer ticks per frame (a smaller `MAX_TICKS_PER_FRAME`)
+   and let the game slow down instead of spiralling. Give 3x speed a lower cap.
+5. Only recompute the maze path when a tower is built or sold, not every frame.
+6. A **quality setting** (low / high) that turns off glow, particles and the
+   screen effects, and a lower internal resolution on phones.
+7. Check the web export settings (threads, compression, `vram_texture_compression`)
+   and test whether a threaded build is faster. Threads need special server
+   headers, which GitHub Pages doesn't set, so this may mean another host.
+8. Add a frame-time counter to a debug overlay in the game, so the numbers are
+   visible on the phone without any tools.
+
+## 5. Shipping / platforms
+
+- **Web** is ready (preset, tests, installable PWA) and every push to
+  `main_godot` publishes it to GitHub Pages (HTTPS), so it can be installed
+  from the browser, including on iPhones.
 - **Android:** add an Android export preset (JDK, Android SDK, keystore). `.apk`
   to sideload, `.aab` for Google Play. Works from any OS.
 - **iOS:** needs a Mac with Xcode, and a paid Apple Developer account for
@@ -122,14 +187,16 @@ Decisions needed before building: one layout for desktop and phone, or two?
 
 ---
 
-## 5. Suggested order (if we want one)
+## 6. Suggested order (if we want one)
 
-1. Decide the visual direction (cheap to decide, affects everything else).
-2. UI rework: slimmer HUD, one layout for desktop and phone.
-3. More levels and variants to fill the tree.
-4. Android preset, safe area, tap sizes.
+1. Measure the frame rate on the phone (section 4) and fix the worst cause,
+   so everything after it is tested on a game that runs well.
+2. Decide the visual direction (cheap to decide, affects everything else).
+3. UI rework: slimmer HUD, one layout for desktop and phone.
+4. More levels and variants to fill the tree.
+5. Android preset, safe area, tap sizes.
 
-## 6. Open questions
+## 7. Open questions
 
 - What is the *one thing* that makes this game special: pathing, branching
   armies, or something else? (Play each level and note when it felt boring and
