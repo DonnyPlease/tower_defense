@@ -40,7 +40,7 @@ Pick one with the switch on the level's card.
 | Last Stand | Only 5 lives |
 | No Gun | The Gun can't be built |
 
-**6 towers, each with 3 upgrade levels**
+**7 towers, each with 3 upgrade levels and two branches**
 
 | Tower | Role | In the tech tree |
 | --- | --- | --- |
@@ -50,6 +50,7 @@ Pick one with the switch on the level's card.
 | Frost | Slows everything in range and chills with pulses | ★ 2, after the Cannon, 3 stars earned |
 | Laser | Beam that heats up to 3x on one target, ignores armor | ★ 2, after Frost, 5 stars earned |
 | Beacon | Boosts the fire rate of nearby towers | ★ 3, after the Laser, 7 stars earned |
+| Magnet | Pulls the enemies' way towards it and slows them in its field | ★ 3, after the Beacon, 9 stars earned |
 
 Click a placed tower to upgrade it, sell it (50% of everything you spent), or
 choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
@@ -67,6 +68,14 @@ different. Hover a branch button in the sidebar to read what it does.
 | Frost | **Blizzard**: a huge slowing field, no damage | **Cryo**: pulses freeze enemies; chilled enemies take extra damage |
 | Laser | **Prism**: splits the beam over 2-3 enemies | **Lance**: heats up faster and up to 5x |
 | Beacon | **Overclock**: a big fire-rate boost close by | **Command**: a smaller boost over a wide area, plus range |
+| Magnet | **Vortex**: a much wider field that pulls from further away | **Tesla Coil**: its field also shocks everything in it |
+
+**The Magnet** works on the levels where enemies re-route (all but Riverside):
+their way is planned on a weighted distance field in which tiles inside a
+magnet's field are cheap, so they take a detour through it when the detour is
+short enough. Put one beside your killing zone and the enemies come to it.
+The Sniper is the opposite: strongest where enemies walk a long straight line
+past it, since one rail shot goes through all of them.
 
 Branch numbers live with the towers in `src/data/towers.gd`. Levels 1-3 are
 unchanged, so the balance measurements (made without branches, see

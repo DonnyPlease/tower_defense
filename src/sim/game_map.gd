@@ -268,6 +268,48 @@ func distance_field(blocked: PackedByteArray = PackedByteArray(), exits: Array[V
 	return dist
 
 
+## Step cost of a tile in a weighted distance field, and of a tile in a
+## magnet's field (see weighted_distance_field).
+const STEP_COST: int = 10
+const LURE_COST: int = 1
+
+
+## Like distance_field, but stepping off a tile in `lures` (a non-zero byte
+## per tile: a magnet's field) costs LURE_COST instead of STEP_COST, so the
+## cheapest way bends towards magnets when the detour is short enough.
+## Distances are in STEP_COST units per tile.
+func weighted_distance_field(blocked: PackedByteArray, lures: PackedByteArray) -> PackedInt32Array:
+	var n: int = Config.COLS * Config.ROWS
+	var cols: int = Config.COLS
+	var dist := PackedInt32Array()
+	dist.resize(n)
+	dist.fill(UNREACHABLE)
+	var done := PackedByteArray()
+	done.resize(n)
+	for e: Vector2i in ends:
+		dist[e.y * cols + e.x] = 0
+	var has_blocked: bool = not blocked.is_empty()
+	# Dijkstra; the map is small, so a plain scan for the nearest tile will do.
+	while true:
+		var k: int = -1
+		var best: int = UNREACHABLE
+		for i: int in n:
+			if done[i] == 0 and dist[i] < best:
+				best = dist[i]
+				k = i
+		if k < 0:
+			break
+		done[k] = 1
+		var c: int = k % cols
+		for nk: int in [k + 1 if c + 1 < cols else -1, k + cols if k + cols < n else -1, k - 1 if c > 0 else -1, k - cols]:
+			if nk < 0 or done[nk] != 0 or _walkable[nk] == 0 or (has_blocked and blocked[nk] != 0):
+				continue
+			var d: int = best + (LURE_COST if lures[nk] != 0 else STEP_COST)
+			if d < dist[nk]:
+				dist[nk] = d
+	return dist
+
+
 ## Value of a distance field at a tile; UNREACHABLE off the map.
 static func dist_at(dist: PackedInt32Array, col: int, row: int) -> int:
 	if not in_bounds(col, row):
@@ -275,24 +317,27 @@ static func dist_at(dist: PackedInt32Array, col: int, row: int) -> int:
 	return dist[row * Config.COLS + col]
 
 
-## Next tile towards the exit, following the distance field and preferring
-## to keep going in direction `dir` (fewer turns; NO_TILE for none). NO_TILE
-## at an exit or when the tile can't reach one.
+## Next tile towards the exit: the neighbour with the smallest distance,
+## preferring to keep going in direction `dir` among equals (fewer turns;
+## NO_TILE for none). NO_TILE at an exit or when the tile can't reach one.
+## Works for plain fields (neighbours differ by 1) and weighted ones.
 static func next_tile(dist: PackedInt32Array, cur: Vector2i, dir: Vector2i) -> Vector2i:
 	var d: int = dist_at(dist, cur.x, cur.y)
 	if d == 0 or d == UNREACHABLE:
 		return NO_TILE # at the exit, or cut off from it
+	var best: int = d
+	var out: Vector2i = NO_TILE
 	if dir != NO_TILE:
-		var c: int = cur.x + dir.x
-		var r: int = cur.y + dir.y
-		if dist_at(dist, c, r) == d - 1:
-			return Vector2i(c, r)
+		var straight: int = dist_at(dist, cur.x + dir.x, cur.y + dir.y)
+		if straight < best:
+			best = straight
+			out = cur + dir
 	for o: Vector2i in DIRS:
-		var c: int = cur.x + o.x
-		var r: int = cur.y + o.y
-		if dist_at(dist, c, r) == d - 1:
-			return Vector2i(c, r)
-	return NO_TILE
+		var v: int = dist_at(dist, cur.x + o.x, cur.y + o.y)
+		if v < best:
+			best = v
+			out = cur + o
+	return out
 
 
 ## Path of tiles from `start` to the exit `end` that is short but keeps to

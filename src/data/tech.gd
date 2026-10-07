@@ -14,7 +14,7 @@ enum Kind { TOWER, BRANCH, PERK, BONUS, VARIANT }
 const START: Array[String] = ["gun", "missile"]
 const COLS: int = 7
 const ROMAN: Array[String] = ["I", "II", "III", "IV", "V"]
-const ROWS: int = 6
+const ROWS: int = 7
 
 
 class TechNode:
@@ -74,7 +74,7 @@ static func _build() -> Array[TechNode]:
 	# tower thresholds are the old "unlocks at N total stars".
 	var tower_rules: Dictionary[String, Array] = {
 		"gun": [0, 0, []], "missile": [0, 0, []], "cannon": [1, 1, ["missile"]], "frost": [2, 3, ["cannon"]],
-		"laser": [2, 5, ["frost"]], "support": [3, 7, ["laser"]],
+		"laser": [2, 5, ["frost"]], "support": [3, 7, ["laser"]], "magnet": [3, 9, ["support"]],
 	}
 	for i: int in Towers.KINDS.size():
 		var kind: String = Towers.KINDS[i]

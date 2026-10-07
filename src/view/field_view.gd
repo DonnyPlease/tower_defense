@@ -254,7 +254,7 @@ func sync(alpha: float) -> void:
 	_alpha = alpha
 	_frame_count += 1
 	if world.map.flow:
-		var key: String = ";".join(world.towers.map(func(t: Tower) -> String: return "%d,%d" % [t.col, t.row]))
+		var key: String = ";".join(world.towers.map(func(t: Tower) -> String: return "%d,%d,%d" % [t.col, t.row, t.level]))
 		key += "|" + ";".join(world.walls.keys().map(func(t: Vector2i) -> String: return "%d,%d" % [t.x, t.y]))
 		if key != _path_key:
 			_path_key = key
@@ -403,6 +403,14 @@ func _draw_bars(g: CanvasItem) -> void:
 		g.draw_rect(Rect2(bx, by, 24 * frac, 4), bar)
 		if e.max_shield > 0:
 			g.draw_rect(Rect2(bx, by - 3, 24 * (e.shield / e.max_shield), 2), shield_color)
+	# A magnet's field.
+	for t: Tower in world.towers:
+		if t.def.pulls:
+			var color: Color = t.branch.color if t.branch != null else t.def.color
+			var spin: float = _frame_count * 0.01
+			for k: int in 12:
+				var a: float = spin + k * TAU / 12
+				g.draw_arc(Vector2(t.x, t.y), t.attack_range, a, a + 0.25, 6, Color(color, 0.45), 2)
 	# Frozen enemies are cased in ice.
 	for e: Enemy in world.enemies:
 		if e.stun_ticks > 0:
@@ -480,9 +488,15 @@ func handle_events(events: Array[WorldEvent]) -> void:
 				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xffb347), 350)
 				_sound("explode")
 			WorldEvent.Type.PULSE:
-				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x7ad3ff), 600)
-				_frost.explode(10, ev.x, ev.y)
-				_sound("frost")
+				if ev.kind == "magnet":
+					# A tesla coil's shock.
+					_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x66d9e8), 300)
+					_sparks.explode(10, ev.x, ev.y)
+					_sound("zap")
+				else:
+					_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x7ad3ff), 600)
+					_frost.explode(10, ev.x, ev.y)
+					_sound("frost")
 			WorldEvent.Type.HEAL:
 				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x69db7c), 500)
 				_sound("heal")

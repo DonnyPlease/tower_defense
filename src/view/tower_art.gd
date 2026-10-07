@@ -77,6 +77,10 @@ static func _body(ci: CanvasItem, kind: String, frame: int, branch: String) -> v
 			_overclock(ci)
 		"command":
 			_command(ci)
+		"vortex":
+			_vortex(ci)
+		"tesla":
+			_tesla(ci)
 		_:
 			match kind:
 				"gun":
@@ -91,6 +95,8 @@ static func _body(ci: CanvasItem, kind: String, frame: int, branch: String) -> v
 					_laser(ci)
 				"support":
 					_support(ci)
+				"magnet":
+					_magnet(ci)
 
 
 ## A whole tower (base and turret) centred at `center`, `size` pixels wide:
@@ -470,3 +476,44 @@ static func _command(g: CanvasItem) -> void:
 	Paint.polygon(g, star, c(0xfff3b0))
 	Paint.line(g, 20, 8, 20, 2, 1.5, c(0xffe066))
 	Paint.fill_circle(g, 20, 2, 1.8, c(0xff6b6b))
+
+
+# ---- magnet --------------------------------------------------------------------
+
+## Horseshoe magnet on a round plate.
+static func _magnet(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 16, c(0x2b2140))
+	Paint.stroke_circle(g, 20, 20, 15, 1.5, c(0xb197fc, 0.8))
+	# The horseshoe: two arms joined at the bottom.
+	Paint.fill_circle(g, 20, 22, 10, c(0xc92a2a))
+	Paint.fill_circle(g, 20, 22, 5, c(0x2b2140))
+	Paint.fill_rect(g, 10, 10, 5, 12, c(0xc92a2a))
+	Paint.fill_rect(g, 25, 10, 5, 12, c(0xc92a2a))
+	Paint.fill_rect(g, 15, 10, 10, 12, c(0x2b2140))
+	Paint.fill_rect(g, 10, 7, 5, 4, c(0xdee2e6))
+	Paint.fill_rect(g, 25, 7, 5, 4, c(0xdee2e6))
+	Paint.fill_ellipse(g, 14, 18, 2, 4, c(0xff8787, 0.8))
+
+
+## A swirl.
+static func _vortex(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 17, c(0x1f1238))
+	for i: int in 3:
+		var a0: float = i * TAU / 3
+		var pts := PackedVector2Array()
+		for k: int in 12:
+			var a: float = a0 + k * 0.32
+			var r: float = 3 + k * 1.1
+			pts.append(Vector2(20 + cos(a) * r, 20 + sin(a) * r))
+		g.draw_polyline(pts, c(0x9775fa), 3)
+	Paint.fill_circle(g, 20, 20, 4, c(0xe5dbff))
+
+
+## A coil with a spark on top.
+static func _tesla(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 16, c(0x0b2a33))
+	Paint.fill_rounded_rect(g, 15, 9, 10, 22, 3, c(0x495057))
+	for y: float in [11.0, 15.0, 19.0, 23.0, 27.0]:
+		Paint.fill_rect(g, 13, y, 14, 2, c(0xe8590c))
+	Paint.fill_circle(g, 20, 8, 5, c(0x66d9e8))
+	Paint.fill_circle(g, 20, 8, 2.5, c(0xffffff))

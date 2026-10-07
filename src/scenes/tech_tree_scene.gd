@@ -4,12 +4,12 @@ extends Node2D
 ## bonuses and challenges. Hover (or hold) a node to read it; click it to buy it.
 
 const NODE_W: float = 124
-const NODE_H: float = 50
+const NODE_H: float = 46
 const GAP_X: float = 10
 const LEFT_X: float = 20 ## column 0 (towers)
 const RIGHT_X: float = 432 ## column 3 (perks)
 const TOP_Y: float = 104
-const ROW_H: float = 64
+const ROW_H: float = 55
 const STATE_LABEL_COLOR: Dictionary[Profile.TechState, Color] = {
 	Profile.TechState.OWNED: Palette.GREEN,
 	Profile.TechState.AVAILABLE: Palette.GOLD,

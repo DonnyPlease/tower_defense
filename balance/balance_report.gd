@@ -24,7 +24,7 @@ class LevelReport:
 ## Towers a typical player has when reaching level `index` (about 2 stars per level).
 static func typical_unlocks(index: int) -> Array[String]:
 	var out: Array[String] = []
-	for k: String in Towers.KINDS:
+	for k: String in Towers.CLASSIC_KINDS:
 		if Towers.get_def(k).unlock_stars <= 2 * index:
 			out.append(k)
 	return out

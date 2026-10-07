@@ -110,7 +110,8 @@ func remaining() -> float:
 	if _exiting:
 		return to_target
 	var d: int = GameMap.dist_at(_field.dist, _tile.x, _tile.y)
-	return to_target + (d if d != GameMap.UNREACHABLE else 99) * Config.TILE + Config.TILE
+	var tiles: float = float(d) / _field.unit if d != GameMap.UNREACHABLE else 99.0
+	return to_target + tiles * Config.TILE + Config.TILE
 
 
 func clone(lane_seed: int) -> Nav:

@@ -333,6 +333,8 @@ func upgrade(tower: Tower) -> bool:
 	money -= cost
 	tower.invested += cost
 	tower.level += 1
+	if tower.def.pulls:
+		_obstacles_changed() # a wider field pulls from further away
 	var ev := WorldEvent.new(WorldEvent.Type.UPGRADE, tower.x, tower.y)
 	ev.level = tower.level
 	events.append(ev)
@@ -348,6 +350,8 @@ func choose_branch(tower: Tower, branch_id: String) -> bool:
 	money -= cost
 	tower.invested += cost
 	tower.set_branch(Towers.get_branch(branch_id))
+	if tower.def.pulls:
+		_obstacles_changed()
 	var ev := WorldEvent.new(WorldEvent.Type.UPGRADE, tower.x, tower.y)
 	ev.level = tower.level
 	ev.kind = branch_id
@@ -450,7 +454,29 @@ func _obstacles_changed() -> void:
 		_block_mask[tile.y * Config.COLS + tile.x] = 1
 	_flow.blocked = _block_mask.duplicate()
 	if map.flow:
-		_flow.dist = map.distance_field(_block_mask)
+		var lures: PackedByteArray = _lure_mask()
+		if lures.is_empty():
+			_flow.dist = map.distance_field(_block_mask)
+			_flow.unit = 1
+		else:
+			_flow.dist = map.weighted_distance_field(_block_mask, lures)
+			_flow.unit = GameMap.STEP_COST
+
+
+## Tiles in the field of a magnet (empty when there are none).
+func _lure_mask() -> PackedByteArray:
+	var mask := PackedByteArray()
+	for t: Tower in towers:
+		if not t.def.pulls:
+			continue
+		if mask.is_empty():
+			mask.resize(Config.COLS * Config.ROWS)
+		var reach: int = ceili(t.attack_range / Config.TILE)
+		for r: int in range(t.row - reach, t.row + reach + 1):
+			for c: int in range(t.col - reach, t.col + reach + 1):
+				if GameMap.in_bounds(c, r) and GameMap.tile_center(Vector2i(c, r)).distance_to(Vector2(t.x, t.y)) <= t.attack_range:
+					mask[r * Config.COLS + c] = 1
+	return mask
 
 
 # ---- enemies -----------------------------------------------------------------
@@ -564,6 +590,7 @@ func rail(from: Tower, angle: float, length: float, damage: float, max_hits: int
 func pulse(t: Tower) -> void:
 	var ev := WorldEvent.new(WorldEvent.Type.PULSE, t.x, t.y)
 	ev.radius = t.attack_range
+	ev.kind = t.kind
 	events.append(ev)
 
 

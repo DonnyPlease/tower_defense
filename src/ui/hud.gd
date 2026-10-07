@@ -6,8 +6,8 @@ extends Control
 const X: float = 12.0
 const W: float = Config.SIDEBAR_W - 24
 const DEPTH: int = 100
-const PANEL_Y: float = 270.0
-const PANEL_H: float = 196.0
+const PANEL_Y: float = 290.0
+const PANEL_H: float = 180.0
 const MODE_LABEL: Array[String] = ["First", "Last", "Strongest", "Closest"]
 const UNAFFORDABLE: Color = Color("#ffd0cc")
 
@@ -54,18 +54,18 @@ func _ready() -> void:
 	_lives = Ui.text(self, X + 4, 36, "", 19, Palette.RED, true)
 	_wave = Ui.text(self, X + 4, 62, "", 19, Palette.TEXT, true)
 
-	# 2 x 3 grid of build buttons: the towers the player owns, then a "?".
+	# 2 x 4 grid of build buttons: the towers the player owns, then a "?".
 	var kinds: Array[String] = _host.buildable_kinds()
 	for i: int in kinds.size():
 		var kind: String = kinds[i]
 		var b := GameButton.new(_cell(i), "", func() -> void: _host.select_tool("" if _host.tool == kind else kind))
-		b.tile().font(13).key(str(i + 1)).icon(func(ci: CanvasItem, center: Vector2, s: float) -> void:
+		b.font(13).key(str(i + 1)).icon(func(ci: CanvasItem, center: Vector2, s: float) -> void:
 			TowerArt.draw_icon(ci, kind, center, s))
 		b.hover_callback(func(on: bool) -> void: _on_tower_hover(kind, on))
 		add_child(b)
 		tower_buttons[kind] = b
 	if kinds.size() < Towers.KINDS.size():
-		teaser_button = GameButton.new(_cell(kinds.size()), "?", func() -> void: Audio.play("error")).tile().font(22)
+		teaser_button = GameButton.new(_cell(kinds.size()), "?", func() -> void: Audio.play("error")).font(22)
 		teaser_button.hover_callback(func(on: bool) -> void: _on_tower_hover("?", on))
 		add_child(teaser_button)
 
@@ -74,12 +74,12 @@ func _ready() -> void:
 	_panel_body = Ui.text(self, X + 10, PANEL_Y + 30, "", 12, Palette.TEXT_DIM)
 	_panel_body.set_wrap(W - 20)
 	_panel_body.set_line_spacing(2)
-	upgrade_button = GameButton.new(Rect2(X + 8, PANEL_Y + 86, W - 16, 36), "Upgrade", _host.upgrade_selected) \
+	upgrade_button = GameButton.new(Rect2(X + 8, PANEL_Y + 80, W - 16, 34), "Upgrade", _host.upgrade_selected) \
 		.primary().font(14).key("U")
 	add_child(upgrade_button)
 	var bw: float = (W - 16 - 6) / 2
 	for i: int in 2:
-		var b := GameButton.new(Rect2(X + 8 + i * (bw + 6), PANEL_Y + 86, bw, 38), "", func() -> void: _host.choose_branch(i)) \
+		var b := GameButton.new(Rect2(X + 8 + i * (bw + 6), PANEL_Y + 78, bw, 38), "", func() -> void: _host.choose_branch(i)) \
 			.primary().font(12).sublabel("")
 		b.hover_callback(func(on: bool) -> void:
 			if on:
@@ -89,13 +89,13 @@ func _ready() -> void:
 		b.visible = false
 		add_child(b)
 		branch_buttons.append(b)
-	_panel_extra = Ui.text(self, X + 10, PANEL_Y + 130, "", 12, Palette.TEXT_DIM)
+	_panel_extra = Ui.text(self, X + 10, PANEL_Y + 122, "", 12, Palette.TEXT_DIM)
 	_panel_extra.set_wrap(W - 20)
 	_panel_extra.set_line_spacing(2)
-	target_button = GameButton.new(Rect2(X + 8, PANEL_Y + 126, W - 16, 30), "Target: First", _host.cycle_target_mode) \
+	target_button = GameButton.new(Rect2(X + 8, PANEL_Y + 118, W - 16, 28), "Target: First", _host.cycle_target_mode) \
 		.font(13).key("T")
 	add_child(target_button)
-	sell_button = GameButton.new(Rect2(X + 8, PANEL_Y + 160, W - 16, 30), "Sell", _host.sell_selected) \
+	sell_button = GameButton.new(Rect2(X + 8, PANEL_Y + 150, W - 16, 28), "Sell", _host.sell_selected) \
 		.danger().font(13).key("S")
 	add_child(sell_button)
 
@@ -113,13 +113,13 @@ func _ready() -> void:
 	sfx_button = _small(3, q, "FX", _host.toggle_sfx)
 
 
-## Where the build button in slot `i` of the 2 x 3 grid goes.
+## Where the build button in slot `i` of the 2 x 4 grid goes.
 func _cell(i: int) -> Rect2:
 	var cell_w: float = (W - 8) / 2
-	var cell_h: float = 54.0
+	var cell_h: float = 44.0
 	@warning_ignore("integer_division")
 	var row: int = i / 2
-	return Rect2(X + (i % 2) * (cell_w + 8), 94 + row * (cell_h + 6), cell_w, cell_h)
+	return Rect2(X + (i % 2) * (cell_w + 8), 90 + row * (cell_h + 6), cell_w, cell_h)
 
 
 func _small(i: int, q: float, label: String, on_click: Callable) -> GameButton:

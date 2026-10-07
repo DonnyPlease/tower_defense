@@ -15,11 +15,15 @@ const TARGET_MODES: Array[TargetMode] = [
 const TARGET_MODE_IDS: Array[String] = ["first", "last", "strongest", "closest"]
 const BULLET_TYPE_IDS: Array[String] = ["normal", "missile", "shell"]
 
-## Tower kinds in sidebar order (keys 1-6).
-const KINDS: Array[String] = ["gun", "missile", "cannon", "frost", "laser", "support"]
+## Tower kinds in sidebar order (keys 1-7).
+const KINDS: Array[String] = ["gun", "missile", "cannon", "frost", "laser", "support", "magnet"]
+## The towers of the original game. The simulated players (balance/) only
+## know these, so their random choices, and the balance, stay as they were.
+const CLASSIC_KINDS: Array[String] = ["gun", "missile", "cannon", "frost", "laser", "support"]
 ## Every branch, two per tower in KINDS order.
 const BRANCH_IDS: Array[String] = [
 	"minigun", "sniper", "swarm", "seeker", "mortar", "siege", "blizzard", "cryo", "prism", "lance", "overclock", "command",
+	"vortex", "tesla",
 ]
 ## Level index of a branch's first level (levels 0-2 are the tower's own).
 const BRANCH_LEVEL: int = 3
@@ -208,5 +212,24 @@ static func _build() -> Dictionary[String, TowerDef]:
 		]),
 	]
 	out[support.kind] = support
+
+	var magnet := _tower("magnet", "Magnet", "Pulls the enemies' way towards it (where they re-route) and slows them in its field.",
+		Behavior.AURA, false, true, 9, 0xb197fc, [
+			TowerLevel.new(110, 90, 0, 1).with_slow(0.15),
+			TowerLevel.new(80, 105, 0, 1).with_slow(0.2),
+			TowerLevel.new(110, 120, 0, 1).with_slow(0.25),
+		])
+	magnet.pulls = true
+	magnet.branches = [
+		TowerBranch.new("vortex", "magnet", "Vortex", "A much wider field that pulls from further away and slows harder.", 0x9775fa, [
+			TowerLevel.new(180, 150, 0, 1).with_slow(0.35),
+			TowerLevel.new(240, 175, 0, 1).with_slow(0.45),
+		]),
+		TowerBranch.new("tesla", "magnet", "Tesla Coil", "Its field also shocks everything in it every second.", 0x66d9e8, [
+			TowerLevel.new(200, 115, 14, 1).with_slow(0.25),
+			TowerLevel.new(260, 125, 24, 1).with_slow(0.25),
+		]),
+	]
+	out[magnet.kind] = magnet
 
 	return out

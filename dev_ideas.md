@@ -29,24 +29,6 @@ What it lacks is **one thing that makes it special**. Today:
 
 ---
 
-## 3. Make pathing the identity
-
-Open Field is the best idea in the game, so use it everywhere.
-
-- Add **build-able gaps** in the roads of the other levels so you can lengthen
-  or reroute them. Enemies recalculate their route (`src/sim/flow_field.gd`
-  already does this for Open Field).
-- Keep the rule that you can't fully block the exit ("That would block the
-  path", already in `game_scene.gd`).
-- Towers and objects that **interact with the path**, not just the enemies:
-  - A wall/gate: costs money but makes enemies detour.
-  - A tower that pulls enemies toward it.
-  - A tower that is strong only when enemies walk a long straight line past it.
-- Level design: each level becomes its own puzzle, not just "where do I put
-  towers beside the road".
-
----
-
 ## 6. Visual design
 
 The art is drawn in code (`src/view/tower_art.gd`, `enemy_art.gd`, `burst.gd`,
@@ -139,7 +121,6 @@ Decisions needed before building: one layout for desktop and phone, or two?
 
 1. Decide the visual direction (cheap to decide, affects everything else).
 3. UI rework: tap-to-build popup, slimmer HUD.
-5. Pathing in more levels and path-interacting towers.
 7. More levels to fill the tree (Citadel is level 5) (variants exist: night, reversed, last stand,
    no gun; an *ever-narrower road* variant is still an idea).
 8. Android preset, safe area, back button, tap sizes.

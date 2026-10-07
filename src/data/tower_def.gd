@@ -23,3 +23,5 @@ var unlock_stars: int
 var color: Color ## accent colour for UI and effects
 var levels: Array[TowerLevel]
 var branches: Array[TowerBranch] = []
+## Magnet: enemies that re-route prefer ways through its field (see World).
+var pulls: bool = false

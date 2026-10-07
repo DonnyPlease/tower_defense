@@ -394,6 +394,8 @@ func _update_aura(world: World) -> void:
 			any = true
 	if not any or cooldown > 0:
 		return
+	if def.pulls and stats.damage <= 0:
+		return # a plain magnet only pulls and slows
 	_start_shot()
 	world.pulse(self)
 	if stats.damage <= 0 and stats.stun <= 0 and not world.has_perk("shatter"):
