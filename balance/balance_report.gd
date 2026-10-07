@@ -24,7 +24,7 @@ class LevelReport:
 ## Towers a typical player has when reaching level `index` (about 2 stars per level).
 static func typical_unlocks(index: int) -> Array[String]:
 	var out: Array[String] = []
-	for k: String in Towers.KINDS:
+	for k: String in Towers.CLASSIC_KINDS:
 		if Towers.get_def(k).unlock_stars <= 2 * index:
 			out.append(k)
 	return out
@@ -65,10 +65,12 @@ static func report_level(level: LevelDef, index: int, games: int, samples: int =
 	return r
 
 
-## Average waves an endless run lasts (up to 50) for a player of `skill`, over seeds 1..`runs`.
-static func endless_waves(skill: float, runs: int) -> float:
+## Average waves an endless run lasts (up to 50) for a player of `skill`, over seeds 1..`runs`
+## (on the endless level, or on `level`, e.g. with another hp_scale).
+static func endless_waves(skill: float, runs: int, level: LevelDef = null) -> float:
+	var played: LevelDef = level if level != null else Levels.ENDLESS
 	var total: int = 0
 	for seed_value: int in range(1, runs + 1):
-		var w := World.new(Levels.ENDLESS, Levels.endless_wave, null, typical_unlocks(2))
+		var w := World.new(played, Levels.endless_wave, null, typical_unlocks(2))
 		total += BalancePlayers.play_human(w, skill, seed_value, 50).waves_cleared
 	return float(total) / runs

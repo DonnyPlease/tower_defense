@@ -19,45 +19,148 @@ You need **Godot 4.4 or newer** (the standard build; the .NET build isn't needed
 To ship the game, use *Project → Export* in the editor (install the export
 templates when it asks). Web, Windows, Linux, macOS and Android all work; the
 project uses the Compatibility renderer, which is what web builds need.
+The web export is a progressive web app: served over HTTPS it can be installed
+from the browser (also on iPhones) and starts offline.
 
 ## The game
 
-**4 levels + endless mode**
+**5 levels + endless mode**
 
 | Level | What's special |
 | --- | --- |
-| Meadow | The tutorial: 8 waves, ends with the first boss |
+| Meadow | The tutorial: 8 waves, ends with the first boss. A wide road: walls reshape it |
 | Riverside | Two entrances, a river you can't build on, and flying drones |
-| Highlands | A long road, rocks, and high ground (+25% tower range) |
+| Highlands | A long road with wide stretches, rocks, and high ground (+25% tower range) |
 | Open Field | No road: enemies walk around your towers, so you build the maze |
-| Endless | Waves never stop, with a boss every 10 waves. Beat your best score |
+| Citadel | Wide roads and the enemies that beat mazes and builds; the Colossus is the final boss |
+| Endless | Waves never stop, with a boss every 10 waves (and the Colossus every 25). Hoppers, saboteurs and warchiefs join from wave 7. Beat your best score |
 
-**6 towers, each with 3 upgrade levels**
+**Level variants.** Every level can also be played with a twist, once the
+variant is unlocked in the tech tree; each variant earns stars of its own.
+Pick one with the switch on the level's card.
 
-| Tower | Role | Unlock |
+| Variant | Twist |
+| --- | --- |
+| Night | It's dark (light only around your towers) and every tower's range is 20% shorter |
+| Reversed | Enemies come in where they used to leave |
+| Last Stand | Only 5 lives |
+| No Gun | The Gun can't be built |
+
+**7 towers, each with 3 upgrade levels and two branches**
+
+| Tower | Role | In the tech tree |
 | --- | --- | --- |
-| Gun | Rapid fire, aims ahead of moving targets, hits air | start |
-| Missile | Cheap homing missiles, hits air | start |
-| Cannon | Splash damage, strong against armor, ground only | ★ 1 |
-| Frost | Slows everything in range and chills with pulses | ★ 3 |
-| Laser | Beam that heats up to 3x on one target, ignores armor | ★ 5 |
-| Beacon | Boosts the fire rate of nearby towers | ★ 7 |
+| Gun | Rapid fire, aims ahead of moving targets, hits air | owned from the start |
+| Missile | Cheap homing missiles, hits air | owned from the start |
+| Cannon | Splash damage, strong against armor, ground only | ★ 1, after the Missile, 1 star earned |
+| Frost | Slows everything in range and chills with pulses | ★ 2, after the Cannon, 3 stars earned |
+| Laser | Beam that heats up to 3x on one target, ignores armor | ★ 2, after Frost, 5 stars earned |
+| Beacon | Boosts the fire rate of nearby towers | ★ 3, after the Laser, 7 stars earned |
+| Magnet | Pulls the enemies' way towards it and slows them in its field | ★ 3, after the Beacon, 9 stars earned |
 
 Click a placed tower to upgrade it, sell it (50% of everything you spent), or
 choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
 
-**10 enemy types:** Scout, Racer, Tank, Armored (flat damage reduction),
+**Branches.** At level 3 a tower stops upgrading in a line: it grows into one of
+two different towers, each with two more levels (levels 4 and 5). The choice is
+for good (selling and rebuilding is the only way back), so every army ends up
+different. Hover a branch button in the sidebar to read what it does.
+
+| Tower | Branch A | Branch B |
+| --- | --- | --- |
+| Gun | **Minigun**: spins up to a hail of bullets, short range | **Sniper**: long-range rail shots through a line of enemies |
+| Missile | **Swarm**: a volley of small missiles at several enemies | **Seeker**: one huge missile, extra damage to bosses |
+| Cannon | **Mortar**: long range, huge splash, slow shells, minimum range | **Siege**: armor-piercing, heavy single-target damage |
+| Frost | **Blizzard**: a huge slowing field, no damage | **Cryo**: pulses freeze enemies; chilled enemies take extra damage |
+| Laser | **Prism**: splits the beam over 2-3 enemies | **Lance**: heats up faster and up to 5x |
+| Beacon | **Overclock**: a big fire-rate boost close by | **Command**: a smaller boost over a wide area, plus range |
+| Magnet | **Vortex**: a much wider field that pulls from further away | **Tesla Coil**: its field also shocks everything in it |
+
+**The Magnet** works on the levels where enemies re-route (all but Riverside):
+their way is planned on a weighted distance field in which tiles inside a
+magnet's field are cheap, so they take a detour through it when the detour is
+short enough. Put one beside your killing zone and the enemies come to it.
+The Sniper is the opposite: strongest where enemies walk a long straight line
+past it, since one rail shot goes through all of them.
+
+Branch numbers live with the towers in `src/data/towers.gd`. Levels 1-3 are
+unchanged, so the balance measurements (made without branches, see
+[Balancing](#balancing)) still describe the base game.
+
+**Walls and abilities.** The bar along the bottom of the field holds the wall
+tool and seven abilities. Each costs money (and most have a cooldown), so using
+them is a decision. Everything about them (prices, cooldowns, strength, and an
+on/off switch for each) is in `src/data/abilities.gd`.
+
+| Key | Ability | What it does |
+| --- | --- | --- |
+| `Q` | Wall | A block enemies must walk around, if there is room. It is refused if it would block the path completely. A tower built on it gets +25% range. The price rises with every wall standing, and selling refunds what it cost |
+| `W` | Time slow | Every enemy moves at half speed for 6 s |
+| `E` | Damage boost | Towers deal +50% damage for 8 s |
+| `R` | Airstrike | Click a spot: a blast lands a second later and hurts everything around it |
+| `Z` | Landmine | Place on ground enemies walk on; the first one to come near sets it off (3 at a time) |
+| `X` | Bounty | Kills pay double for 15 s |
+| `C` | Focus mark | Click an enemy: it takes double damage from all towers for 6 s |
+| `V` | Second wind | Restores 3 lives, once per game |
+
+On levels where the road is wide (Meadow, Highlands, endless), walls can be built
+on the road itself, and enemies find a new way around them, so a few well-placed
+walls make the way longer and give your towers more time. A tower on the road
+needs a wall under it first. Enemies and the path never get trapped: a wall
+that would close the last gap is refused. In Open Field walls are a cheap way
+to shape the maze.
+
+**14 enemy types:** Scout, Racer, Tank, Armored (flat damage reduction),
 Shielded (recharging shield), Splitter (breaks into 3 minis), Medic (heals
 others), Drone (flies straight over everything), the Juggernaut mini-boss and
-the Warlord boss (armored, summons reinforcements).
+the Warlord boss (armored, summons reinforcements). And the ones that make you
+change your build:
+
+| Enemy | What it does |
+| --- | --- |
+| Saboteur | Every 4 s an EMP switches off the towers near it for 2.5 s |
+| Hopper | Jumps over walls and towers: a maze can't hold it |
+| Warchief | Enemies near it move 30% faster and take 25% less damage: kill it first |
+| Colossus | A boss in phases: heavy armor; below 66% it sheds the armor and speeds up; below 33% it raises a shield and calls two warchiefs |
+
+**Field orders (run perks).** Once *Field Orders* is unlocked in the tech tree,
+every game offers 3 perks to choose from at its start and after waves 5 and 10
+(4 with *Wider Choice*); you keep one each time, so no two runs play the same.
+They are in `src/data/run_perks.gd`:
+
+| Perk | Effect |
+| --- | --- |
+| Piercing Rounds | Gun bullets go through one more enemy |
+| Shatter | Frost pulses break half of every shield they touch |
+| Wide Beacons | Beacons also give +15% range |
+| Greed | Double interest, but half your lives |
+| Hill Forts | Towers on high ground or a wall cost 25% less |
+| Free Samples | The first tower of each kind is free |
+| Quick Hands | Ability cooldowns 40% shorter |
+| Headhunter | Every kill pays $2 more |
+| Demolition | Cannon splash 30% wider |
+| Overcharge | Lasers heat up twice as fast |
+| Reinforcements | +10 lives |
+| Stonework | Every wall costs $10 |
+
+**First game.** On Meadow, a new player gets short hints at the top of the
+field (build, start a wave, select, upgrade, walls); they move on as you do
+each step, and can be skipped.
 
 **Economy.** You get a bonus for every wave you clear, plus 5% interest on
 unspent money. Call the next wave early for extra cash. The sidebar shows what
 the next wave contains.
 
-**Progression.** Earn 1–3 stars per level: 3 for losing no lives, 2 for keeping
-at least half. Stars unlock towers and buy permanent upgrades (starting money,
-lives, cheaper towers, damage). Progress and a game in progress are saved
+**Progression: the tech tree.** Earn 1–3 stars per level: 3 for losing no
+lives, 2 for keeping at least half. Spend them in the **tech tree** (main menu,
+level select, or the victory dialog): towers, every tower branch, perks
+(starting money, lives, cheaper towers, damage; one node per rank) and starting
+bonuses (*Masonry*: the first 3 walls of every game are free; *Veterans*: the
+first tower you build starts at level 2) and the level variants. A node needs its parents first and a
+number of stars earned in total, so you choose the order but can't skip the
+early game. Every star can be refunded. The game screen only shows the towers
+you own (a **?** slot hints at the rest); locked content lives in the tree.
+The tree's nodes, prices and layout are in `src/data/tech.gd`. Progress and a game in progress are saved
 automatically (in Godot's `user://` folder; the browser's storage in web
 builds), and **Continue** on the main menu resumes where you left off (at the
 start of the wave).
@@ -71,13 +174,17 @@ them in the menu or the sidebar.
 | Input | Action |
 | --- | --- |
 | Click a tower in the sidebar, then the grass | Build |
-| Click a placed tower | Select it (upgrade / target / sell) |
-| `1`–`6` | Pick a tower to build |
+| Click (tap) an empty tile | A small menu of what can be built there (tap-to-build) |
+| Click a placed tower or wall | Select it (upgrade / target / sell) |
+| Hold a button | Show its help without pressing it (for touch screens) |
+| `1`–`7` | Pick a tower to build (or a field order while they are offered) |
+| `Q` `W` `E` `R` `Z` `X` `C` `V` | Wall and abilities (see above) |
 | `U` / `S` / `T` | Upgrade / sell / change target of the selected tower |
 | `Space` | Start the next wave (or call it early) |
 | `Esc` / right click | Cancel, or pause |
 | `F` | Speed 1x / 2x / 3x |
 | `M` | Music on/off |
+| Android back button | Pause (again: resume); back to the menu from other screens |
 
 ## Testing
 
@@ -91,23 +198,31 @@ tests/run.sh unit --filter=maze     # only tests whose name contains "maze"
 tests/run.sh smoke --filter=wave,maze
 ```
 
-- **Unit tests** (`tests/unit/`) cover the simulation, the game data, the
-  saved profile, the synthesiser and audio engine, and the UI formatting
-  helpers. `test_scripts.gd` loads every script in the project, so a type error
+- **Unit tests** (`tests/unit/`) cover the simulation (including every wall
+  rule, every ability, every tower branch, every run perk, the newer enemies,
+  the magnet's weighted pathfinding and the level variants), the tech tree and
+  converting old profiles, the game data, the saved profile, the synthesiser and
+  audio engine, and the UI formatting helpers. `test_scripts.gd` loads every script in the project, so a type error
   anywhere fails the run.
 - **Determinism tests** (`test_determinism.gd`) check that the random numbers
-  and endless waves are exactly those of the original JavaScript version of
-  the game.
+  and the classic endless waves are exactly those of the original JavaScript
+  version of the game.
 - **Scene tests** (`tests/smoke/`) start the real screens and click and type
   like a player, then check what the player sees: the sidebar's money, lives
   and wave, the context panel, button labels, banners, dialog texts, floating
   texts and hints. They cover the menus and their navigation (buttons, Esc,
   Enter), sound buttons, building, upgrading, selling, refused builds and the
-  maze rule, waves, calling a wave early, pausing (button, keys, focus loss),
-  game speed, saving and continuing, winning, losing and endless mode, perks
-  and refunds, and every map with a busy wave. `test_pixels.gd` checks pixels
+  maze rule, walls (on grass and on the road, selling them, towers on them),
+  every ability (button, hotkey, aiming, cooldowns, messages), waves, calling a
+  wave early, pausing (button, keys, focus loss), game speed, saving and
+  continuing (walls and mines too), winning, losing and endless mode, the tech
+  tree (buying, refunding, what the game then offers), choosing branches,
+  level variants, field orders, the newer enemies and the Citadel, the
+  magnet, tap-to-build, holding a button, the back button, the tutorial, and
+  every map with a busy wave. `test_pixels.gd` checks pixels
   of real frames (terrain, sidebar, health bars, the build preview, dimmed
-  dialogs), so the drawing code is tested too.
+  dialogs, walls, mines, the ability bar and effects; also branch art, rail
+  tracers, night, and the glow on shots), so the drawing code is tested too.
 - **Playthroughs** (`test_playthrough.gd`) play whole games from the title
   screen with nothing but clicks and keys, spending only the money the game
   gives (they read the sidebar to decide what to do and never touch the game's
@@ -124,7 +239,8 @@ tests/run.sh smoke --filter=wave,maze
   it in Chromium: it loads without console errors, a level is played (build a
   tower, start a wave), a saved game and the music setting survive reloading
   the page (browser storage), the window can be resized, and on a phone-sized
-  window it is letterboxed and played by touch. They only look at the pixels
+  window it is letterboxed and played by touch, and the build can be
+  installed as an app (manifest, icons, service worker). They only look at the pixels
   of the page and use real mouse clicks and finger taps. The first run installs
   the Web export templates (it downloads a 1.2 GB archive, keeps 18 MB of it)
   and needs `npx playwright install chromium` in `tests/web/`. The tests run
@@ -152,7 +268,7 @@ godot --path . res://tools/screenshots.tscn -- /tmp/screenshots
 
 **CI:** `.github/workflows/ci.yml` runs on every pull request and push to
 `main`: the unit, scene, phone and boot tests (with a virtual display), the web
-build in a browser, the balance tests (split over five parallel jobs), and a
+build in a browser, the balance tests (split over six parallel jobs), and a
 job that renders every screen and uploads the screenshots.
 
 ## Typed GDScript
@@ -187,24 +303,30 @@ novices; Riverside, Highlands and Open Field by about 75%, 70% and 60% of
 average players; the best strategy found keeps all lives on every level. Each
 level's `hp_scale` in `src/data/levels.gd` is the main difficulty knob.
 
+The simulated players don't build walls or use abilities, so these numbers are
+the difficulty *without* them: a human who uses them well has an easier game.
+
 ## Project layout
 
 ```
 project.godot        engine settings (1000 x 600 logical size, strict typing)
-scenes/              the four screens: menu, level select, upgrades, game
+scenes/              the four screens: menu, level select, tech tree, game
 src/
   config.gd          global constants (sizes, tick rate, economy formulas)
   data/              game content, which is the place to tweak and add things
-    towers.gd        tower stats per level
+    towers.gd        tower stats per level, and their branches
+    tech.gd          the tech tree: nodes, prices, requirements, layout
     enemies.gd       enemy stats and abilities
     levels.gd        maps, waves, endless wave generator
-    perks.gd         permanent upgrades bought with stars
+    perks.gd         permanent upgrades (ranks bought in the tech tree)
+    abilities.gd     the wall and the seven abilities: prices, cooldowns, strength, on/off
+    run_perks.gd     field orders: the perks offered during a game
   sim/               the game rules; no nodes, no rendering
     world.gd         one game: money, lives, waves, building, the update tick
     game_map.gd      map parsing, terrain, pathfinding, distance fields
     route.gd         smooth curved routes along the middle of the road, with lane widths
-    route_nav.gd     how enemies walk roads: lanes and weaving
-    flow_nav.gd      how enemies walk mazes: vehicle-like steering
+    route_nav.gd     how enemies walk roads: lanes and weaving (and how flyers fly)
+    flow_nav.gd      how enemies walk mazes and wall levels: vehicle-like steering
     enemy.gd  tower.gd  bullet.gd  aim.gd
     fixed_step.gd    fixed-timestep loop helper
     math_x.gd  mulberry32.gd   JavaScript-exact maths and random numbers
@@ -219,11 +341,14 @@ tests/               test runner, unit, scene and balance tests
 tools/               screenshot renderer
 ```
 
-**Enemy movement.** Roads are turned into smooth curves that keep to the
-middle of the road. Every enemy picks its own lane and weaves a little, so a
-wave spreads over wide roads and swings through corners instead of marching in
-single file. In Open Field, enemies steer like vehicles: they start turning
-before a corner, turn at a limited rate and slow down for sharp turns.
+**Enemy movement.** On Riverside, roads are turned into smooth curves that keep
+to the middle of the road. Every enemy picks its own lane and weaves a little,
+so a wave spreads over wide roads and swings through corners instead of
+marching in single file. Where walls can be built (Meadow, Highlands, endless,
+and Open Field), enemies instead follow a distance field that is recomputed
+whenever a tower or wall is built or sold, and steer like vehicles: they start
+turning before a corner, turn at a limited rate and slow down for sharp turns.
+Flyers always fly straight.
 
 The **simulation** (`src/sim`) and the **view** are kept apart. The simulation
 runs at a fixed 60 ticks per second, whatever the monitor's refresh rate. The

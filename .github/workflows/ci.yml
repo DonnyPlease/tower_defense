@@ -83,6 +83,8 @@ jobs:
             filter: highlands_is
           - name: Open Field
             filter: openfield_is
+          - name: Citadel
+            filter: citadel_is
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-godot

@@ -26,10 +26,10 @@ func test_imul_wraps_like_javascript() -> void:
 	expect_eq(MathX.to_fixed(12.6, 1), "12.6")
 
 
-func test_endless_waves_match_the_javascript_version() -> void:
-	expect_eq(describe(Levels.endless_wave(0)), "scout:10:0.6:0")
-	expect_eq(describe(Levels.endless_wave(9)), "boss:1:8:0 armored:8:1.2:3 healer:1:2.5:6.976 racer:4:0.35:9.854 drone:1:0.6:12.633")
-	expect_eq(describe(Levels.endless_wave(30)),
+func test_classic_endless_waves_match_the_javascript_version() -> void:
+	expect_eq(describe(Levels.classic_endless_wave(0)), "scout:10:0.6:0")
+	expect_eq(describe(Levels.classic_endless_wave(9)), "boss:1:8:0 armored:8:1.2:3 healer:1:2.5:6.976 racer:4:0.35:9.854 drone:1:0.6:12.633")
+	expect_eq(describe(Levels.classic_endless_wave(30)),
 		"drone:30:0.6:0 drone:26:0.6:2.292 splitter:30:1:5.936 healer:30:2.5:10.378")
 
 

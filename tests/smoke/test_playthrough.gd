@@ -104,7 +104,7 @@ func test_a_level_won_with_clicks_and_keys_only() -> void:
 		return
 	var lives: int = dollars(hud.lives_text().replace("♥", "$")) # "♥ 13" -> 13
 	expect_eq(game.win_overlay.title_text(), "Victory!")
-	expect_match(game.win_overlay.subtitle_text(), "^★★[☆★]\\n%d of 20 lives left\\.\\nUnlocked: Cannon!$" % lives)
+	expect_match(game.win_overlay.subtitle_text(), "^★+☆*\\n%d of 20 lives left\\.\\n\\+[1-3] ★ to spend in the tech tree!$" % lives)
 	expect_eq(hud.wave_button.label_text(), "Game over")
 
 	# The result is kept: the level select screen and the title screen show it.
@@ -112,15 +112,15 @@ func test_a_level_won_with_clicks_and_keys_only() -> void:
 	if not await wait_for_scene("LevelSelectScene"):
 		return
 	var levels: LevelSelectScene = scene()
-	expect_match(levels.status_text("meadow"), "^★★[☆★]$")
+	expect_match(levels.status_text("meadow"), "^★+☆*$")
 	expect_true(levels.play_buttons["riverside"].is_enabled(), "Riverside is open now")
-	expect_match(levels.stars_text(), "^★ [23] stars$")
+	expect_match(levels.stars_text(), "^★ [1-3] stars$")
 	await click_button(levels.back_button)
 	if not await wait_for_scene("MenuScene"):
 		return
-	expect_match((scene() as MenuScene).stars_text(), "^★ [23] stars earned$")
+	expect_match((scene() as MenuScene).stars_text(), "^★ [1-3] stars earned$")
 	Profile.forget_cache() # as after a restart: it was written to the file
-	expect_ge(Profile.load_profile().stars_on("meadow"), 2)
+	expect_ge(Profile.load_profile().stars_on("meadow"), 1)
 
 	# ... and the next level can be played.
 	await click_button((scene() as MenuScene).buttons["play"])

@@ -4,7 +4,8 @@ extends RefCounted
 ## centred on the origin; turrets point up. The Gun and Missile towers have a
 ## still base plate and a turret with TURRET_FRAMES animation frames; the
 ## other towers are one drawing that rotates or pulses as a whole.
-## Being vector drawings, they stay sharp at any size.
+## Branches (Minigun, Sniper, ...) have drawings of their own; `branch` is ""
+## for the base tower. Being vector drawings, they stay sharp at any size.
 
 const TURRET_FRAMES: int = 7
 const HAS_BASE: Array[String] = ["gun", "missile"]
@@ -26,15 +27,15 @@ static func has_base(kind: String) -> bool:
 	return HAS_BASE.has(kind) and Towers.get_def(kind).sprite.is_empty()
 
 
-## Draws the still base plate of a Gun or Missile tower.
-static func draw_base(ci: CanvasItem, kind: String) -> void:
+## Draws the still base plate of a Gun or Missile tower (its ring in the branch's colour).
+static func draw_base(ci: CanvasItem, kind: String, branch: String = "") -> void:
 	ci.draw_set_transform(Vector2(-20, -20))
-	_base(ci, Towers.get_def(kind).color)
+	_base(ci, Towers.get_branch(branch).color if Towers.is_branch(branch) else Towers.get_def(kind).color)
 	ci.draw_set_transform(Vector2.ZERO)
 
 
 ## Draws the part of a tower that turns (or all of it), at animation `frame`.
-static func draw_body(ci: CanvasItem, kind: String, frame: int) -> void:
+static func draw_body(ci: CanvasItem, kind: String, frame: int, branch: String = "") -> void:
 	var def: TowerDef = Towers.get_def(kind)
 	if not def.sprite.is_empty():
 		var frames: Array = _sprite_frames(def)
@@ -46,25 +47,61 @@ static func draw_body(ci: CanvasItem, kind: String, frame: int) -> void:
 			ci.draw_set_transform(Vector2.ZERO)
 			return
 	ci.draw_set_transform(Vector2(-20, -20))
-	match kind:
-		"gun":
-			_gun_turret(ci, frame)
-		"missile":
-			_missile_turret(ci, frame)
-		"cannon":
-			_cannon(ci)
-		"frost":
-			_frost(ci)
-		"laser":
-			_laser(ci)
-		"support":
-			_support(ci)
+	_body(ci, kind, frame, branch)
 	ci.draw_set_transform(Vector2.ZERO)
+
+
+static func _body(ci: CanvasItem, kind: String, frame: int, branch: String) -> void:
+	match branch:
+		"minigun":
+			_minigun_turret(ci, frame)
+		"sniper":
+			_sniper_turret(ci, frame)
+		"swarm":
+			_swarm_turret(ci, frame)
+		"seeker":
+			_seeker_turret(ci, frame)
+		"mortar":
+			_mortar(ci)
+		"siege":
+			_siege(ci)
+		"blizzard":
+			_blizzard(ci)
+		"cryo":
+			_cryo(ci)
+		"prism":
+			_prism(ci)
+		"lance":
+			_lance(ci)
+		"overclock":
+			_overclock(ci)
+		"command":
+			_command(ci)
+		"vortex":
+			_vortex(ci)
+		"tesla":
+			_tesla(ci)
+		_:
+			match kind:
+				"gun":
+					_gun_turret(ci, frame)
+				"missile":
+					_missile_turret(ci, frame)
+				"cannon":
+					_cannon(ci)
+				"frost":
+					_frost(ci)
+				"laser":
+					_laser(ci)
+				"support":
+					_support(ci)
+				"magnet":
+					_magnet(ci)
 
 
 ## A whole tower (base and turret) centred at `center`, `size` pixels wide:
 ## for icons, previews and the build ghost.
-static func draw_icon(ci: CanvasItem, kind: String, center: Vector2, size: float) -> void:
+static func draw_icon(ci: CanvasItem, kind: String, center: Vector2, size: float, branch: String = "") -> void:
 	var s: float = size / 40.0
 	var def: TowerDef = Towers.get_def(kind)
 	if not def.sprite.is_empty():
@@ -78,20 +115,8 @@ static func draw_icon(ci: CanvasItem, kind: String, center: Vector2, size: float
 		return
 	ci.draw_set_transform(center - Vector2(20, 20) * s, 0, Vector2(s, s))
 	if has_base(kind):
-		_base(ci, def.color)
-	match kind:
-		"gun":
-			_gun_turret(ci, 0)
-		"missile":
-			_missile_turret(ci, 0)
-		"cannon":
-			_cannon(ci)
-		"frost":
-			_frost(ci)
-		"laser":
-			_laser(ci)
-		"support":
-			_support(ci)
+		_base(ci, Towers.get_branch(branch).color if Towers.is_branch(branch) else def.color)
+	_body(ci, kind, 0, branch)
 	ci.draw_set_transform(Vector2.ZERO)
 
 
@@ -253,3 +278,242 @@ static func _support(g: CanvasItem) -> void:
 	Paint.stroke_circle(g, 20, 20, 11, 2, c(0xf5c542))
 	Paint.fill_circle(g, 20, 20, 5, c(0xf5c542))
 	Paint.fill_circle(g, 20, 20, 2, c(0xfff3b0))
+
+
+# ---- branches ------------------------------------------------------------------
+
+## Muzzle flash at (x, y) on the first frames of a shot.
+static func _flash(g: CanvasItem, x: float, y: float, frame: int, size: float = 1.0) -> void:
+	if frame != 1 and frame != 2:
+		return
+	var s: float = (1.0 if frame == 1 else 0.6) * size
+	Paint.fill_triangle(g, x, y - 8 * s, x - 3 * s, y + 0.5, x + 3 * s, y + 0.5, c(0xff9f1c, 0.85))
+	Paint.fill_triangle(g, x, y - 5.5 * s, x - 1.8 * s, y + 0.5, x + 1.8 * s, y + 0.5, c(0xffd166))
+	Paint.fill_circle(g, x, y, 1.5 * s, c(0xffffff))
+
+
+## Rotary cannon: a bundle of barrels that turns while it fires.
+static func _minigun_turret(g: CanvasItem, frame: int) -> void:
+	Paint.fill_rounded_rect(g, 13.5, 1, 13, 21, 3, c(STEEL_DARK))
+	for i: int in 4:
+		var bx: float = 14.6 + i * 2.85
+		var lit: bool = (i + frame) % 4 == 0
+		Paint.fill_rounded_rect(g, bx, 1.5, 2.3, 19, 1, c(STEEL_SHINE if lit else STEEL_MID))
+	Paint.fill_rect(g, 13.5, 5, 13, 1.6, c(0x15181c))
+	Paint.fill_rect(g, 13.5, 12, 13, 1.6, c(0x15181c))
+	Paint.polygon(g, _octagon(20, 26, 9.8), c(0x5c1d10))
+	Paint.polygon(g, _octagon(20, 25.4, 8.8), c(0xc94b2c))
+	Paint.polygon(g, _octagon(19.6, 24.8, 7.2), c(0xff6b4a))
+	Paint.fill_ellipse(g, 17, 21.6, 5, 2.4, c(0xffb199, 0.85))
+	# Ammo belt feeding in from the side.
+	for i: int in 4:
+		Paint.fill_rect(g, 27 + i * 0.6, 20 + i * 2.2, 3, 1.6, c(0xc9a227))
+	_flash(g, 20, 0.5, frame, 1.2)
+
+
+## Long rail rifle with a scope.
+static func _sniper_turret(g: CanvasItem, frame: int) -> void:
+	var recoil: float = 2.5 if frame == 1 else (1.5 if frame == 2 else 0.0)
+	Paint.fill_rounded_rect(g, 18.4, -3 + recoil, 3.2, 26, 1, c(STEEL_DARK))
+	Paint.fill_rect(g, 19.2, -2 + recoil, 1, 22, c(STEEL_SHINE, 0.9))
+	Paint.fill_rounded_rect(g, 16.8, -4 + recoil, 6.4, 3, 1, c(0x15181c)) # muzzle brake
+	# Rails glowing along the barrel.
+	Paint.line(g, 17.6, 2 + recoil, 17.6, 18, 1, c(0xffd166, 0.8))
+	Paint.line(g, 22.4, 2 + recoil, 22.4, 18, 1, c(0xffd166, 0.8))
+	Paint.polygon(g, _octagon(20, 25.5, 8.4), c(0x5c4a14))
+	Paint.polygon(g, _octagon(20, 25, 7.4), c(0xd4a72c))
+	Paint.polygon(g, _octagon(19.7, 24.6, 6), c(0xffd166))
+	# Scope.
+	Paint.fill_rounded_rect(g, 23.5, 13, 4, 11, 1.5, c(0x15181c))
+	Paint.fill_circle(g, 25.5, 14.5, 1.3, c(0x7ad3ff))
+	Paint.fill_circle(g, 20, 26, 2, c(0x3b2f0a))
+	if frame == 1 or frame == 2:
+		Paint.fill_circle(g, 20, -4, 3.5 if frame == 1 else 2.0, c(0xfff3b0, 0.9))
+
+
+## Box of nine small tubes.
+static func _swarm_turret(g: CanvasItem, frame: int) -> void:
+	Paint.fill_rounded_rect(g, 7.5, 7.5, 25, 26, 4, c(0x1f3b0c))
+	Paint.fill_rounded_rect(g, 8.5, 8.3, 23, 24, 3.5, c(0x5a9e2e))
+	Paint.fill_rounded_rect(g, 9.5, 9.3, 21, 22, 3, c(0x9be564))
+	Paint.fill_rounded_rect(g, 10, 9.8, 20, 2, 1, c(0xd3f9b4, 0.9))
+	var empty: int = 3 if frame >= 1 and frame <= 3 else 0
+	for r: int in 3:
+		for k: int in 3:
+			var x: float = 14 + k * 6
+			var y: float = 15 + r * 6.5
+			Paint.fill_circle(g, x, y, 2.6, c(0x0d1410))
+			if r * 3 + k >= empty:
+				Paint.fill_circle(g, x, y, 1.8, c(0xe63946))
+				Paint.fill_circle(g, x - 0.4, y - 0.4, 0.6, c(0xffffff, 0.8))
+	Paint.fill_rounded_rect(g, 17, 4, 6, 4.5, 1.5, c(0x15181c))
+	Paint.fill_circle(g, 20, 6.2, 1.1, c(0xb2f2bb))
+
+
+## One big missile on a launch rail.
+static func _seeker_turret(g: CanvasItem, frame: int) -> void:
+	Paint.fill_rounded_rect(g, 12, 6, 16, 28, 3, c(0x12301c))
+	Paint.fill_rounded_rect(g, 13, 7, 14, 26, 2.5, c(0x2f9e44))
+	Paint.fill_rect(g, 14, 9, 1.5, 22, c(0x8ce99a, 0.7))
+	var loaded: bool = frame == 0 or frame >= 5
+	if loaded:
+		Paint.fill_rounded_rect(g, 16.5, 5, 7, 23, 3, c(0xe9ecef))
+		Paint.fill_rect(g, 17.5, 7, 1.5, 19, c(0xffffff, 0.8))
+		Paint.fill_triangle(g, 16.5, 7, 20, 0, 23.5, 7, c(0xe63946))
+		Paint.fill_triangle(g, 16.5, 24, 13.5, 30, 16.5, 28, c(0xadb5bd))
+		Paint.fill_triangle(g, 23.5, 24, 26.5, 30, 23.5, 28, c(0xadb5bd))
+		Paint.fill_rect(g, 17.5, 15, 5, 2, c(0xe63946))
+	else:
+		Paint.fill_rounded_rect(g, 17, 6, 6, 22, 2, c(0x0d1410))
+		Paint.fill_circle(g, 20, 8, 4, c(0xd9d9d9, 0.6))
+	Paint.fill_circle(g, 20, 32, 2, c(0x7dffb0))
+
+
+## Short, wide tube seen from above, on a heavy plate.
+static func _mortar(g: CanvasItem) -> void:
+	Paint.fill_rounded_rect(g, 3, 4, 34, 33, 7, c(0x000000, 0.25))
+	Paint.fill_rounded_rect(g, 3, 3, 34, 33, 7, c(0x3d3a38))
+	Paint.fill_rounded_rect(g, 5, 5, 30, 29, 6, c(0x5e5552))
+	for p: Vector2 in [Vector2(9, 9), Vector2(31, 9), Vector2(9, 30), Vector2(31, 30)]:
+		Paint.fill_circle(g, p.x, p.y, 2, c(0x2b2725))
+	Paint.line(g, 10, 30, 17, 22, 3, c(0x2b2725))
+	Paint.line(g, 30, 30, 23, 22, 3, c(0x2b2725))
+	Paint.fill_circle(g, 20, 17, 11, c(0x2b2725))
+	Paint.fill_circle(g, 20, 17, 9.5, c(0xc9ada7))
+	Paint.fill_circle(g, 20, 17, 7, c(0x8a7570))
+	Paint.fill_circle(g, 20, 17, 5.5, c(0x120f0e))
+	Paint.fill_ellipse(g, 16.5, 12.5, 4, 2, c(0xffffff, 0.35))
+
+
+## Heavy cannon with a long armour-piercing barrel.
+static func _siege(g: CanvasItem) -> void:
+	Paint.fill_rounded_rect(g, 4, 6, 32, 30, 6, c(0x2b3038))
+	Paint.fill_rounded_rect(g, 5.5, 7.5, 29, 27, 5, c(0x495057))
+	Paint.fill_rect(g, 6, 18, 28, 2, c(0x343a40))
+	Paint.fill_circle(g, 20, 24, 11, c(0x343a40))
+	Paint.fill_circle(g, 20, 23, 9.5, c(0x6c757d))
+	Paint.fill_rounded_rect(g, 16, -2, 8, 24, 2, c(0x212529))
+	Paint.fill_rect(g, 17.2, 0, 1.5, 19, c(0xadb5bd, 0.8))
+	Paint.fill_rounded_rect(g, 14, -3, 12, 4, 1.5, c(0x15181c))
+	Paint.fill_rect(g, 14.5, 6, 11, 1.5, c(0x15181c))
+	Paint.fill_circle(g, 20, 25, 3, c(0xffc078))
+
+
+## Big snowflake.
+static func _blizzard(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 17, c(0x1d4e89))
+	Paint.fill_circle(g, 20, 20, 15, c(0x2b6cb0))
+	for i: int in 6:
+		var a: float = i * PI / 3 - PI / 2
+		var ex: float = 20 + cos(a) * 14
+		var ey: float = 20 + sin(a) * 14
+		Paint.line(g, 20, 20, ex, ey, 2.4, c(0xffffff))
+		for side: float in [-1.0, 1.0]:
+			var mx: float = 20 + cos(a) * 8
+			var my: float = 20 + sin(a) * 8
+			var b: float = a + side * 0.7
+			Paint.line(g, mx, my, mx + cos(b) * 5, my + sin(b) * 5, 1.6, c(0xbfe9ff))
+	Paint.fill_circle(g, 20, 20, 4, c(0xffffff))
+	Paint.fill_circle(g, 20, 20, 2, c(0x7ad3ff))
+
+
+## Cluster of ice spikes.
+static func _cryo(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 16, c(0x0b2545))
+	Paint.stroke_circle(g, 20, 20, 15, 1.5, c(0x4dabf7, 0.8))
+	Paint.fill_triangle(g, 20, 3, 26, 22, 14, 22, c(0x4dabf7))
+	Paint.fill_triangle(g, 9, 11, 19, 26, 9, 27, c(0x74c0fc))
+	Paint.fill_triangle(g, 31, 11, 31, 27, 21, 26, c(0x339af0))
+	Paint.fill_triangle(g, 20, 6, 22.5, 18, 17.5, 18, c(0xffffff, 0.85))
+	Paint.fill_circle(g, 20, 28, 4, c(0xd0ebff))
+
+
+## Crystal prism that splits the beam.
+static func _prism(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 16, c(0x2d1b3d))
+	Paint.fill_circle(g, 20, 22, 11, c(0x4a2160))
+	Paint.fill_triangle(g, 20, 4, 31, 26, 9, 26, c(0xff8cf0))
+	Paint.fill_triangle(g, 20, 4, 25.5, 26, 9, 26, c(0xffc9f7))
+	Paint.fill_triangle(g, 20, 9, 23, 21, 15, 21, c(0xffffff, 0.75))
+	Paint.fill_circle(g, 20, 5, 2.5, c(0xffffff))
+
+
+## Long focusing lens.
+static func _lance(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 16, c(0x1f1030))
+	Paint.fill_circle(g, 20, 23, 10, c(0x5a189a))
+	Paint.fill_rounded_rect(g, 16.5, -1, 7, 22, 2, c(0x240046))
+	for y: float in [4.0, 9.0, 14.0]:
+		Paint.fill_rect(g, 15.5, y, 9, 2, c(0x9d4edd))
+	Paint.fill_circle(g, 20, 0.5, 3.2, c(0xe0aaff))
+	Paint.fill_circle(g, 20, 0.5, 1.5, c(0xffffff))
+	Paint.fill_circle(g, 20, 23, 4.5, c(0xe0aaff))
+
+
+## Gear with a lightning bolt.
+static func _overclock(g: CanvasItem) -> void:
+	Paint.fill_rounded_rect(g, 6, 6, 28, 28, 6, c(0x5c3310))
+	for i: int in 8:
+		var a: float = i * PI / 4
+		Paint.line(g, 20 + cos(a) * 9, 20 + sin(a) * 9, 20 + cos(a) * 14, 20 + sin(a) * 14, 4, c(0xffa94d))
+	Paint.fill_circle(g, 20, 20, 10, c(0xffa94d))
+	Paint.fill_circle(g, 20, 20, 7.5, c(0x5c3310))
+	var bolt := PackedVector2Array([Vector2(21.5, 13), Vector2(16, 21), Vector2(19.5, 21), Vector2(18.5, 27),
+		Vector2(24, 19), Vector2(20.5, 19)])
+	Paint.polygon(g, bolt, c(0xfff3b0))
+
+
+## Antenna dish with a star.
+static func _command(g: CanvasItem) -> void:
+	Paint.fill_rounded_rect(g, 6, 6, 28, 28, 6, c(0x5c4a14))
+	Paint.stroke_circle(g, 20, 20, 12, 2, c(0xffe066))
+	Paint.stroke_circle(g, 20, 20, 7.5, 1.5, c(0xffe066, 0.7))
+	var star := PackedVector2Array()
+	for i: int in 8:
+		var a: float = i * PI / 4 - PI / 2
+		var r: float = 6.5 if i % 2 == 0 else 2.5
+		star.append(Vector2(20 + cos(a) * r, 20 + sin(a) * r))
+	Paint.polygon(g, star, c(0xfff3b0))
+	Paint.line(g, 20, 8, 20, 2, 1.5, c(0xffe066))
+	Paint.fill_circle(g, 20, 2, 1.8, c(0xff6b6b))
+
+
+# ---- magnet --------------------------------------------------------------------
+
+## Horseshoe magnet on a round plate.
+static func _magnet(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 16, c(0x2b2140))
+	Paint.stroke_circle(g, 20, 20, 15, 1.5, c(0xb197fc, 0.8))
+	# The horseshoe: two arms joined at the bottom.
+	Paint.fill_circle(g, 20, 22, 10, c(0xc92a2a))
+	Paint.fill_circle(g, 20, 22, 5, c(0x2b2140))
+	Paint.fill_rect(g, 10, 10, 5, 12, c(0xc92a2a))
+	Paint.fill_rect(g, 25, 10, 5, 12, c(0xc92a2a))
+	Paint.fill_rect(g, 15, 10, 10, 12, c(0x2b2140))
+	Paint.fill_rect(g, 10, 7, 5, 4, c(0xdee2e6))
+	Paint.fill_rect(g, 25, 7, 5, 4, c(0xdee2e6))
+	Paint.fill_ellipse(g, 14, 18, 2, 4, c(0xff8787, 0.8))
+
+
+## A swirl.
+static func _vortex(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 17, c(0x1f1238))
+	for i: int in 3:
+		var a0: float = i * TAU / 3
+		var pts := PackedVector2Array()
+		for k: int in 12:
+			var a: float = a0 + k * 0.32
+			var r: float = 3 + k * 1.1
+			pts.append(Vector2(20 + cos(a) * r, 20 + sin(a) * r))
+		g.draw_polyline(pts, c(0x9775fa), 3)
+	Paint.fill_circle(g, 20, 20, 4, c(0xe5dbff))
+
+
+## A coil with a spark on top.
+static func _tesla(g: CanvasItem) -> void:
+	Paint.fill_circle(g, 20, 20, 16, c(0x0b2a33))
+	Paint.fill_rounded_rect(g, 15, 9, 10, 22, 3, c(0x495057))
+	for y: float in [11.0, 15.0, 19.0, 23.0, 27.0]:
+		Paint.fill_rect(g, 13, y, 14, 2, c(0xe8590c))
+	Paint.fill_circle(g, 20, 8, 5, c(0x66d9e8))
+	Paint.fill_circle(g, 20, 8, 2.5, c(0xffffff))

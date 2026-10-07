@@ -1,5 +1,5 @@
 extends SceneTestCase
-## The screens around the game: menu, level select, upgrades, and moving
+## The screens around the game: menu, level select, the tech tree, and moving
 ## between them with the mouse and the keyboard. Checks what the player reads.
 
 
@@ -47,19 +47,19 @@ func test_navigating_with_the_buttons() -> void:
 	var menu: MenuScene = await open_menu()
 	if menu == null:
 		return
-	await click_button(menu.buttons["upgrades"])
-	if not await wait_for_scene("UpgradesScene"):
+	await click_button(menu.buttons["tech"])
+	if not await wait_for_scene("TechTreeScene"):
 		return
-	var upgrades: UpgradesScene = scene()
-	await click_button(upgrades.levels_button)
+	var tree: TechTreeScene = scene()
+	await click_button(tree.levels_button)
 	if not await wait_for_scene("LevelSelectScene"):
 		return
 	var levels: LevelSelectScene = scene()
-	await click_button(levels.upgrades_button)
-	if not await wait_for_scene("UpgradesScene"):
+	await click_button(levels.tech_button)
+	if not await wait_for_scene("TechTreeScene"):
 		return
-	upgrades = scene()
-	await click_button(upgrades.back_button)
+	tree = scene()
+	await click_button(tree.back_button)
 	if not await wait_for_scene("MenuScene"):
 		return
 	menu = scene()
@@ -82,8 +82,8 @@ func test_navigating_with_the_keyboard() -> void:
 	await press_key(KEY_ESCAPE)
 	if not await wait_for_scene("MenuScene"):
 		return
-	Router.goto_upgrades()
-	if not await wait_for_scene("UpgradesScene"):
+	Router.goto_tech()
+	if not await wait_for_scene("TechTreeScene"):
 		return
 	await press_key(KEY_ESCAPE)
 	if not await wait_for_scene("MenuScene"):
@@ -136,7 +136,7 @@ func test_level_select_shows_progress_and_locks() -> void:
 
 
 func test_endless_card_shows_the_best_run() -> void:
-	var p: Profile = use_profile(ALL_STARS)
+	var p: Profile = use_profile(ALL_STARS, ALL_TECH)
 	p.endless_best = 7
 	Profile.save_profile(p)
 	Router.goto_levels()
@@ -147,35 +147,55 @@ func test_endless_card_shows_the_best_run() -> void:
 	expect_true(levels.play_buttons["endless"].is_enabled())
 
 
-func test_buying_and_refunding_a_perk() -> void:
+func test_buying_and_refunding_in_the_tech_tree() -> void:
 	use_profile({"meadow": 3})
 	var menu: MenuScene = await open_menu()
 	if menu == null:
 		return
-	await click_button(menu.buttons["upgrades"])
-	if not await wait_for_scene("UpgradesScene"):
+	expect_eq(menu.buttons["tech"].label_text(), "Tech tree")
+	await click_button(menu.buttons["tech"])
+	if not await wait_for_scene("TechTreeScene"):
 		return
-	var upgrades: UpgradesScene = scene()
-	expect_eq(upgrades.stars_text(), "★ 3 to spend  (3 earned)")
-	expect_eq(upgrades.effect_text("capital"), "Next: +$40 starting money")
-	expect_eq(upgrades.buy_buttons["capital"].label_text(), "Buy  ★ 1")
+	var tree: TechTreeScene = scene()
+	expect_eq(tree.stars_text(), "★ 3 to spend  (3 earned)")
+	expect_eq(tree.state_text("gun"), "Owned")
+	expect_eq(tree.state_text("capital1"), "★ 1")
+	expect_eq(tree.state_text("capital2"), "Locked", "needs War Chest I first")
+	expect_eq(tree.state_text("frost"), "Locked", "needs the Cannon first")
+	expect_eq(tree.state_text("support"), "Locked")
+	expect_true(tree.node_buttons["gun"].is_selected(), "owned nodes are framed")
 
-	await click_button(upgrades.buy_buttons["capital"])
-	expect_eq(upgrades.stars_text(), "★ 2 to spend  (3 earned)")
-	expect_eq(upgrades.effect_text("capital"), "+$40 starting money   (next: +$80 starting money)")
-	expect_eq(upgrades.buy_buttons["capital"].label_text(), "Buy  ★ 2")
+	# Hovering a node explains it and what it takes.
+	var r: Rect2 = tree.node_buttons["capital2"].get_global_rect()
+	await hover(r.get_center().x, r.get_center().y)
+	expect_eq(tree.info_title_text(), "War Chest II")
+	expect_contains(tree.info_body_text(), "starting money")
+	expect_contains(tree.info_body_text(), "Needs War Chest I first")
+
+	await click_button(tree.node_buttons["capital1"])
+	expect_eq(tree.stars_text(), "★ 2 to spend  (3 earned)")
+	expect_eq(tree.state_text("capital1"), "Owned")
+	expect_eq(tree.state_text("capital2"), "★ 2")
 	Profile.forget_cache()
 	expect_eq(Profile.load_profile().perk_rank("capital"), 1)
 
-	await click_button(upgrades.refund_button)
-	expect_eq(upgrades.stars_text(), "★ 3 to spend  (3 earned)")
-	expect_eq(upgrades.effect_text("capital"), "Next: +$40 starting money")
+	# The cannon: then its branches open up (once enough stars are earned).
+	await click_button(tree.node_buttons["cannon"])
+	expect_eq(tree.state_text("cannon"), "Owned")
+	expect_eq(tree.state_text("mortar"), "★ 2", "its branches open up")
+	expect_eq(tree.stars_text(), "★ 1 to spend  (3 earned)")
+	await click_button(tree.node_buttons["capital2"])
+	expect_eq(tree.stars_text(), "★ 1 to spend  (3 earned)", "too expensive: nothing bought")
+
+	await click_button(tree.refund_button)
+	expect_eq(tree.stars_text(), "★ 3 to spend  (3 earned)")
+	expect_eq(tree.state_text("cannon"), "★ 1")
 	Profile.forget_cache()
 	expect_eq(Profile.load_profile().perk_rank("capital"), 0, "refunded")
 
-	# Buy it again: the next game starts with more money.
-	await click_button(upgrades.buy_buttons["capital"])
-	await click_button(upgrades.levels_button)
+	# Buy War Chest again: the next game starts with more money.
+	await click_button(tree.node_buttons["capital1"])
+	await click_button(tree.levels_button)
 	if not await wait_for_scene("LevelSelectScene"):
 		return
 	await click_button((scene() as LevelSelectScene).play_buttons["meadow"])
@@ -186,13 +206,37 @@ func test_buying_and_refunding_a_perk() -> void:
 	expect_eq(game.hud.money_text(), "$ 290")
 
 
-func test_perks_the_player_cannot_afford_are_disabled() -> void:
-	use_profile({"meadow": 1})
-	Router.goto_upgrades()
-	if not await wait_for_scene("UpgradesScene"):
+func test_the_game_shows_only_the_towers_the_player_owns() -> void:
+	use_profile({"meadow": 3})
+	var game: GameScene = await open_game("meadow")
+	if game == null:
 		return
-	var upgrades: UpgradesScene = scene()
-	expect_true(upgrades.buy_buttons["capital"].is_enabled(), "costs 1 star")
-	expect_false(upgrades.buy_buttons["engineering"].is_enabled(), "costs 2 stars")
-	await click_button(upgrades.buy_buttons["engineering"])
-	expect_eq(upgrades.stars_text(), "★ 1 to spend  (1 earned)", "nothing was bought")
+	expect_eq(game.hud.tower_buttons.keys(), ["gun", "missile"])
+	expect_not_null(game.hud.teaser_button, "a ? slot hints at more")
+	var r: Rect2 = game.hud.teaser_button.get_global_rect()
+	await hover(r.get_center().x, r.get_center().y)
+	expect_eq(game.hud.panel_title_text(), "More towers")
+	expect_contains(game.hud.panel_body_text(), "tech tree")
+	await press_key(KEY_3)
+	expect_eq(game.tool, "", "no third tower to pick")
+
+	# Buy the cannon: it is the third button (and key 3) in the next game.
+	var p: Profile = Profile.load_profile()
+	p.buy_tech("cannon")
+	game = await open_game("meadow")
+	if game == null:
+		return
+	expect_eq(game.hud.tower_buttons.keys(), ["gun", "missile", "cannon"])
+	await press_key(KEY_3)
+	expect_eq(game.tool, "cannon")
+	expect_eq(game.world.locked_branches.has("mortar"), true, "its branches are still locked")
+
+
+func test_owning_everything_leaves_no_teaser() -> void:
+	use_profile(ALL_STARS, ALL_TECH)
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	expect_eq(game.hud.tower_buttons.keys(), Towers.KINDS)
+	expect_null(game.hud.teaser_button)
+	expect_true(game.world.locked_branches.is_empty())

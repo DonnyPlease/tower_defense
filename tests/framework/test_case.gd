@@ -35,6 +35,25 @@ func _where(message: String) -> String:
 	return "" if message.is_empty() else " (%s)" % message
 
 
+## A value for a failure message. Objects are named, not serialised:
+## var_to_str() would walk everything an object refers to (a whole game scene).
+static func describe_value(value: Variant) -> String:
+	if value is Object:
+		var o: Object = value
+		if not is_instance_valid(o):
+			return "<freed object>"
+		var script: Script = o.get_script()
+		var name: String = script.get_global_name() if script != null and not script.get_global_name().is_empty() else o.get_class()
+		return "<%s#%d>" % [name, o.get_instance_id()]
+	if value is Array:
+		var items: PackedStringArray = []
+		var list: Array = value
+		for item: Variant in list:
+			items.append(describe_value(item))
+		return "[%s]" % ", ".join(items)
+	return var_to_str(value)
+
+
 func expect_true(value: bool, message: String = "") -> void:
 	if not value:
 		fail("expected true" + _where(message))
@@ -47,17 +66,17 @@ func expect_false(value: bool, message: String = "") -> void:
 
 func expect_eq(actual: Variant, expected: Variant, message: String = "") -> void:
 	if not _equal(actual, expected):
-		fail("expected %s, got %s%s" % [var_to_str(expected), var_to_str(actual), _where(message)])
+		fail("expected %s, got %s%s" % [describe_value(expected), describe_value(actual), _where(message)])
 
 
 func expect_ne(actual: Variant, unexpected: Variant, message: String = "") -> void:
 	if _equal(actual, unexpected):
-		fail("expected anything but %s%s" % [var_to_str(unexpected), _where(message)])
+		fail("expected anything but %s%s" % [describe_value(unexpected), _where(message)])
 
 
 func expect_null(value: Variant, message: String = "") -> void:
 	if value != null:
-		fail("expected null, got %s%s" % [var_to_str(value), _where(message)])
+		fail("expected null, got %s%s" % [describe_value(value), _where(message)])
 
 
 func expect_not_null(value: Variant, message: String = "") -> void:

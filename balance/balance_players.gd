@@ -258,7 +258,7 @@ class ExpertParams:
 
 	func describe() -> String:
 		var parts: PackedStringArray = []
-		for k: String in Towers.KINDS:
+		for k: String in Towers.CLASSIC_KINDS:
 			parts.append("%s %.2f" % [k, weights[k]])
 		return "%s; upgrades %.2f, diversity %.2f, maze %.2f, armor %s, early %s" % [
 			", ".join(parts), upgrade_bias, diversity, maze_weight, armor_aware, call_early]
@@ -266,7 +266,7 @@ class ExpertParams:
 
 static func default_expert() -> ExpertParams:
 	var p := ExpertParams.new()
-	for k: String in Towers.KINDS:
+	for k: String in Towers.CLASSIC_KINDS:
 		p.weights[k] = 1.0
 	p.upgrade_bias = 1.1
 	p.diversity = 0.1
@@ -291,7 +291,7 @@ static func _expert_buy(w: World, p: ExpertParams) -> bool:
 	var best_spot: Spot = null
 	var best_tower: Tower = null
 
-	for kind: String in Towers.KINDS:
+	for kind: String in Towers.CLASSIC_KINDS:
 		if not w.is_unlocked(kind) or not w.can_afford(kind) or p.weights[kind] <= 0:
 			continue
 		if needs_air and not Towers.get_def(kind).hits_air:
@@ -363,7 +363,7 @@ static func play_human(w: World, skill: float, seed_value: int, max_waves: int =
 		for guard: int in 60:
 			var budget: float = world.money - reserve
 			var affordable: Array[String] = []
-			for k: String in Towers.KINDS:
+			for k: String in Towers.CLASSIC_KINDS:
 				if world.is_unlocked(k) and world.cost_of(k) <= budget and (k != "support" or world.towers.size() >= 5):
 					affordable.append(k)
 			var upgradable: Array[Tower] = []
@@ -420,7 +420,7 @@ static func score_result(r: GameResult) -> float:
 
 static func _random_params(rand: Mulberry32) -> ExpertParams:
 	var p := ExpertParams.new()
-	for k: String in Towers.KINDS:
+	for k: String in Towers.CLASSIC_KINDS:
 		p.weights[k] = 0.0 if rand.next() < 0.15 else 0.3 + rand.next() * 1.7
 	p.upgrade_bias = 0.4 + rand.next() * 2
 	p.diversity = rand.next() * 0.4
@@ -432,7 +432,7 @@ static func _random_params(rand: Mulberry32) -> ExpertParams:
 
 static func _mutate(p: ExpertParams, rand: Mulberry32) -> ExpertParams:
 	var q: ExpertParams = p.copy()
-	var k: String = Towers.KINDS[floori(rand.next() * Towers.KINDS.size())]
+	var k: String = Towers.CLASSIC_KINDS[floori(rand.next() * Towers.CLASSIC_KINDS.size())]
 	q.weights[k] = maxf(0.0, q.weights[k] + (rand.next() - 0.5))
 	q.upgrade_bias = maxf(0.1, q.upgrade_bias * (0.7 + rand.next() * 0.6))
 	q.diversity = minf(0.6, maxf(0.0, q.diversity + (rand.next() - 0.5) * 0.1))

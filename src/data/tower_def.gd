@@ -1,7 +1,8 @@
 class_name TowerDef
 extends RefCounted
 ## One tower type. It has 3 levels: levels[0].cost is the build price,
-## levels[1] and levels[2] cost is the price of that upgrade.
+## levels[1] and levels[2] cost is the price of that upgrade. After level 3
+## it grows into one of its two `branches` (levels 4 and 5).
 
 var kind: String
 var name: String
@@ -16,7 +17,11 @@ var ignores_armor: bool = false
 ## otherwise the art is drawn in code (src/view/tower_art.gd).
 var sprite: String = ""
 var frames: int = 1
-## Total stars needed before the tower can be used.
+## Total stars that unlocked the tower before the tech tree (Tech): old
+## profiles keep these towers, and simulated players use it as "typical unlocks".
 var unlock_stars: int
 var color: Color ## accent colour for UI and effects
 var levels: Array[TowerLevel]
+var branches: Array[TowerBranch] = []
+## Magnet: enemies that re-route prefer ways through its field (see World).
+var pulls: bool = false

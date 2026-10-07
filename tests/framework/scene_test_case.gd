@@ -4,8 +4,20 @@ extends TestCase
 ## the Router and clicks, taps and types like a player (events go through the
 ## normal input pipeline, so buttons, dialogs and the field react as in play).
 
-## Every level won with 3 stars: everything is unlocked.
+## Every level won with 3 stars: every level is open.
 const ALL_STARS: Dictionary[String, int] = {"meadow": 3, "riverside": 3, "highlands": 3}
+
+## Every node of the tech tree (use_profile gives them for free), except
+## Field Orders: its offer at the start of every game would need answering.
+static var ALL_TECH: Array[String] = _all_tech()
+
+
+static func _all_tech() -> Array[String]:
+	var out: Array[String] = []
+	for n: Tech.TechNode in Tech.NODES:
+		if n.id != "orders" and n.id != "orders2":
+			out.append(n.id)
+	return out
 
 ## The tests' own save file, one per process so runs can go side by side
 ## (all copies of the project share one user:// folder).
@@ -18,13 +30,17 @@ func after_each() -> void:
 	DirAccess.remove_absolute(profile_path)
 
 
-## Starts from a fresh profile (sound off), optionally with stars already earned.
-func use_profile(stars: Dictionary[String, int] = {}) -> Profile:
+## Starts from a fresh profile (sound off), optionally with stars already
+## earned and tech tree nodes owned (for free).
+func use_profile(stars: Dictionary[String, int] = {}, tech: Array[String] = []) -> Profile:
 	Profile.storage_path = profile_path
 	Profile.forget_cache()
 	DirAccess.remove_absolute(profile_path)
 	var p := Profile.new()
 	p.stars = stars
+	for id: String in tech:
+		p.free_tech[id] = true
+	p.tutorial_done = true # the tutorial has tests of its own
 	p.sfx = false
 	p.music = false
 	Profile.save_profile(p)

@@ -6,7 +6,7 @@ var meadow := GameMap.new("Meadow", Levels.by_id("meadow").tiles)
 
 func map_of(id: String) -> GameMap:
 	var level: LevelDef = Levels.by_id(id)
-	return GameMap.new(level.name, level.tiles, level.maze)
+	return GameMap.new(level.name, level.tiles, level.maze, level.road_walls)
 
 
 func blank() -> PackedStringArray:

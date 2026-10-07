@@ -10,6 +10,7 @@ const BLOCK_MESSAGE: Dictionary[World.BlockReason, String] = {
 	World.BlockReason.OCCUPIED: "Tile taken",
 	World.BlockReason.ENEMY: "Enemy in the way",
 	World.BlockReason.BLOCKS_PATH: "That would block the path",
+	World.BlockReason.NEEDS_WALL: "Build a wall first",
 }
 const GHOST_BLOCKED: Color = Color("#ff8080")
 
@@ -17,6 +18,10 @@ var world: World
 ## Tower kind being built, or "" for none.
 var tool: String = ""
 var selected: Tower = null
+## A wall (tile) that is selected, or GameMap.NO_TILE. Selecting a tower deselects it.
+var selected_wall: Vector2i = GameMap.NO_TILE
+## The wall tool or the ability being aimed ("wall", "mine", "strike", "mark"), or "".
+var aim: String = ""
 var paused: bool = false
 var speed: int = 1
 var level_id: String
@@ -28,11 +33,17 @@ var pause_overlay: Overlay
 var win_overlay: Overlay
 var lose_overlay: Overlay
 var fx: ScreenFx
+var ability_bar: AbilityBar
+var draft: DraftOverlay
+var build_menu: BuildMenu
+## The first-game hints (Meadow only, until finished or skipped), or null.
+var tutorial: Tutorial = null
 
 var _stage: Node2D
 var _clock := FixedStep.new()
 var _alpha: float = 0.0
 var _hover_tile: Vector2i = GameMap.NO_TILE
+var _mouse: Vector2 = Vector2.ZERO ## the pointer, in game coordinates
 var _hover: DrawNode
 var _ghost: DrawNode
 var _hint: TextLabel
@@ -48,6 +59,9 @@ func _ready() -> void:
 	var endless: bool = level_id == Levels.ENDLESS.id
 	world = World.new(Levels.by_id(level_id), Levels.endless_wave if endless else Callable(),
 		profile.modifiers(), profile.unlocked_towers())
+	world.locked_branches = profile.locked_branches()
+	if profile.draft_size() > 0:
+		world.enable_drafts(profile.draft_size(), randi())
 	var save: WorldSnapshot = profile.save
 	if Router.launch_resume and save != null and save.level_id == world.level_id:
 		world.restore(save)
@@ -66,7 +80,9 @@ func _ready() -> void:
 	_stage.add_child(_hover)
 	_ghost = DrawNode.new(func(ci: CanvasItem) -> void:
 		if not tool.is_empty():
-			TowerArt.draw_icon(ci, tool, Vector2.ZERO, Config.TILE), FieldView.D_OVERLAY)
+			TowerArt.draw_icon(ci, tool, Vector2.ZERO, Config.TILE)
+		elif aim == "wall" or aim == "mine":
+			AbilityArt.draw_icon(ci, aim, Vector2.ZERO, Config.TILE), FieldView.D_OVERLAY)
 	_ghost.visible = false
 	_stage.add_child(_ghost)
 	_hint = Ui.text(_stage, 0, 0, "", 13, Palette.RED, true, Vector2(0.5, 1)).set_outline(3)
@@ -80,6 +96,13 @@ func _ready() -> void:
 	_boss_text.z_index = FieldView.D_FLOATERS
 	hud = Hud.new(self)
 	_stage.add_child(hud)
+	ability_bar = AbilityBar.new(self)
+	_stage.add_child(ability_bar)
+	build_menu = BuildMenu.new(self)
+	_stage.add_child(build_menu)
+	if level_id == "meadow" and not profile.tutorial_done:
+		tutorial = Tutorial.new(self)
+		_stage.add_child(tutorial)
 
 	var restart: Callable = func() -> void: Router.goto_game(level_id)
 	pause_overlay = Overlay.new("Paused", Palette.TEXT, [
@@ -90,6 +113,7 @@ func _ready() -> void:
 	])
 	win_overlay = Overlay.new("Victory!", Palette.GOLD, [
 		Overlay.Action.new("Level select", Router.goto_levels, true),
+		Overlay.Action.new("Tech tree", Router.goto_tech),
 		Overlay.Action.new("Play again", restart),
 	])
 	lose_overlay = Overlay.new("Overrun!" if endless else "Defeat", Palette.RED, [
@@ -98,6 +122,8 @@ func _ready() -> void:
 	])
 	for o: Overlay in [pause_overlay, win_overlay, lose_overlay]:
 		_stage.add_child(o)
+	draft = DraftOverlay.new(self)
+	_stage.add_child(draft)
 
 	var title: String = "Endless mode" if endless else world.map.name
 	show_banner(title + "\nGame resumed" if resumed else title, Palette.TEXT)
@@ -114,14 +140,26 @@ func sfx_on() -> bool:
 	return Profile.load_profile().sfx
 
 
+## The towers the player can build here, in sidebar order (keys 1, 2, ...).
+func buildable_kinds() -> Array[String]:
+	var out: Array[String] = []
+	for kind: String in Towers.KINDS:
+		if world.is_unlocked(kind):
+			out.append(kind)
+	return out
+
+
 ## Picks the tower to build ("" for none).
 func select_tool(kind: String) -> void:
 	if not kind.is_empty() and not world.is_unlocked(kind):
 		Audio.play("error")
 		return
 	tool = kind
+	build_menu.close()
 	if not kind.is_empty():
 		selected = null
+		selected_wall = GameMap.NO_TILE
+		aim = ""
 
 
 func start_wave() -> void:
@@ -162,7 +200,20 @@ func toggle_sfx() -> void:
 func upgrade_selected() -> void:
 	if selected == null:
 		return
+	if selected.needs_branch():
+		_refuse("Choose a branch", Vector2(selected.x, selected.y - Config.TILE / 2.0))
+		return
 	if world.upgrade(selected):
+		_autosave()
+	else:
+		Audio.play("error")
+
+
+## Grows the selected level-3 tower into its first (0) or second (1) branch.
+func choose_branch(index: int) -> void:
+	if selected == null or not selected.needs_branch() or index < 0 or index >= selected.def.branches.size():
+		return
+	if world.choose_branch(selected, selected.def.branches[index].id):
 		_autosave()
 	else:
 		Audio.play("error")
@@ -171,6 +222,9 @@ func upgrade_selected() -> void:
 func sell_selected() -> void:
 	if selected != null and world.sell(selected):
 		selected = null
+		_autosave()
+	elif selected == null and selected_wall != GameMap.NO_TILE and world.sell_wall(selected_wall.x, selected_wall.y):
+		selected_wall = GameMap.NO_TILE
 		_autosave()
 
 
@@ -183,10 +237,119 @@ func cycle_target_mode() -> void:
 	_autosave()
 
 
+# ---- walls and abilities ---------------------------------------------------------
+
+## A press on an ability's button or hotkey. Abilities that need no aim are
+## used at once; the others are picked (press again to put them away) and
+## then aimed with a click on the field.
+func press_ability(id: String) -> void:
+	if is_modal_open() or not Abilities.ENABLED.get(id, false):
+		return
+	var def: Abilities.AbilityDef = Abilities.get_def(id)
+	if def.target == Abilities.Target.NONE:
+		if not world.use_ability(id):
+			_refuse(ability_message(id), Vector2(Config.FIELD_W / 2.0, 150))
+		return
+	if aim == id:
+		aim = ""
+		return
+	var block: World.AbilityBlock = world.ability_block(id)
+	if block == World.AbilityBlock.COOLING or block == World.AbilityBlock.USED or block == World.AbilityBlock.LIMIT:
+		_refuse(ability_message(id), Vector2(Config.FIELD_W / 2.0, 150))
+		return
+	tool = ""
+	selected = null
+	selected_wall = GameMap.NO_TILE
+	build_menu.close()
+	aim = id
+
+
+## Why an ability can't be used right now, as the player reads it ("" if it can).
+func ability_message(id: String) -> String:
+	var def: Abilities.AbilityDef = Abilities.get_def(id)
+	match world.ability_block(id):
+		World.AbilityBlock.COOLING:
+			return "%s: %d s to go" % [def.name, ceili(world.cooldown_left(id) / float(Config.TICK_RATE))]
+		World.AbilityBlock.MONEY:
+			return "Not enough money"
+		World.AbilityBlock.USED:
+			return "%s is used up" % def.name
+		World.AbilityBlock.LIMIT:
+			return "No more %ss" % def.name.to_lower()
+	return ""
+
+
+func _refuse(text: String, at: Vector2) -> void:
+	if not text.is_empty():
+		field.float_text(at.x, at.y, text, Palette.RED)
+	Audio.play("error")
+
+
+func _cancel_picks() -> void:
+	build_menu.close()
+	tool = ""
+	selected = null
+	selected_wall = GameMap.NO_TILE
+	aim = ""
+
+
+## A click on a tile while the wall tool or the mine is picked.
+func _click_tile_aim(col: int, row: int) -> void:
+	var existing: Tower = world.tower_at(col, row)
+	var at := Vector2(col * Config.TILE + Config.TILE / 2.0, row * Config.TILE)
+	if existing != null or (aim == "wall" and world.has_wall(col, row)):
+		# Clicking something that is already there selects it instead.
+		_cancel_picks()
+		selected = existing
+		if existing == null:
+			selected_wall = Vector2i(col, row)
+		Audio.play("click")
+		return
+	if aim == "wall":
+		var reason: World.BlockReason = world.wall_block_reason(col, row)
+		if reason != World.BlockReason.NONE:
+			_refuse(BLOCK_MESSAGE[reason], at)
+		elif world.money < world.wall_cost():
+			_refuse("Not enough money", at)
+		else:
+			world.build_wall(col, row)
+			_autosave()
+		return
+	var block: String = ability_message(aim)
+	if not block.is_empty():
+		_refuse(block, at)
+		return
+	var mine_reason: World.BlockReason = world.mine_block_reason(col, row)
+	if mine_reason == World.BlockReason.TERRAIN:
+		_refuse("Enemies don't walk here", at)
+	elif mine_reason != World.BlockReason.NONE:
+		_refuse(BLOCK_MESSAGE[mine_reason], at)
+	else:
+		world.place_mine(col, row)
+		_autosave()
+
+
+## A click on the field while the airstrike or the focus mark is picked.
+func _click_spot_aim() -> void:
+	if world.use_ability(aim, _mouse):
+		aim = ""
+		return
+	var block: String = ability_message(aim)
+	_refuse(block if not block.is_empty() else "No enemy there", _mouse)
+
+
 # ---- input -------------------------------------------------------------------
 
 func is_modal_open() -> bool:
-	return paused or world.status != World.Status.PLAYING
+	return paused or world.status != World.Status.PLAYING or not world.perk_offer.is_empty()
+
+
+## Keeps one of the run perks offered.
+func choose_run_perk(id: String) -> void:
+	if paused or not world.choose_run_perk(id):
+		return
+	Audio.play("upgrade")
+	_autosave()
 
 
 func _input(event: InputEvent) -> void:
@@ -202,9 +365,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_hover(mb.position)
 		if is_modal_open():
 			return
+		if build_menu.is_open():
+			# A click outside the build menu just closes it.
+			build_menu.close()
+			get_viewport().set_input_as_handled()
+			return
 		if mb.button_index == MOUSE_BUTTON_RIGHT:
-			tool = ""
-			selected = null
+			_cancel_picks()
 		elif mb.button_index == MOUSE_BUTTON_LEFT and _hover_tile != GameMap.NO_TILE:
 			click_tile(_hover_tile.x, _hover_tile.y)
 		get_viewport().set_input_as_handled()
@@ -216,9 +383,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	match key.keycode:
 		KEY_ESCAPE:
-			if (not tool.is_empty() or selected != null) and not is_modal_open():
-				tool = ""
-				selected = null
+			if (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE \
+					or build_menu.is_open()) and not is_modal_open():
+				_cancel_picks()
 			else:
 				toggle_pause()
 			return
@@ -228,11 +395,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_M:
 			toggle_music()
 			return
+	if not paused and not world.perk_offer.is_empty():
+		var pick: int = key.keycode - KEY_1
+		if pick >= 0 and pick < world.perk_offer.size():
+			choose_run_perk(world.perk_offer[pick])
+		return
 	if is_modal_open():
 		return
+	for id: String in Abilities.enabled_ids():
+		if key.keycode == Abilities.get_def(id).key:
+			press_ability(id)
+			return
 	var n: int = key.keycode - KEY_0
-	if n >= 1 and n <= Towers.KINDS.size():
-		var kind: String = Towers.KINDS[n - 1]
+	var kinds: Array[String] = buildable_kinds()
+	if n >= 1 and n <= kinds.size():
+		var kind: String = kinds[n - 1]
 		select_tool("" if tool == kind else kind)
 		return
 	match key.keycode:
@@ -249,12 +426,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
-	# Pause automatically when the window loses focus.
+	# Pause automatically when the window loses focus, and on Android's back
+	# button (pressed again it resumes).
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and world != null and not is_modal_open():
+		toggle_pause()
+	elif what == NOTIFICATION_WM_GO_BACK_REQUEST and world != null:
 		toggle_pause()
 
 
 func _update_hover(p: Vector2) -> void:
+	_mouse = p
 	if p.x >= 0 and p.x < Config.FIELD_W and p.y >= 0 and p.y < Config.FIELD_H:
 		_hover_tile = Vector2i(floori(p.x / Config.TILE), floori(p.y / Config.TILE))
 	else:
@@ -263,6 +444,12 @@ func _update_hover(p: Vector2) -> void:
 
 ## Builds, or selects, at a tile (a click on the field).
 func click_tile(col: int, row: int) -> void:
+	if not aim.is_empty():
+		if Abilities.get_def(aim).target == Abilities.Target.TILE:
+			_click_tile_aim(col, row)
+		else:
+			_click_spot_aim()
+		return
 	var existing: Tower = world.tower_at(col, row)
 	if not tool.is_empty():
 		if existing != null:
@@ -283,9 +470,34 @@ func click_tile(col: int, row: int) -> void:
 		world.build(tool, col, row)
 		_autosave()
 		return
+	var had_selection: bool = selected != null or selected_wall != GameMap.NO_TILE
 	selected = existing
+	selected_wall = GameMap.NO_TILE
 	if existing != null:
 		Audio.play("click")
+	elif world.has_wall(col, row):
+		selected_wall = Vector2i(col, row)
+		Audio.play("click")
+	elif not had_selection and build_menu.open(col, row):
+		Audio.play("click") # tap-to-build: what can go on this tile
+
+
+## Builds a tower (or a wall) on a tile, from the build menu.
+func build_here(id: String, at: Vector2i) -> void:
+	var where := Vector2(at.x * Config.TILE + Config.TILE / 2.0, at.y * Config.TILE)
+	if id == "wall":
+		if world.build_wall(at.x, at.y):
+			_autosave()
+		else:
+			_refuse("Can't build a wall here", where)
+		return
+	var reason: World.BlockReason = world.build_block_reason(at.x, at.y)
+	if reason != World.BlockReason.NONE:
+		_refuse(BLOCK_MESSAGE[reason], where)
+	elif world.build(id, at.x, at.y) == null:
+		_refuse("Not enough money", where)
+	else:
+		_autosave()
 
 
 # ---- frame -------------------------------------------------------------------
@@ -295,12 +507,21 @@ func _process(delta: float) -> void:
 		_alpha = _clock.advance(delta * 1000.0, speed, world.update)
 	if selected != null and not world.towers.has(selected):
 		selected = null
+	if selected_wall != GameMap.NO_TILE and not world.has_wall(selected_wall.x, selected_wall.y):
+		selected_wall = GameMap.NO_TILE
 	_handle_scene_events(world.events)
 	field.handle_events(world.events)
 	field.sync(_alpha)
 	_update_hover_objects()
 	_boss_bar.queue_redraw()
+	if is_modal_open() and build_menu.is_open():
+		build_menu.close()
 	hud.refresh()
+	ability_bar.refresh()
+	draft.refresh()
+	build_menu.refresh()
+	if tutorial != null:
+		tutorial.refresh(delta)
 	Audio.set_intensity(1 if world.wave_in_progress() and not is_modal_open() else 0)
 
 
@@ -322,6 +543,8 @@ func _handle_scene_events(events: Array[WorldEvent]) -> void:
 					show_banner("Wave cleared  +$%d%s" % [ev.bonus, interest], Palette.GOLD)
 					Audio.play("waveClear")
 				_autosave()
+			WorldEvent.Type.BOSS_PHASE:
+				show_banner(ev.text, Palette.RED)
 			WorldEvent.Type.WON:
 				_on_game_over(true)
 			WorldEvent.Type.LOST:
@@ -329,8 +552,7 @@ func _handle_scene_events(events: Array[WorldEvent]) -> void:
 
 
 func _on_game_over(won: bool) -> void:
-	tool = ""
-	selected = null
+	_cancel_picks()
 	var p: Profile = Profile.load_profile()
 	p.save = null
 	Profile.save_profile(p)
@@ -342,14 +564,9 @@ func _on_game_over(won: bool) -> void:
 		return
 	if won:
 		var stars: int = Profile.stars_for(world.lives, world.start_lives)
-		var new_towers: Array[String] = p.record_win(world.level_id, stars)
-		var unlocked: String = ""
-		if not new_towers.is_empty():
-			var names: PackedStringArray = []
-			for kind: String in new_towers:
-				names.append(Towers.get_def(kind).name)
-			unlocked = "\nUnlocked: %s!" % ", ".join(names)
-		win_overlay.show_dialog("%s\n%d of %d lives left.%s" % [Format.star_string(stars), world.lives, world.start_lives, unlocked])
+		var added: int = p.record_win(world.level_id, stars)
+		var spend: String = "\n+%d ★ to spend in the tech tree!" % added if added > 0 else ""
+		win_overlay.show_dialog("%s\n%d of %d lives left.%s" % [Format.star_string(stars), world.lives, world.start_lives, spend])
 	else:
 		lose_overlay.show_dialog("You reached wave %d of %d." % [world.wave_index + 1, world.total_waves()])
 
@@ -394,6 +611,11 @@ func _draw_boss_bar(g: CanvasItem) -> void:
 	Paint.fill_rounded_rect(g, x - 3, y - 3, w + 6, 16, 5, Color(0, 0, 0, 0.6))
 	Paint.fill_rounded_rect(g, x, y, w, 10, 3, Palette.rgb(0x5c1a1a))
 	Paint.fill_rounded_rect(g, x, y, maxf(6, w * f), 10, 3, Palette.RED)
+	# Where its phases begin.
+	for p: EnemyDef.Phase in boss.def.phases:
+		g.draw_line(Vector2(x + w * p.below, y - 2), Vector2(x + w * p.below, y + 12), Color.WHITE, 2)
+	if boss.max_shield > 0 and boss.shield > 0:
+		Paint.fill_rounded_rect(g, x, y + 11, w * boss.shield / boss.max_shield, 3, 1, Palette.rgb(0x7ad3ff))
 	_boss_text.show_text("%s  %d / %d" % [boss.def.name, ceili(boss.hitpoints), boss.max_hitpoints])
 
 
@@ -401,16 +623,31 @@ func _update_hover_objects() -> void:
 	_hover.queue_redraw()
 	_ghost.visible = false
 	_hint.visible = false
-	if _hover_tile == GameMap.NO_TILE or is_modal_open() or tool.is_empty():
+	var placing: bool = aim == "wall" or aim == "mine"
+	if _hover_tile == GameMap.NO_TILE or is_modal_open() or (tool.is_empty() and not placing):
 		return
 	var col: int = _hover_tile.x
 	var row: int = _hover_tile.y
 	if world.tower_at(col, row) != null:
 		return
-	var reason: World.BlockReason = world.build_block_reason(col, row)
+	var reason: World.BlockReason
+	var affordable: bool
+	if not tool.is_empty():
+		reason = world.build_block_reason(col, row)
+		affordable = world.can_afford(tool)
+	elif aim == "wall":
+		if world.has_wall(col, row):
+			return
+		reason = world.wall_block_reason(col, row)
+		affordable = world.money >= world.wall_cost()
+	else:
+		if world.mine_at(col, row) != null:
+			return
+		reason = world.mine_block_reason(col, row)
+		affordable = world.ability_block("mine") == World.AbilityBlock.NONE
 	if reason == World.BlockReason.TERRAIN:
 		return
-	var ok: bool = reason == World.BlockReason.NONE and world.can_afford(tool)
+	var ok: bool = reason == World.BlockReason.NONE and affordable
 	_ghost.position = GameMap.tile_center(_hover_tile)
 	_ghost.modulate = Color(1, 1, 1, 0.75) if ok else Color(GHOST_BLOCKED, 0.75)
 	_ghost.visible = true
@@ -428,6 +665,10 @@ func _draw_hover(g: CanvasItem) -> void:
 		g.draw_circle(Vector2(s.x, s.y), s.attack_range, Color(1, 1, 1, 0.1))
 		Paint.stroke_circle(g, s.x, s.y, s.attack_range, 2, Color(Palette.GOLD, 0.8))
 		g.draw_rect(Rect2(s.col * t + 1, s.row * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
+	if selected_wall != GameMap.NO_TILE and not is_modal_open():
+		g.draw_rect(Rect2(selected_wall.x * t + 1, selected_wall.y * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
+	if not is_modal_open() and _mouse.x >= 0 and _mouse.x < Config.FIELD_W and _mouse.y >= 0 and _mouse.y < Config.FIELD_H:
+		_draw_aim(g)
 	if _hover_tile == GameMap.NO_TILE or is_modal_open():
 		return
 	var col: int = _hover_tile.x
@@ -439,14 +680,41 @@ func _draw_hover(g: CanvasItem) -> void:
 		var ok: bool = reason == World.BlockReason.NONE and world.can_afford(tool)
 		var color: Color = Color.WHITE if ok else Palette.RED
 		if reason != World.BlockReason.TERRAIN:
-			var reach: float = Towers.get_def(tool).levels[0].attack_range \
-				* (Config.HIGH_GROUND_RANGE if world.map.is_high_ground(col, row) else 1.0)
+			var reach: float = Towers.get_def(tool).levels[0].attack_range * world.tower_range \
+				* (Config.HIGH_GROUND_RANGE if (world.map.is_high_ground(col, row) or world.has_wall(col, row)) else 1.0)
 			g.draw_circle(center, reach, Color(color, 0.12))
 			Paint.stroke_circle(g, center.x, center.y, reach, 2, Color(color, 0.6))
 		g.draw_rect(Rect2(col * t + 1, row * t + 1, t - 2, t - 2), Color(color, 0.9), false, 2)
+	elif (aim == "wall" or aim == "mine") and tower == null and not (aim == "wall" and world.has_wall(col, row)):
+		var reason: World.BlockReason = world.wall_block_reason(col, row) if aim == "wall" else world.mine_block_reason(col, row)
+		var ok: bool = reason == World.BlockReason.NONE and (world.money >= world.wall_cost() if aim == "wall" \
+			else world.ability_block("mine") == World.AbilityBlock.NONE)
+		var color: Color = Color.WHITE if ok else Palette.RED
+		if aim == "mine" and reason != World.BlockReason.TERRAIN:
+			var blast: float = Abilities.get_def("mine").radius
+			g.draw_circle(center, blast, Color(color, 0.1))
+			Paint.stroke_circle(g, center.x, center.y, blast, 2, Color(color, 0.5))
+		if reason != World.BlockReason.TERRAIN:
+			g.draw_rect(Rect2(col * t + 1, row * t + 1, t - 2, t - 2), Color(color, 0.9), false, 2)
 	elif tower != null and tower != selected:
 		g.draw_circle(Vector2(tower.x, tower.y), tower.attack_range, Color(1, 1, 1, 0.08))
 		Paint.stroke_circle(g, tower.x, tower.y, tower.attack_range, 2, Color(1, 1, 1, 0.45))
+
+
+## What the airstrike and the focus mark would hit, under the pointer.
+func _draw_aim(g: CanvasItem) -> void:
+	if aim == "strike":
+		var radius: float = Abilities.get_def("strike").radius
+		var affordable: bool = world.ability_block("strike") == World.AbilityBlock.NONE
+		var color: Color = Palette.rgb(0xff8c42) if affordable else Palette.RED
+		g.draw_circle(_mouse, radius, Color(color, 0.14))
+		Paint.stroke_circle(g, _mouse.x, _mouse.y, radius, 2, Color(color, 0.8))
+		Paint.line(g, _mouse.x - 8, _mouse.y, _mouse.x + 8, _mouse.y, 2, color)
+		Paint.line(g, _mouse.x, _mouse.y - 8, _mouse.x, _mouse.y + 8, 2, color)
+	elif aim == "mark":
+		var target: Enemy = world.enemy_near(_mouse)
+		if target != null:
+			Paint.stroke_circle(g, target.x, target.y, target.radius + 8, 3, Palette.RED)
 
 
 # ---- what the player sees (read by the scene tests) ---------------------------

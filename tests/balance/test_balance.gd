@@ -38,6 +38,10 @@ func test_openfield_the_best_strategy_found_wins() -> void:
 	_best_strategy_wins(3)
 
 
+func test_citadel_the_best_strategy_found_wins() -> void:
+	_best_strategy_wins(4)
+
+
 func test_meadow_tutorial_is_won_by_most_novices_and_nearly_all_average_players() -> void:
 	expect_ge(_wins(0, "novice"), 8)
 	expect_ge(_wins(0, "average"), 10)
@@ -69,3 +73,7 @@ func test_endless_runs_end_but_not_too_soon() -> void:
 	var cleared: int = BalancePlayers.play_human(w, BalanceReport.SKILLS["average"], 1, 40).waves_cleared
 	expect_ge(cleared, 10)
 	expect_lt(cleared, 40)
+
+
+func test_citadel_is_doable_for_average_players_but_not_trivial_for_novices() -> void:
+	_doable_but_not_trivial(4)

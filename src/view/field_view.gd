@@ -8,14 +8,23 @@ extends Node2D
 ## and enemies (5, 20, 26) set their own; see TowerView and EnemyView.
 const D_MAP: int = 0
 const D_PATH_PREVIEW: int = 2
+const D_MINES: int = 3
+const D_WALLS: int = 4
 const D_BULLETS: int = 30
 const D_BEAMS: int = 32
+const D_GLOW: int = 33 ## additive light over bullets and beams
 const D_BARS: int = 40
+const D_ABILITIES: int = 41
 const D_OVERLAY: int = 45
 const D_EFFECTS: int = 50
 const D_FLOATERS: int = 60
 
-const SHOT_SOUND: Dictionary[String, String] = {"gun": "gun", "missile": "missile", "cannon": "cannon"}
+## Sound of a shot, by tower kind or branch id.
+const SHOT_SOUND: Dictionary[String, String] = {
+	"gun": "gun", "missile": "missile", "cannon": "cannon", "minigun": "gun", "sniper": "rail", "swarm": "missile",
+	"seeker": "missile", "mortar": "mortar", "siege": "cannon",
+}
+const RAIL_TIME: float = 0.18 ## seconds a rail tracer stays on screen
 
 ## Menu demo: no floating text, screen effects or sound.
 var quiet: bool = false
@@ -28,17 +37,28 @@ var _enemies: Dictionary[Enemy, EnemyView] = {}
 var _alpha: float = 0.0
 var _frame_count: int = 0
 var _path_key: String = "-"
+var _wall_key: String = "-"
+var _mines_drawn: bool = false
 var _path_preview: DrawNode
+var _walls: DrawNode
+var _mines: DrawNode
+var _abilities: DrawNode
 var _bullets: DrawNode
 var _beams: DrawNode
+## Soft additive light around bullets, beams and rail shots.
+var glow: DrawNode
 var _bars: DrawNode
 var _rings: RingLayer
+## Darkness of night variants (null otherwise).
+var night: NightLayer = null
 var _explosion: Burst
 var _sparks: Burst
 var _smoke: Burst
 var _dust: Burst
 var _frost: Burst
 var _stars: Burst
+## Rail tracers fading out: [x, y, x2, y2, seconds left].
+var _rails: Array[PackedFloat32Array] = []
 
 
 func _init(p_world: World) -> void:
@@ -46,14 +66,28 @@ func _init(p_world: World) -> void:
 	add_child(DrawNode.new(_draw_map, D_MAP))
 	_path_preview = DrawNode.new(_draw_path_preview, D_PATH_PREVIEW)
 	add_child(_path_preview)
+	_mines = DrawNode.new(_draw_mines, D_MINES)
+	add_child(_mines)
+	_walls = DrawNode.new(_draw_walls, D_WALLS)
+	add_child(_walls)
 	_bullets = DrawNode.new(_draw_bullets, D_BULLETS)
 	add_child(_bullets)
 	_beams = DrawNode.new(_draw_beams, D_BEAMS)
 	add_child(_beams)
+	glow = DrawNode.new(_draw_glow, D_GLOW)
+	var additive := CanvasItemMaterial.new()
+	additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = additive
+	add_child(glow)
 	_bars = DrawNode.new(_draw_bars, D_BARS)
 	add_child(_bars)
+	_abilities = DrawNode.new(_draw_abilities, D_ABILITIES)
+	add_child(_abilities)
 	_rings = RingLayer.new(D_EFFECTS)
 	add_child(_rings)
+	if world.variant == "night":
+		night = NightLayer.new()
+		add_child(night)
 
 	_explosion = Burst.new(D_EFFECTS).speed(40, 170).lifespan(250, 550).scale_over_life(0.7, 0) \
 		.colors([0xffd166, 0xff8c42, 0xef476f, 0x8d99ae])
@@ -154,10 +188,10 @@ func _arrow(g: CanvasItem, t: Vector2i, inward: bool) -> void:
 		p.x - ax * 6 + ay * 8, p.y - ay * 6 + ax * 8, Color(1, 1, 1, 0.55))
 
 
-## Maze levels: dotted line showing the route enemies will take right now.
+## Levels where enemies re-route: dotted line showing the route they will take right now.
 func _draw_path_preview(g: CanvasItem) -> void:
 	var map: GameMap = world.map
-	if not map.maze:
+	if not map.flow:
 		return
 	var dist: PackedInt32Array = world.distance_field
 	var dot := Color(1, 1, 1, 0.35)
@@ -176,17 +210,73 @@ func _draw_path_preview(g: CanvasItem) -> void:
 			i += 1
 
 
+## Walls (and the stone under towers on the road).
+func _draw_walls(g: CanvasItem) -> void:
+	for tile: Vector2i in world.walls:
+		AbilityArt.draw_wall_tile(g, tile.x * Config.TILE, tile.y * Config.TILE)
+
+
+func _draw_mines(g: CanvasItem) -> void:
+	var blink: float = 0.5 + 0.5 * sin(_frame_count * 0.18)
+	for m: World.Mine in world.mines:
+		AbilityArt.draw_mine(g, Vector2(m.x, m.y), blink)
+
+
+## What the abilities show on the field: tint and frame while one lasts,
+## airstrikes on their way, focus marks.
+func _draw_abilities(g: CanvasItem) -> void:
+	var field := Rect2(0, 0, Config.FIELD_W, Config.FIELD_H)
+	var effects: Dictionary[String, Color] = {
+		"slow": Color(0.35, 0.65, 1.0), "boost": Color(1.0, 0.6, 0.2), "bounty": Color(1.0, 0.85, 0.25),
+	}
+	var inset: float = 1.0
+	for id: String in effects:
+		if world.is_active(id):
+			var c: Color = effects[id]
+			g.draw_rect(field, Color(c, 0.06))
+			g.draw_rect(field.grow(-inset), Color(c, 0.55), false, 3)
+			inset += 4.0
+	for st: World.Strike in world.strikes:
+		var total: float = Abilities.get_def("strike").duration * Config.TICK_RATE
+		var progress: float = clampf(1.0 - (st.due - world.tick) / total, 0.0, 1.0)
+		var orange: Color = Palette.rgb(0xff8c42)
+		g.draw_circle(Vector2(st.x, st.y), st.radius * progress, Color(orange, 0.22))
+		Paint.stroke_circle(g, st.x, st.y, st.radius, 3, Color(orange, 0.9))
+		Paint.line(g, st.x - 10, st.y, st.x + 10, st.y, 2, orange)
+		Paint.line(g, st.x, st.y - 10, st.x, st.y + 10, 2, orange)
+	for e: Enemy in world.enemies:
+		if e.mark_ticks > 0:
+			var x: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var y: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			var r: float = e.radius + 7
+			Paint.stroke_circle(g, x, y, r, 2.5, Palette.RED)
+			for k: int in 4:
+				var a: float = k * PI / 2 + _frame_count * 0.05
+				Paint.line(g, x + cos(a) * (r - 3), y + sin(a) * (r - 3), x + cos(a) * (r + 5), y + sin(a) * (r + 5), 2.5, Palette.RED)
+
+
 # ---- per-frame sync ----------------------------------------------------------
 
 ## Syncs the views with the world. `alpha` is the fraction between ticks.
 func sync(alpha: float) -> void:
 	_alpha = alpha
 	_frame_count += 1
-	if world.map.maze:
-		var key: String = ";".join(world.towers.map(func(t: Tower) -> String: return "%d,%d" % [t.col, t.row]))
+	if world.map.flow:
+		var key: String = ";".join(world.towers.map(func(t: Tower) -> String: return "%d,%d,%d" % [t.col, t.row, t.level]))
+		key += "|" + ";".join(world.walls.keys().map(func(t: Vector2i) -> String: return "%d,%d" % [t.x, t.y]))
 		if key != _path_key:
 			_path_key = key
 			_path_preview.queue_redraw()
+	var walls_key: String = ";".join(world.walls.keys().map(func(t: Vector2i) -> String: return "%d,%d" % [t.x, t.y]))
+	if walls_key != _wall_key:
+		_wall_key = walls_key
+		_walls.queue_redraw()
+	if not world.mines.is_empty() or _mines_drawn:
+		_mines.queue_redraw()
+	_mines_drawn = not world.mines.is_empty()
+	_abilities.queue_redraw()
+	if night != null:
+		night.sync(world)
 	_sync_towers()
 	_sync_enemies()
 	if _frame_count % 3 == 0:
@@ -195,8 +285,14 @@ func sync(alpha: float) -> void:
 				var x: float = Format.lerp_value(b.prev_x, b.x, alpha)
 				var y: float = Format.lerp_value(b.prev_y, b.y, alpha)
 				_smoke.explode(1, x - cos(b.angle) * 6, y - sin(b.angle) * 6)
+	if not _rails.is_empty():
+		var dt: float = get_process_delta_time()
+		for r: PackedFloat32Array in _rails:
+			r[4] -= dt
+		_rails = _rails.filter(func(r: PackedFloat32Array) -> bool: return r[4] > 0)
 	_bullets.queue_redraw()
 	_beams.queue_redraw()
+	glow.queue_redraw()
 	_bars.queue_redraw()
 
 
@@ -244,16 +340,62 @@ func enemy_view(e: Enemy) -> EnemyView:
 
 func _draw_beams(g: CanvasItem) -> void:
 	for t: Tower in world.towers:
-		if t.def.behavior != Towers.Behavior.BEAM or t.target == null or not t.target.alive:
+		if t.def.behavior != Towers.Behavior.BEAM:
 			continue
-		var tx: float = Format.lerp_value(t.target.prev_x, t.target.x, _alpha)
-		var ty: float = Format.lerp_value(t.target.prev_y, t.target.y, _alpha)
 		var heat: float = t.heat_fraction
+		var glow: Color = t.branch.color if t.branch != null else Palette.rgb(0xd35cff)
+		var core: Color = glow.lerp(Color.WHITE, 0.75)
+		var width: float = 1.4 if t.branch_id == "lance" else (0.7 if t.branch_id == "prism" else 1.0)
 		var sx: float = t.x + cos(t.angle) * 14
 		var sy: float = t.y + sin(t.angle) * 14
-		Paint.line(g, sx, sy, tx, ty, 6 + 6 * heat, Palette.rgb(0xd35cff, 0.25 + 0.2 * heat))
-		Paint.line(g, sx, sy, tx, ty, 2 + 2 * heat, Palette.rgb(0xf5d0ff, 0.95))
-		g.draw_circle(Vector2(tx, ty), 3 + 3 * heat, Color(1, 1, 1, 0.9))
+		for e: Enemy in t.targets:
+			if not e.alive:
+				continue
+			var tx: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var ty: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			Paint.line(g, sx, sy, tx, ty, (6 + 6 * heat) * width, Color(glow, 0.25 + 0.2 * heat))
+			Paint.line(g, sx, sy, tx, ty, (2 + 2 * heat) * width, Color(core, 0.95))
+			g.draw_circle(Vector2(tx, ty), (3 + 3 * heat) * width, Color(1, 1, 1, 0.9))
+	# Sniper rail shots: a bright line that fades fast.
+	var gold: Color = Palette.rgb(0xffd166)
+	for r: PackedFloat32Array in _rails:
+		var a: float = clampf(r[4] / RAIL_TIME, 0.0, 1.0)
+		Paint.line(g, r[0], r[1], r[2], r[3], 7 * a + 1, Color(gold, 0.35 * a))
+		Paint.line(g, r[0], r[1], r[2], r[3], 2, Color(1, 1, 1, 0.95 * a))
+
+
+## Light added on top of the bullets and beams (blend mode: add), so shots
+## glow against the field.
+func _draw_glow(g: CanvasItem) -> void:
+	for b: Bullet in world.bullets:
+		var x: float = Format.lerp_value(b.prev_x, b.x, _alpha)
+		var y: float = Format.lerp_value(b.prev_y, b.y, _alpha)
+		var color: Color
+		match b.type:
+			Towers.BulletType.MISSILE:
+				color = Palette.rgb(0xff8c42)
+				x -= cos(b.angle) * 6 * b.radius / 4.0 # the exhaust
+				y -= sin(b.angle) * 6 * b.radius / 4.0
+			Towers.BulletType.SHELL:
+				continue # shells are dark iron balls
+			_:
+				color = Palette.rgb(0xffe08a)
+		g.draw_circle(Vector2(x, y), 9, Color(color, 0.18))
+		g.draw_circle(Vector2(x, y), 4.5, Color(color, 0.3))
+	for t: Tower in world.towers:
+		if t.def.behavior != Towers.Behavior.BEAM:
+			continue
+		var c: Color = t.branch.color if t.branch != null else Palette.rgb(0xd35cff)
+		for e: Enemy in t.targets:
+			if not e.alive:
+				continue
+			var tx: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var ty: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			Paint.line(g, t.x, t.y, tx, ty, 14 + 10 * t.heat_fraction, Color(c, 0.12))
+			g.draw_circle(Vector2(tx, ty), 10 + 8 * t.heat_fraction, Color(c, 0.25))
+	for r: PackedFloat32Array in _rails:
+		var a: float = clampf(r[4] / RAIL_TIME, 0.0, 1.0)
+		Paint.line(g, r[0], r[1], r[2], r[3], 16 * a, Color(1.0, 0.85, 0.4, 0.25 * a))
 
 
 func _draw_bullets(g: CanvasItem) -> void:
@@ -262,14 +404,17 @@ func _draw_bullets(g: CanvasItem) -> void:
 		var y: float = Format.lerp_value(b.prev_y, b.y, _alpha)
 		match b.type:
 			Towers.BulletType.SHELL:
-				# Fake a ballistic arc: shells grow a little towards the middle of their flight.
+				# Fake a ballistic arc: shells grow a little towards the middle of their
+				# flight (a lot for a mortar's long lob).
 				var p: float = b.travelled / b.flight if b.flight > 0 else 1.0
-				var s: float = (1 + sin(PI * p) * 0.5) / 2
+				var lob: float = 0.5 if b.flight < 200 else 1.2
+				var s: float = (1 + sin(PI * p) * lob) / 2
 				g.draw_set_transform(Vector2(x, y), 0, Vector2(s, s))
 				Paint.fill_circle(g, 0, 0, 6, Palette.rgb(0x222831))
 				Paint.fill_circle(g, -2, -2, 2, Palette.rgb(0x6c757d))
 			Towers.BulletType.MISSILE:
-				g.draw_set_transform(Vector2(x, y), b.angle)
+				var k: float = b.radius / 4.0 # swarm missiles are small, seekers big
+				g.draw_set_transform(Vector2(x, y), b.angle, Vector2(k, k))
 				Paint.fill_rect(g, -7, -2.5, 10, 5, Palette.rgb(0x6c757d))
 				Paint.fill_triangle(g, 3, -3.5, 7, 0, 3, 3.5, Palette.rgb(0xe63946))
 				Paint.fill_rect(g, -7, -1.5, 2, 3, Palette.rgb(0xffb703))
@@ -301,14 +446,48 @@ func _draw_bars(g: CanvasItem) -> void:
 		g.draw_rect(Rect2(bx, by, 24 * frac, 4), bar)
 		if e.max_shield > 0:
 			g.draw_rect(Rect2(bx, by - 3, 24 * (e.shield / e.max_shield), 2), shield_color)
-	# Tower level pips and beacon boost marker.
+	# A magnet's field.
 	for t: Tower in world.towers:
+		if t.def.pulls:
+			var color: Color = t.branch.color if t.branch != null else t.def.color
+			var spin: float = _frame_count * 0.01
+			for k: int in 12:
+				var a: float = spin + k * TAU / 12
+				g.draw_arc(Vector2(t.x, t.y), t.attack_range, a, a + 0.25, 6, Color(color, 0.45), 2)
+	# Frozen enemies are cased in ice.
+	for e: Enemy in world.enemies:
+		if e.stun_ticks > 0:
+			var x: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var y: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			g.draw_circle(Vector2(x, y), e.radius + 2, Color(0.75, 0.92, 1.0, 0.45))
+			Paint.stroke_circle(g, x, y, e.radius + 2, 2, Color(1, 1, 1, 0.8))
+			Paint.line(g, x - e.radius * 0.5, y - e.radius * 0.6, x - e.radius * 0.1, y - e.radius * 0.1, 2, Color(1, 1, 1, 0.8))
+	# Tower level pips (in the branch's colour after level 3) and beacon boost marker.
+	for t: Tower in world.towers:
+		var pip: Color = t.branch.color if t.branch != null else Palette.GOLD
 		for i: int in t.level:
 			var px: float = t.x - 4 + i * 8 - (t.level - 1) * 4 + 4
 			Paint.fill_circle(g, px, t.y + 17, 3.5, Color(0, 0, 0, 0.6))
-			Paint.fill_circle(g, px, t.y + 17, 2.5, Palette.GOLD)
+			Paint.fill_circle(g, px, t.y + 17, 2.5, pip)
 		if t.buff > 0:
 			Paint.fill_triangle(g, t.x + 12, t.y - 10, t.x + 16, t.y - 16, t.x + 20, t.y - 10, Color(Palette.GOLD, 0.95))
+		if t.is_disabled():
+			# Sparks of the EMP that switched it off.
+			var k: float = float(_frame_count % 12) / 12.0
+			var blue: Color = Palette.rgb(0x74c0fc)
+			Paint.line(g, t.x - 10, t.y - 12, t.x - 3, t.y - 4 - 3 * k, 2, blue)
+			Paint.line(g, t.x - 3, t.y - 4 - 3 * k, t.x + 2, t.y - 12, 2, blue)
+			Paint.line(g, t.x + 2, t.y - 12, t.x + 10, t.y - 3, 2, blue)
+	# Enemies rallied by a warchief: a red chevron over them.
+	for e: Enemy in world.enemies:
+		if e.rallied:
+			var x: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var y: float = Format.lerp_value(e.prev_y, e.y, _alpha) - e.radius - 14
+			Paint.fill_triangle(g, x - 4, y - 3, x + 4, y - 3, x, y + 2, Palette.RED)
+		elif e.def.rally != null:
+			var x: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var y: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			Paint.stroke_circle(g, x, y, e.def.rally.radius, 1.5, Color(Palette.RED, 0.35))
 
 
 # ---- events ------------------------------------------------------------------
@@ -352,9 +531,15 @@ func handle_events(events: Array[WorldEvent]) -> void:
 				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xffb347), 350)
 				_sound("explode")
 			WorldEvent.Type.PULSE:
-				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x7ad3ff), 600)
-				_frost.explode(10, ev.x, ev.y)
-				_sound("frost")
+				if ev.kind == "magnet":
+					# A tesla coil's shock.
+					_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x66d9e8), 300)
+					_sparks.explode(10, ev.x, ev.y)
+					_sound("zap")
+				else:
+					_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x7ad3ff), 600)
+					_frost.explode(10, ev.x, ev.y)
+					_sound("frost")
 			WorldEvent.Type.HEAL:
 				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x69db7c), 500)
 				_sound("heal")
@@ -367,11 +552,55 @@ func handle_events(events: Array[WorldEvent]) -> void:
 			WorldEvent.Type.UPGRADE:
 				_stars.explode(16, ev.x, ev.y)
 				_rings.add(ev.x, ev.y, 30, Palette.GOLD, 400)
+				if Towers.is_branch(ev.kind):
+					var b: TowerBranch = Towers.get_branch(ev.kind)
+					_rings.add(ev.x, ev.y, 55, b.color, 700)
+					if not quiet:
+						float_text(ev.x, ev.y - 14, b.name + "!", b.color)
 				_sound("upgrade")
+			WorldEvent.Type.RAIL:
+				_rails.append(PackedFloat32Array([ev.x, ev.y, ev.x2, ev.y2, RAIL_TIME]))
+				_sparks.explode(4, ev.x2, ev.y2)
 			WorldEvent.Type.SELL:
 				_dust.explode(10, ev.x, ev.y)
 				float_text(ev.x, ev.y - 10, "+$%d" % ev.amount, Palette.GOLD)
 				_sound("sell")
+			WorldEvent.Type.WALL_BUILT:
+				_dust.explode(10, ev.x, ev.y + 8)
+				_sound("build")
+			WorldEvent.Type.WALL_SOLD:
+				_dust.explode(10, ev.x, ev.y)
+				float_text(ev.x, ev.y - 10, "+$%d" % ev.amount, Palette.GOLD)
+				_sound("sell")
+			WorldEvent.Type.MINE_PLACED:
+				_dust.explode(6, ev.x, ev.y)
+				_sound("build")
+			WorldEvent.Type.MINE_BLAST:
+				_explosion.explode(18, ev.x, ev.y)
+				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xffb347), 350)
+				_shake(120, 0.003)
+				_sound("explode")
+			WorldEvent.Type.STRIKE:
+				_explosion.explode(40, ev.x, ev.y)
+				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xffb347), 450)
+				_rings.add(ev.x, ev.y, ev.radius * 0.6, Palette.rgb(0xff6b6b), 300)
+				_shake(260, 0.007)
+				_sound("bigExplosion")
+			WorldEvent.Type.ABILITY:
+				_ability_used(ev)
+			WorldEvent.Type.EMP:
+				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x74c0fc), 450)
+				_sparks.explode(10, ev.x, ev.y)
+				_sound("zap")
+			WorldEvent.Type.BOSS_PHASE:
+				_rings.add(ev.x, ev.y, 90, Palette.RED, 700)
+				_explosion.explode(24, ev.x, ev.y)
+				_shake(300, 0.008)
+				_sound("summon")
+			WorldEvent.Type.RUN_PERK:
+				if not quiet:
+					float_text(Config.FIELD_W / 2.0, 120, RunPerks.get_def(ev.kind).name + "!", Palette.GOLD)
+				_stars.explode(20, Config.FIELD_W / 2.0, 100)
 			WorldEvent.Type.LEAK:
 				if quiet:
 					continue
@@ -382,6 +611,35 @@ func handle_events(events: Array[WorldEvent]) -> void:
 					fx.flash(160, Color8(180, 30, 30))
 				_sound("leak")
 	events.clear()
+
+
+## Effects and sounds when an ability is used.
+func _ability_used(ev: WorldEvent) -> void:
+	var middle := Vector2(Config.FIELD_W / 2.0, Config.FIELD_H / 2.0)
+	match ev.kind:
+		"slow":
+			_rings.add(middle.x, middle.y, 520, Palette.rgb(0x7ad3ff), 800)
+			float_text(middle.x, 120, "Time slow", Palette.rgb(0x7ad3ff))
+			_sound("frost")
+		"boost":
+			for t: Tower in world.towers:
+				_rings.add(t.x, t.y, 34, Palette.GOLD, 450)
+			float_text(middle.x, 120, "Damage boost", Palette.rgb(0xffb347))
+			_sound("upgrade")
+		"bounty":
+			_stars.explode(20, middle.x, 90)
+			float_text(middle.x, 120, "Bounty: kills pay double", Palette.GOLD)
+			_sound("upgrade")
+		"wind":
+			_stars.explode(24, middle.x, 90)
+			float_text(middle.x, 120, "+%d ♥" % roundi(Abilities.get_def("wind").power), Palette.GREEN)
+			_sound("heal")
+		"strike":
+			_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0xff8c42), 1000)
+			_sound("click")
+		"mark":
+			_rings.add(ev.x, ev.y, 34, Palette.RED, 500)
+			_sound("click")
 
 
 ## Text that floats up and fades out.

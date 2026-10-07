@@ -9,7 +9,7 @@ const F := Synth.Filter
 const SFX_NAMES: Array[String] = [
 	"gun", "missile", "cannon", "zap", "frost", "hit", "explode", "pop", "bigExplosion",
 	"build", "upgrade", "sell", "error", "click", "leak", "heal", "summon",
-	"waveStart", "waveClear", "win", "lose",
+	"waveStart", "waveClear", "win", "lose", "rail", "mortar",
 ]
 
 ## Length of each effect in seconds (its last voice ends by then).
@@ -17,7 +17,7 @@ const SFX_LENGTH: Dictionary[String, float] = {
 	"gun": 0.08, "missile": 0.31, "cannon": 0.31, "zap": 0.15, "frost": 0.33, "hit": 0.06, "explode": 0.38,
 	"pop": 0.11, "bigExplosion": 0.93, "build": 0.13, "upgrade": 0.31, "sell": 0.24, "error": 0.17,
 	"click": 0.05, "leak": 0.43, "heal": 0.23, "summon": 0.53, "waveStart": 0.78, "waveClear": 0.39,
-	"win": 1.28, "lose": 0.99,
+	"win": 1.28, "lose": 0.99, "rail": 0.16, "mortar": 0.42,
 }
 
 # Music: Am - F - C - G, as MIDI notes.
@@ -99,6 +99,12 @@ static func render_sfx(name: String, rate: int, noise_seed: int = 1) -> Synth:
 			var notes: Array[float] = [392, 349, 311, 262]
 			for i: int in notes.size():
 				s.tone(t + i * 0.22, W.SAWTOOTH, notes[i], notes[i] * 0.98, 0.3, 0.07, 1400)
+		"rail":
+			s.noise(t, 0.05, F.HIGHPASS, 4000, 4000, 0.16)
+			s.tone(t, W.SAWTOOTH, 2400, 500, 0.14, 0.06, 3000)
+		"mortar":
+			s.tone(t, W.SINE, 95, 38, 0.38, 0.5)
+			s.noise(t, 0.3, F.LOWPASS, 700, 120, 0.22)
 		_:
 			push_error("Unknown sound '%s'" % name)
 	return s

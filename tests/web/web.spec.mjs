@@ -47,6 +47,29 @@ test('a saved game survives reloading the page @release', async ({ page }) => {
   game.expectNoProblems();
 });
 
+test('a wall can be built on the road and an ability used @release', async () => {
+  await game.open();
+  await game.startMeadow();
+  const road = AT.tile(5, 11);
+  // (The dotted path preview runs through the middle of the tile, so look beside it.)
+  await game.waitForColor([road[0] + 12, road[1] + 12], COLORS.path, { tolerance: 20, what: 'free road' });
+  await game.click(AT.abilityButton(0)); // the wall tool
+  await game.click(road);
+  // The wall is stone, not road (the pointer's preview is gone once the tool is put away).
+  await game.page.keyboard.press('Escape');
+  await game.waitForColor([road[0], road[1] - 12], COLORS.stone, { tolerance: 25, what: 'a wall on the road' });
+
+  const [r0, , b0] = await game.channels(AT.fieldFrame);
+  await game.click(AT.abilityButton(1)); // time slow
+  await expect
+    .poll(async () => {
+      const [r, , b] = await game.channels(AT.fieldFrame);
+      return b - r - (b0 - r0);
+    }, { message: 'the blue frame of time slow', timeout: 15_000 })
+    .toBeGreaterThan(40);
+  game.expectNoProblems();
+});
+
 test('the music setting is remembered after a reload', async ({ page }) => {
   await game.open();
   // Music starts on: its button has a gold outline.
@@ -94,4 +117,22 @@ test.describe('phone', () => {
     await game.waitForColor(AT.levelMeadowPlayColor, COLORS.accent, { what: 'the level select screen' });
     game.expectNoProblems();
   });
+});
+
+test('can be installed as an app: manifest, icons and offline support @release', async ({ page }) => {
+  const manifest = await (await page.request.get('/index.manifest.json')).json();
+  expect(manifest.name).toBe('Tower Defense');
+  expect(manifest.orientation).toBe('landscape'); // the field plays sideways
+  expect(manifest.icons.length).toBeGreaterThan(0);
+  for (const icon of manifest.icons) {
+    expect((await page.request.get('/' + icon.src)).ok(), icon.src).toBeTruthy();
+  }
+  expect((await page.request.get('/index.service.worker.js')).ok()).toBeTruthy();
+  expect((await page.request.get('/index.offline.html')).ok()).toBeTruthy();
+  await game.open();
+  // The page registers the service worker that makes it work offline.
+  await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length), {
+    timeout: 20_000,
+  }).toBeGreaterThan(0);
+  game.expectNoProblems();
 });

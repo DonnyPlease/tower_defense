@@ -37,7 +37,10 @@ static var _shared: Dictionary[String, Shared] = {}
 static var _shared_lock: Mutex = Mutex.new()
 
 var name: String
+## Enemies may also walk on grass and high ground (towers form the walls).
 var maze: bool
+## Enemies stay on the road, but walls can be built on it (see can_hold_wall).
+var road_walls: bool
 var starts: Array[Vector2i] = []
 var ends: Array[Vector2i] = []
 ## Why the map is invalid, or "" for a valid map.
@@ -55,9 +58,10 @@ var _obstacle_x0: PackedFloat64Array
 var _obstacle_y0: PackedFloat64Array
 
 
-func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> void:
+func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false, p_road_walls: bool = false) -> void:
 	name = p_name
 	maze = p_maze
+	road_walls = p_road_walls
 	if tiles.size() != Config.ROWS or Array(tiles).any(func(r: String) -> bool: return r.length() != Config.COLS):
 		error = 'Map "%s" must be %dx%d tiles' % [name, Config.COLS, Config.ROWS]
 		return
@@ -79,7 +83,7 @@ func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> vo
 	if starts.is_empty() or ends.is_empty():
 		error = 'Map "%s" needs at least one S and one E tile' % name
 		return
-	_key = "\n".join(tiles) + ("m" if maze else "")
+	_key = "\n".join(tiles) + ("m" if maze else "") + ("w" if road_walls else "")
 	_shared_lock.lock()
 	var shared: Shared = _shared.get(_key)
 	if shared == null:
@@ -94,6 +98,13 @@ func _init(p_name: String, tiles: PackedStringArray, p_maze: bool = false) -> vo
 				shared.paths.append(path)
 		_shared[_key] = shared
 	_shared_lock.unlock()
+
+
+## Whether enemies re-route when something is built (maze and wall levels):
+## they steer with the flow field instead of following a fixed route.
+var flow: bool:
+	get:
+		return maze or road_walls
 
 
 ## Road levels: one smooth route along the middle of the road per start/end pair.
@@ -125,8 +136,8 @@ func _shared_routes() -> Shared:
 					pts.add(t.x * Config.TILE + Config.TILE * 0.5, t.y * Config.TILE + Config.TILE * 0.5)
 				var finish: Vector2 = outside(e)
 				pts.add(finish.x, finish.y)
-				# Maze levels steer with the flow field instead, so skip the smoothing.
-				shared.routes.append(Route.new(pts, _road_width, Callable() if maze else _clearance_at))
+				# Levels with walls steer with the flow field instead, so skip the smoothing.
+				shared.routes.append(Route.new(pts, _road_width, Callable() if flow else _clearance_at))
 				var flight := Route.Polyline.new()
 				flight.add(start.x, start.y)
 				flight.add(s.x * Config.TILE + Config.TILE * 0.5, s.y * Config.TILE + Config.TILE * 0.5)
@@ -140,7 +151,7 @@ func _shared_routes() -> Shared:
 	return shared
 
 
-## Identifies the map's tiles (and maze flag): maps with the same key are the same.
+## Identifies the map's tiles and flags: maps with the same key are the same.
 func key() -> String:
 	return _key
 
@@ -177,6 +188,21 @@ func is_buildable_terrain(col: int, row: int) -> bool:
 
 func is_high_ground(col: int, row: int) -> bool:
 	return terrain_at(col, row) == Terrain.HIGH
+
+
+## Where enemies enter or leave the map (these can never be built on).
+func is_gate(col: int, row: int) -> bool:
+	var t := Vector2i(col, row)
+	return starts.has(t) or ends.has(t)
+
+
+## Whether a wall may stand here: on grass and high ground, and on the road
+## of levels where enemies re-route (but never on the tiles where they enter
+## and leave). Whether it is allowed right now also depends on the path (World).
+func can_hold_wall(col: int, row: int) -> bool:
+	if is_buildable_terrain(col, row):
+		return true
+	return flow and terrain_at(col, row) == Terrain.ROAD and not is_gate(col, row)
 
 
 ## Whether ground enemies may walk here, ignoring towers.
@@ -242,6 +268,48 @@ func distance_field(blocked: PackedByteArray = PackedByteArray(), exits: Array[V
 	return dist
 
 
+## Step cost of a tile in a weighted distance field, and of a tile in a
+## magnet's field (see weighted_distance_field).
+const STEP_COST: int = 10
+const LURE_COST: int = 1
+
+
+## Like distance_field, but stepping off a tile in `lures` (a non-zero byte
+## per tile: a magnet's field) costs LURE_COST instead of STEP_COST, so the
+## cheapest way bends towards magnets when the detour is short enough.
+## Distances are in STEP_COST units per tile.
+func weighted_distance_field(blocked: PackedByteArray, lures: PackedByteArray) -> PackedInt32Array:
+	var n: int = Config.COLS * Config.ROWS
+	var cols: int = Config.COLS
+	var dist := PackedInt32Array()
+	dist.resize(n)
+	dist.fill(UNREACHABLE)
+	var done := PackedByteArray()
+	done.resize(n)
+	for e: Vector2i in ends:
+		dist[e.y * cols + e.x] = 0
+	var has_blocked: bool = not blocked.is_empty()
+	# Dijkstra; the map is small, so a plain scan for the nearest tile will do.
+	while true:
+		var k: int = -1
+		var best: int = UNREACHABLE
+		for i: int in n:
+			if done[i] == 0 and dist[i] < best:
+				best = dist[i]
+				k = i
+		if k < 0:
+			break
+		done[k] = 1
+		var c: int = k % cols
+		for nk: int in [k + 1 if c + 1 < cols else -1, k + cols if k + cols < n else -1, k - 1 if c > 0 else -1, k - cols]:
+			if nk < 0 or done[nk] != 0 or _walkable[nk] == 0 or (has_blocked and blocked[nk] != 0):
+				continue
+			var d: int = best + (LURE_COST if lures[nk] != 0 else STEP_COST)
+			if d < dist[nk]:
+				dist[nk] = d
+	return dist
+
+
 ## Value of a distance field at a tile; UNREACHABLE off the map.
 static func dist_at(dist: PackedInt32Array, col: int, row: int) -> int:
 	if not in_bounds(col, row):
@@ -249,24 +317,27 @@ static func dist_at(dist: PackedInt32Array, col: int, row: int) -> int:
 	return dist[row * Config.COLS + col]
 
 
-## Next tile towards the exit, following the distance field and preferring
-## to keep going in direction `dir` (fewer turns; NO_TILE for none). NO_TILE
-## at an exit or when the tile can't reach one.
+## Next tile towards the exit: the neighbour with the smallest distance,
+## preferring to keep going in direction `dir` among equals (fewer turns;
+## NO_TILE for none). NO_TILE at an exit or when the tile can't reach one.
+## Works for plain fields (neighbours differ by 1) and weighted ones.
 static func next_tile(dist: PackedInt32Array, cur: Vector2i, dir: Vector2i) -> Vector2i:
 	var d: int = dist_at(dist, cur.x, cur.y)
 	if d == 0 or d == UNREACHABLE:
 		return NO_TILE # at the exit, or cut off from it
+	var best: int = d
+	var out: Vector2i = NO_TILE
 	if dir != NO_TILE:
-		var c: int = cur.x + dir.x
-		var r: int = cur.y + dir.y
-		if dist_at(dist, c, r) == d - 1:
-			return Vector2i(c, r)
+		var straight: int = dist_at(dist, cur.x + dir.x, cur.y + dir.y)
+		if straight < best:
+			best = straight
+			out = cur + dir
 	for o: Vector2i in DIRS:
-		var c: int = cur.x + o.x
-		var r: int = cur.y + o.y
-		if dist_at(dist, c, r) == d - 1:
-			return Vector2i(c, r)
-	return NO_TILE
+		var v: int = dist_at(dist, cur.x + o.x, cur.y + o.y)
+		if v < best:
+			best = v
+			out = cur + o
+	return out
 
 
 ## Path of tiles from `start` to the exit `end` that is short but keeps to

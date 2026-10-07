@@ -10,6 +10,8 @@ export const COLORS = {
   panelLight: '#2a3042',
   border: '#454f6b',
   gold: '#f5c542',
+  path: '#dcc594',
+  stone: '#8d939c',
 };
 
 // Where things are, in game coordinates (the game is 1000 x 600).
@@ -25,6 +27,9 @@ export const AT = {
   waveButton: [900, 519], // click here
   waveButtonColor: [830, 505], // the same button, without text
   tile: (col, row) => [col * 40 + 20, row * 40 + 20],
+  // The bar along the bottom of the field: wall, time slow, damage boost, ... (84 px wide, 4 px apart).
+  abilityButton: (i) => [50 + i * 88 + 42, 579],
+  fieldFrame: [400, 1.5], // the strip along the top edge where a running ability draws its frame
 };
 
 function hexOf(r, g, b) {
@@ -85,6 +90,12 @@ export class Game {
       const i = (png.width * y + x) * 4;
       return hexOf(png.data[i], png.data[i + 1], png.data[i + 2]);
     });
+  }
+
+  /** The red, green and blue (0-255) of a point. */
+  async channels(point) {
+    const hex = (await this.colors(point))[0];
+    return hex.match(/\w\w/g).map((h) => parseInt(h, 16));
   }
 
   /** Waits until a point has a colour (or, with `not`, stops having it). */

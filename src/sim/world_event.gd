@@ -18,17 +18,30 @@ enum Type {
 	WAVE_CLEARED, ## wave, bonus, interest
 	WON,
 	LOST,
+	WALL_BUILT, ## x, y, amount (price)
+	WALL_SOLD, ## x, y, amount
+	ABILITY, ## x, y, kind (ability id), radius; used (at the spot, if it has one)
+	STRIKE, ## x, y, radius: an airstrike landed
+	MINE_PLACED, ## x, y
+	MINE_BLAST, ## x, y, radius
+	RAIL, ## x, y (the tower) to x2, y2 (where the shot ended), kind (branch id)
+	RUN_PERK, ## kind (run perk id): taken
+	EMP, ## x, y, radius: a saboteur switched towers off
+	BOSS_PHASE, ## x, y, enemy, text: a boss changed
 }
 
 var type: Type
 var x: float = 0.0
 var y: float = 0.0
-var kind: String = "" ## tower kind (build, shot)
+var kind: String = "" ## tower kind (build, shot) or ability id
 var enemy: String = "" ## enemy type (kill)
 var level: int = 0
 var amount: int = 0
 var bullet: Towers.BulletType = Towers.BulletType.NORMAL
 var radius: float = 0.0
+var text: String = ""
+var x2: float = 0.0
+var y2: float = 0.0
 var wave: int = 0
 var early: int = 0
 var bonus: int = 0
