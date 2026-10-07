@@ -298,6 +298,10 @@ func _update_projectile(world: World) -> void:
 	)
 	b.ignores_armor = ignores_armor
 	b.boss_bonus = stats.boss_bonus
+	if kind == "gun" and world.has_perk("piercing"):
+		b.pierce_left = RunPerks.PIERCE
+	if kind == "cannon" and world.has_perk("demolition"):
+		b.splash *= RunPerks.DEMOLITION_SPLASH
 	if stats.boss_bonus > 1:
 		b.radius = 6.0 # a seeker's missile is a big one
 	world.fire(b, self)
@@ -337,7 +341,7 @@ func _update_beam(world: World) -> void:
 		heat = 0
 		return
 	targets.append(target)
-	heat = heat + 1 if target == previous else 0
+	heat = heat + (2 if world.has_perk("overcharge") else 1) if target == previous else 0
 	angle = atan2(target.y - y, target.x - x)
 	world.damage_enemy(target, _beam_damage(world), ignores_armor, false)
 
@@ -349,7 +353,7 @@ func _update_prism(world: World) -> void:
 	if target == null:
 		heat = 0
 		return
-	heat += 1
+	heat += 2 if world.has_perk("overcharge") else 1
 	angle = atan2(target.y - y, target.x - x)
 	var per_tick: float = _beam_damage(world)
 	for e: Enemy in targets.duplicate():
@@ -375,7 +379,7 @@ func _update_aura(world: World) -> void:
 		return
 	_start_shot()
 	world.pulse(self)
-	if stats.damage <= 0 and stats.stun <= 0:
+	if stats.damage <= 0 and stats.stun <= 0 and not world.has_perk("shatter"):
 		return
 	var freeze: int = MathX.js_round(stats.stun * Config.TICK_RATE)
 	# Index loop: enemies split by this pulse are appended and hit too, as before.
@@ -383,6 +387,8 @@ func _update_aura(world: World) -> void:
 	while i < world.enemies.size():
 		var e: Enemy = world.enemies[i]
 		if can_target(e) and in_range(e.x, e.y, e.radius):
+			if e.max_shield > 0 and world.has_perk("shatter"):
+				e.shield = maxf(0.0, e.shield - e.max_shield * 0.5)
 			if stats.damage > 0:
 				world.damage_enemy(e, stats.damage * world.damage_multiplier, false, true)
 			if freeze > 0 and e.alive:

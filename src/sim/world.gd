@@ -78,6 +78,10 @@ var strikes: Array[Strike] = []
 var damage_multiplier: float = 1.0
 ## Tower branches the player can't choose yet (all are open by default).
 var locked_branches: Dictionary[String, bool] = {}
+## Run perks taken in this game, and the offer waiting for a choice (empty
+## when none is). See RunPerks.
+var run_perks: Array[String] = []
+var perk_offer: Array[String] = []
 ## Every tower's range is multiplied by this (a night variant).
 var tower_range: float = 1.0
 ## Starting bonuses from the tech tree: walls still free in this game, and
@@ -85,6 +89,10 @@ var tower_range: float = 1.0
 var free_walls_left: int = 0
 var veteran_left: bool = false
 
+var _draft_size: int = 0 ## perks per offer; 0: no run perks in this game
+var _draft_seed: int = 0
+var _drafts_made: int = 0
+var _built_kinds: Dictionary[String, bool] = {} ## towers built at least once (free samples)
 var _cooldowns: Dictionary[String, int] = {} ## ticks until an ability can be used again
 var _effects: Dictionary[String, int] = {} ## ticks left of timed abilities (slow, boost, bounty)
 var _used: Dictionary[String, bool] = {} ## once-per-game abilities already used
@@ -161,9 +169,10 @@ func wave_in_progress() -> bool:
 	return is_spawning() or not enemies.is_empty()
 
 
-## The next wave may start once the current one has fully spawned.
+## The next wave may start once the current one has fully spawned (and a
+## run perk offer has been answered).
 func can_start_wave() -> bool:
-	return status == Status.PLAYING and not is_spawning() and next_wave() != null
+	return status == Status.PLAYING and not is_spawning() and next_wave() != null and perk_offer.is_empty()
 
 
 ## Bonus paid for calling the next wave right now (0 if the field is clear).
@@ -193,8 +202,19 @@ func is_unlocked(kind: String) -> bool:
 	return _unlocked.has(kind)
 
 
+## Build price of a tower (Free Samples: the first of each kind is free).
 func cost_of(kind: String) -> int:
+	if has_perk("samples") and not _built_kinds.has(kind):
+		return 0
 	return MathX.js_round(Towers.get_def(kind).levels[0].cost * modifiers.cost_multiplier)
+
+
+## Build price on a particular tile (Hill Forts: cheaper on high ground and walls).
+func build_cost(kind: String, col: int, row: int) -> int:
+	var cost: int = cost_of(kind)
+	if has_perk("hillforts") and (map.is_high_ground(col, row) or has_wall(col, row)):
+		cost = MathX.js_round(cost * RunPerks.HILL_FORT_PRICE)
+	return cost
 
 
 ## Price of the tower's next upgrade, or Tower.NO_UPGRADE at max level.
@@ -283,9 +303,10 @@ var distance_field: PackedInt32Array:
 # ---- player actions ------------------------------------------------------------
 
 func build(kind: String, col: int, row: int) -> Tower:
-	if status != Status.PLAYING or not is_unlocked(kind) or not can_afford(kind) or not can_build_at(col, row):
+	if status != Status.PLAYING or not is_unlocked(kind) or money < build_cost(kind, col, row) or not can_build_at(col, row):
 		return null
-	var cost: int = cost_of(kind)
+	var cost: int = build_cost(kind, col, row)
+	_built_kinds[kind] = true
 	# A wall under a tower raises it like high ground does.
 	var tower := Tower.new(kind, col, row, map.is_high_ground(col, row) or has_wall(col, row), cost)
 	if tower_range != 1.0:
@@ -346,7 +367,9 @@ func sell(tower: Tower) -> bool:
 
 ## Price of the next wall (0 while Masonry's free walls last).
 func wall_cost() -> int:
-	return 0 if free_walls_left > 0 else Abilities.wall_cost(walls.size())
+	if free_walls_left > 0:
+		return 0
+	return RunPerks.STONEWORK_WALL if has_perk("stonework") else Abilities.wall_cost(walls.size())
 
 
 func can_build_wall_at(col: int, row: int) -> bool:
@@ -464,6 +487,8 @@ func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: b
 		return
 	kills += 1
 	var reward: int = e.def.reward * (roundi(Abilities.get_def("bounty").power) if is_active("bounty") else 1)
+	if has_perk("headhunter"):
+		reward += RunPerks.HEADHUNTER_BONUS
 	money += reward
 	var ev := WorldEvent.new(WorldEvent.Type.KILL, e.x, e.y)
 	ev.amount = reward
@@ -676,6 +701,8 @@ func place_mine(col: int, row: int) -> bool:
 func _pay_for(id: String) -> void:
 	money -= ability_cost(id)
 	var cooldown: float = Abilities.get_def(id).cooldown
+	if has_perk("quickhands"):
+		cooldown *= RunPerks.QUICK_COOLDOWN
 	if cooldown > 0:
 		_cooldowns[id] = ticks_of(cooldown)
 
@@ -729,6 +756,61 @@ func _update_strikes() -> void:
 		for e: Enemy in enemies.duplicate():
 			if e.alive and MathX.hypot(e.x - st.x, e.y - st.y) <= st.radius + e.radius:
 				damage_enemy(e, damage)
+
+
+# ---- run perks ---------------------------------------------------------------
+
+## Turns run perks on for this game: offers of `size` perks at the start and
+## after the waves in RunPerks.DRAFTS. `seed_value` makes the offers repeatable.
+func enable_drafts(size: int, seed_value: int) -> void:
+	_draft_size = size
+	_draft_seed = seed_value
+	_check_draft()
+
+
+func has_perk(id: String) -> bool:
+	return run_perks.has(id)
+
+
+## Takes a perk now (Greed and Reinforcements change the lives at once).
+func add_run_perk(id: String) -> void:
+	if has_perk(id) or not RunPerks.is_id(id):
+		return
+	run_perks.append(id)
+	match id:
+		"greed":
+			lives = maxi(1, ceili(lives / 2.0))
+			start_lives = maxi(1, ceili(start_lives / 2.0))
+		"reinforcements":
+			lives += RunPerks.REINFORCEMENTS
+			start_lives += RunPerks.REINFORCEMENTS
+	var ev := WorldEvent.new(WorldEvent.Type.RUN_PERK)
+	ev.kind = id
+	events.append(ev)
+
+
+## Answers the offer: keeps one of the perks offered.
+func choose_run_perk(id: String) -> bool:
+	if not perk_offer.has(id) or status != Status.PLAYING:
+		return false
+	perk_offer = []
+	add_run_perk(id)
+	return true
+
+
+## Makes the next offer once it is due.
+func _check_draft() -> void:
+	if _draft_size <= 0 or not perk_offer.is_empty() or status != Status.PLAYING:
+		return
+	if _drafts_made >= RunPerks.DRAFTS.size() or waves_cleared < RunPerks.DRAFTS[_drafts_made]:
+		return
+	_drafts_made += 1
+	var pool: Array[String] = RunPerks.IDS.filter(func(id: String) -> bool: return not has_perk(id))
+	var rand := Mulberry32.new(_draft_seed * 31 + _drafts_made * 977 + 1)
+	var offer: Array[String] = []
+	while offer.size() < _draft_size and not pool.is_empty():
+		offer.append(pool.pop_at(floori(rand.next() * pool.size())))
+	perk_offer = offer
 
 
 # ---- simulation --------------------------------------------------------------
@@ -791,7 +873,8 @@ func update() -> void:
 		status = Status.LOST
 		events.append(WorldEvent.new(WorldEvent.Type.LOST))
 	elif had_wave and not wave_in_progress() and _pending_bonus > 0:
-		var interest: int = mini(floori(money * Config.INTEREST_RATE), Config.interest_cap(wave_index))
+		var greed: int = 2 if has_perk("greed") else 1
+		var interest: int = mini(floori(money * Config.INTEREST_RATE * greed), Config.interest_cap(wave_index) * greed)
 		var bonus: int = _pending_bonus
 		money += bonus + interest
 		_pending_bonus = 0
@@ -804,6 +887,7 @@ func update() -> void:
 		if not endless and wave_index == _static_waves.size() - 1:
 			status = Status.WON
 			events.append(WorldEvent.new(WorldEvent.Type.WON))
+		_check_draft()
 
 
 ## Beacons boost the fire rate of towers around them (the best one counts);
@@ -818,10 +902,11 @@ func _update_buffs() -> void:
 		if t.def.behavior == Towers.Behavior.SUPPORT:
 			continue
 		var range_buff: float = 0.0
+		var wide: float = RunPerks.WIDE_BEACON_RANGE if has_perk("widebeacons") else 0.0
 		for s: Tower in beacons:
 			if MathX.hypot(t.x - s.x, t.y - s.y) <= s.attack_range:
 				t.buff = maxf(t.buff, s.stats.buff)
-				range_buff = maxf(range_buff, s.stats.range_buff)
+				range_buff = maxf(range_buff, maxf(s.stats.range_buff, wide))
 		t.set_range_buff(range_buff)
 
 
@@ -863,6 +948,11 @@ func snapshot() -> WorldSnapshot:
 		s.used.append(id)
 	s.free_walls = free_walls_left
 	s.veteran = veteran_left
+	s.run_perks = run_perks.duplicate()
+	s.perk_offer = perk_offer.duplicate()
+	s.drafts_made = _drafts_made
+	for kind: String in _built_kinds:
+		s.built_kinds.append(kind)
 	return s
 
 
@@ -908,3 +998,12 @@ func restore(s: WorldSnapshot) -> void:
 	if s.free_walls >= 0:
 		free_walls_left = mini(s.free_walls, modifiers.free_walls)
 	veteran_left = modifiers.veteran and s.veteran
+	run_perks = s.run_perks.duplicate()
+	perk_offer = s.perk_offer.duplicate()
+	_drafts_made = maxi(s.drafts_made, 0)
+	_built_kinds = {}
+	for kind: String in s.built_kinds:
+		_built_kinds[kind] = true
+	for t: Tower in towers:
+		_built_kinds[t.kind] = true
+	_check_draft()

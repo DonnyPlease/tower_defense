@@ -25,6 +25,7 @@ enum Type {
 	MINE_PLACED, ## x, y
 	MINE_BLAST, ## x, y, radius
 	RAIL, ## x, y (the tower) to x2, y2 (where the shot ended), kind (branch id)
+	RUN_PERK, ## kind (run perk id): taken
 }
 
 var type: Type

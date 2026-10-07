@@ -7,14 +7,16 @@ extends TestCase
 ## Every level won with 3 stars: every level is open.
 const ALL_STARS: Dictionary[String, int] = {"meadow": 3, "riverside": 3, "highlands": 3}
 
-## Every node of the tech tree (use_profile gives them for free).
+## Every node of the tech tree (use_profile gives them for free), except
+## Field Orders: its offer at the start of every game would need answering.
 static var ALL_TECH: Array[String] = _all_tech()
 
 
 static func _all_tech() -> Array[String]:
 	var out: Array[String] = []
 	for n: Tech.TechNode in Tech.NODES:
-		out.append(n.id)
+		if n.id != "orders" and n.id != "orders2":
+			out.append(n.id)
 	return out
 
 ## The tests' own save file, one per process so runs can go side by side

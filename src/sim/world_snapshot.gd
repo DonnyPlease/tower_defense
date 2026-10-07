@@ -36,6 +36,12 @@ var used: Array[String] = []
 ## Starting bonuses not used up yet (-1: a save from before they existed).
 var free_walls: int = -1
 var veteran: bool = true
+## Run perks taken, the offer waiting (if any), offers made so far, and the
+## tower kinds built at least once (free samples).
+var run_perks: Array[String] = []
+var perk_offer: Array[String] = []
+var drafts_made: int = 0
+var built_kinds: Array[String] = []
 
 
 func to_dict() -> Dictionary:
@@ -58,7 +64,8 @@ func to_dict() -> Dictionary:
 		"v": VERSION, "level_id": level_id, "endless": endless, "money": money, "lives": lives,
 		"wave_index": wave_index, "waves_cleared": waves_cleared, "towers": list,
 		"walls": wall_list, "mines": mine_list, "cooldowns": cooldowns, "used": used,
-		"free_walls": free_walls, "veteran": veteran,
+		"free_walls": free_walls, "veteran": veteran, "run_perks": run_perks, "perk_offer": perk_offer,
+		"drafts_made": drafts_made, "built_kinds": built_kinds,
 	}
 
 
@@ -108,7 +115,24 @@ static func from_dict(d: Variant) -> WorldSnapshot:
 	_read_walls(dict, s)
 	s.free_walls = JsonRead.int_or(dict.get("free_walls"), -1)
 	s.veteran = dict.get("veteran") != false
+	s.run_perks = _ids(dict.get("run_perks"), RunPerks.is_id)
+	s.perk_offer = _ids(dict.get("perk_offer"), RunPerks.is_id)
+	s.drafts_made = JsonRead.int_or(dict.get("drafts_made"))
+	s.built_kinds = _ids(dict.get("built_kinds"), Towers.is_kind)
 	return s
+
+
+## Strings from a JSON list that `known` accepts.
+static func _ids(d: Variant, known: Callable) -> Array[String]:
+	var out: Array[String] = []
+	if d is Array:
+		var list: Array = d
+		for item: Variant in list:
+			if item is String:
+				var id: String = item
+				if known.call(id):
+					out.append(id)
+	return out
 
 
 static func _read_walls(dict: Dictionary, s: WorldSnapshot) -> void:

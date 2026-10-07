@@ -264,6 +264,14 @@ func _refresh_panel() -> void:
 		])))
 		return
 
+	if not world.run_perks.is_empty():
+		_panel_title.show_text("Field orders")
+		var lines: PackedStringArray = []
+		for id: String in world.run_perks:
+			var def: RunPerks.RunPerkDef = RunPerks.get_def(id)
+			lines.append("%s: %s" % [def.name, def.description])
+		_panel_body.show_text("\n".join(lines))
+		return
 	_panel_title.show_text("Tips")
 	if world.map.maze:
 		_panel_body.show_text("No road here: enemies walk around your towers and walls.\n\nClick a tower or wall to upgrade or sell it.\nQ: wall. Bottom bar: abilities.")

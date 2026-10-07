@@ -24,6 +24,8 @@ var hits_ground: bool
 var splash: float
 var ignores_armor: bool = false
 var boss_bonus: float = 1.0 ## damage multiplier against bosses (seeker)
+var pierce_left: int = 0 ## enemies it may still go through after a hit (piercing rounds)
+var _passed: Array[Enemy] = [] ## enemies it went through already
 var target: Enemy
 ## Shells: total flight distance and progress, for the arc drawn by the view.
 var flight: float
@@ -88,7 +90,11 @@ func update(enemies: Array[Enemy]) -> Outcome:
 
 	var hit: Enemy = find_hit(enemies)
 	if hit != null:
-		alive = false
+		if pierce_left > 0:
+			pierce_left -= 1
+			_passed.append(hit)
+		else:
+			alive = false
 		outcome = Outcome.HIT
 		hit_enemy = hit
 		return outcome
@@ -118,6 +124,8 @@ func find_hit(enemies: Array[Enemy]) -> Enemy:
 	var best_t: float = INF
 	for e: Enemy in enemies:
 		if not e.alive or not (hits_air if e.flying else hits_ground): # can_hit(), inlined
+			continue
+		if not _passed.is_empty() and _passed.has(e):
 			continue
 		var r: float = e.radius + radius
 		var t: float = ((e.x - sx) * dx + (e.y - sy) * dy) / len2 if len2 > 0 else 0.0

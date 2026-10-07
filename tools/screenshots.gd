@@ -62,6 +62,11 @@ class Driver:
 			Router.goto_game(id)
 			await _wait_for("GameScene")
 			var s: GameScene = get_tree().current_scene
+			if id == "meadow":
+				await _frames(30)
+				await _snap("field_orders")
+			if not s.world.perk_offer.is_empty():
+				s.world.choose_run_perk(s.world.perk_offer[0])
 			_busy_wave(s)
 			await _frames(150)
 			await _snap("game_" + id)

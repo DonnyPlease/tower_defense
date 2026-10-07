@@ -99,6 +99,26 @@ Shielded (recharging shield), Splitter (breaks into 3 minis), Medic (heals
 others), Drone (flies straight over everything), the Juggernaut mini-boss and
 the Warlord boss (armored, summons reinforcements).
 
+**Field orders (run perks).** Once *Field Orders* is unlocked in the tech tree,
+every game offers 3 perks to choose from at its start and after waves 5 and 10
+(4 with *Wider Choice*); you keep one each time, so no two runs play the same.
+They are in `src/data/run_perks.gd`:
+
+| Perk | Effect |
+| --- | --- |
+| Piercing Rounds | Gun bullets go through one more enemy |
+| Shatter | Frost pulses break half of every shield they touch |
+| Wide Beacons | Beacons also give +15% range |
+| Greed | Double interest, but half your lives |
+| Hill Forts | Towers on high ground or a wall cost 25% less |
+| Free Samples | The first tower of each kind is free |
+| Quick Hands | Ability cooldowns 40% shorter |
+| Headhunter | Every kill pays $2 more |
+| Demolition | Cannon splash 30% wider |
+| Overcharge | Lasers heat up twice as fast |
+| Reinforcements | +10 lives |
+| Stonework | Every wall costs $10 |
+
 **Economy.** You get a bonus for every wave you clear, plus 5% interest on
 unspent money. Call the next wave early for extra cash. The sidebar shows what
 the next wave contains.
@@ -263,6 +283,7 @@ src/
     levels.gd        maps, waves, endless wave generator
     perks.gd         permanent upgrades (ranks bought in the tech tree)
     abilities.gd     the wall and the seven abilities: prices, cooldowns, strength, on/off
+    run_perks.gd     field orders: the perks offered during a game
   sim/               the game rules; no nodes, no rendering
     world.gd         one game: money, lives, waves, building, the update tick
     game_map.gd      map parsing, terrain, pathfinding, distance fields

@@ -114,6 +114,11 @@ static func _build() -> Array[TechNode]:
 		var v: Levels.LevelVariant = Levels.get_variant(Levels.VARIANTS[i])
 		out.append(TechNode.new(v.id, v.name, Kind.VARIANT, 1, [], earned_for[i], 3 + i, 4,
 			"Level variant: %s Every level can be played this way, for 3 more stars each." % v.description))
+	# Run perks.
+	out.append(TechNode.new("orders", "Field Orders", Kind.BONUS, 2, [], 6, 3, 5,
+		"Run perks: at the start of every game, and after waves 5 and 10, choose 1 of 3 perks for that game."))
+	out.append(TechNode.new("orders2", "Wider Choice", Kind.BONUS, 1, ["orders"], 9, 4, 5,
+		"Field orders offer 4 perks to choose from instead of 3."))
 	return out
 
 

@@ -34,6 +34,7 @@ var win_overlay: Overlay
 var lose_overlay: Overlay
 var fx: ScreenFx
 var ability_bar: AbilityBar
+var draft: DraftOverlay
 
 var _stage: Node2D
 var _clock := FixedStep.new()
@@ -56,6 +57,8 @@ func _ready() -> void:
 	world = World.new(Levels.by_id(level_id), Levels.endless_wave if endless else Callable(),
 		profile.modifiers(), profile.unlocked_towers())
 	world.locked_branches = profile.locked_branches()
+	if profile.draft_size() > 0:
+		world.enable_drafts(profile.draft_size(), randi())
 	var save: WorldSnapshot = profile.save
 	if Router.launch_resume and save != null and save.level_id == world.level_id:
 		world.restore(save)
@@ -111,6 +114,8 @@ func _ready() -> void:
 	])
 	for o: Overlay in [pause_overlay, win_overlay, lose_overlay]:
 		_stage.add_child(o)
+	draft = DraftOverlay.new(self)
+	_stage.add_child(draft)
 
 	var title: String = "Endless mode" if endless else world.map.name
 	show_banner(title + "\nGame resumed" if resumed else title, Palette.TEXT)
@@ -325,7 +330,15 @@ func _click_spot_aim() -> void:
 # ---- input -------------------------------------------------------------------
 
 func is_modal_open() -> bool:
-	return paused or world.status != World.Status.PLAYING
+	return paused or world.status != World.Status.PLAYING or not world.perk_offer.is_empty()
+
+
+## Keeps one of the run perks offered.
+func choose_run_perk(id: String) -> void:
+	if paused or not world.choose_run_perk(id):
+		return
+	Audio.play("upgrade")
+	_autosave()
 
 
 func _input(event: InputEvent) -> void:
@@ -366,6 +379,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_M:
 			toggle_music()
 			return
+	if not paused and not world.perk_offer.is_empty():
+		var pick: int = key.keycode - KEY_1
+		if pick >= 0 and pick < world.perk_offer.size():
+			choose_run_perk(world.perk_offer[pick])
+		return
 	if is_modal_open():
 		return
 	for id: String in Abilities.enabled_ids():
@@ -458,6 +476,7 @@ func _process(delta: float) -> void:
 	_boss_bar.queue_redraw()
 	hud.refresh()
 	ability_bar.refresh()
+	draft.refresh()
 	Audio.set_intensity(1 if world.wave_in_progress() and not is_modal_open() else 0)
 
 

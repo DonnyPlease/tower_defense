@@ -514,6 +514,10 @@ func handle_events(events: Array[WorldEvent]) -> void:
 				_sound("bigExplosion")
 			WorldEvent.Type.ABILITY:
 				_ability_used(ev)
+			WorldEvent.Type.RUN_PERK:
+				if not quiet:
+					float_text(Config.FIELD_W / 2.0, 120, RunPerks.get_def(ev.kind).name + "!", Palette.GOLD)
+				_stars.explode(20, Config.FIELD_W / 2.0, 100)
 			WorldEvent.Type.LEAK:
 				if quiet:
 					continue

@@ -47,19 +47,6 @@ Open Field is the best idea in the game, so use it everywhere.
 
 ---
 
-## 4. Run-defining perks
-
-Replace some flat perks (`src/data/perks.gd`: War Chest, Fortify, Engineering,
-Firepower) with **choices that change how you play**.
-
-- Before or during a run, pick 2-3 perks from a few offered. Different every
-  run, which gives endless mode a reason to be replayed.
-- Examples: Gun bullets pierce; Frost also weakens shields; Beacon also boosts
-  range; interest rate doubled but lives halved; towers cost less on high
-  ground; the first tower of each kind is free.
-
----
-
 ## 5. More enemy variety
 
 Enemies are mostly stat variants today. The ones that force you to change your
@@ -165,7 +152,6 @@ Decisions needed before building: one layout for desktop and phone, or two?
 1. Decide the visual direction (cheap to decide, affects everything else).
 3. UI rework: tap-to-build popup, slimmer HUD.
 5. Pathing in more levels and path-interacting towers.
-6. Run-defining perks.
 7. More levels to fill the tree (variants exist: night, reversed, last stand,
    no gun; an *ever-narrower road* variant is still an idea).
 8. Android preset, safe area, back button, tap sizes.

@@ -280,6 +280,13 @@ func variants_for(level_id: String) -> Array[String]:
 	return out
 
 
+## Run perks offered at a time (0: run perks aren't unlocked).
+func draft_size() -> int:
+	if not owns("orders"):
+		return 0
+	return 4 if owns("orders2") else 3
+
+
 ## What the tree changes in a game: perks and starting bonuses.
 func modifiers() -> Perks.Modifiers:
 	var ranks: Dictionary[String, int] = {}
