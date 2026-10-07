@@ -166,7 +166,8 @@ Decisions needed before building: one layout for desktop and phone, or two?
 3. UI rework: tap-to-build popup, slimmer HUD.
 5. Pathing in more levels and path-interacting towers.
 6. Run-defining perks.
-7. More levels / map variants to fill the tree.
+7. More levels to fill the tree (variants exist: night, reversed, last stand,
+   no gun; an *ever-narrower road* variant is still an idea).
 8. Android preset, safe area, back button, tap sizes.
 
 ## 10. Open questions

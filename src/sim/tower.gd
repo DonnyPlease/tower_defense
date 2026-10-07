@@ -41,6 +41,7 @@ var target: Enemy = null
 var targets: Array[Enemy] = []
 var buff: float = 0.0 ## fire-rate bonus from nearby beacons, set by the world every tick
 var range_buff: float = 0.0 ## range bonus from a nearby command post, set by the world every tick
+var range_factor: float = 1.0 ## the level's range multiplier (night), see set_range_factor
 var heat: int = 0 ## laser: ticks spent on the current target
 var spin: float = 0.0 ## minigun: 0..1, how far it has spun up
 
@@ -99,7 +100,7 @@ func _init(p_kind: String, p_col: int, p_row: int, p_high_ground: bool = false, 
 
 func _refresh_stats() -> void:
 	stats = Towers.level_stats(kind, level, branch_id)
-	_base_range = stats.attack_range * (Config.HIGH_GROUND_RANGE if high_ground else 1.0)
+	_base_range = stats.attack_range * (Config.HIGH_GROUND_RANGE if high_ground else 1.0) * range_factor
 	attack_range = _base_range * (1 + range_buff)
 
 
@@ -107,6 +108,11 @@ func _refresh_stats() -> void:
 func set_branch(b: TowerBranch) -> void:
 	branch = b
 	level = Towers.BRANCH_LEVEL
+
+
+func set_range_factor(value: float) -> void:
+	range_factor = value
+	_refresh_stats()
 
 
 func set_range_buff(value: float) -> void:

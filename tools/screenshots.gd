@@ -34,6 +34,9 @@ class Driver:
 		Profile.forget_cache()
 		var p: Profile = Profile.reset()
 		p.stars = {"meadow": 3, "riverside": 2, "highlands": 1}
+		for n: Tech.TechNode in Tech.NODES:
+			if n.kind != Tech.Kind.PERK:
+				p.free_tech[n.id] = true
 		p.music = false
 		p.sfx = false
 		Profile.save_profile(p)
@@ -47,11 +50,15 @@ class Driver:
 		Router.goto_levels()
 		await _wait_for("LevelSelectScene")
 		await _snap("levels")
+		var levels: LevelSelectScene = get_tree().current_scene
+		levels.next_variant("meadow")
+		await _frames(2)
+		await _snap("levels_variant")
 		Router.goto_tech()
 		await _wait_for("TechTreeScene")
 		await _snap("tech_tree")
 
-		for id: String in ["meadow", "riverside", "highlands", "openfield"]:
+		for id: String in ["meadow", "riverside", "highlands", "openfield", "highlands@night"]:
 			Router.goto_game(id)
 			await _wait_for("GameScene")
 			var s: GameScene = get_tree().current_scene
@@ -83,10 +90,16 @@ class Driver:
 					n += 1
 					if n % 2 == 1:
 						w.upgrade(t)
+					elif n > 6:
+						# Grown into a branch.
+						w.upgrade(t)
+						w.upgrade(t)
+						w.choose_branch(t, t.def.branches[n % 2].id)
 		for type: String in ["boss", "splitter", "healer", "drone", "shielded", "armored", "tank", "scout"]:
 			w.spawn(type)
 		w.start_next_wave()
 		s.selected = w.towers[1]
+		s.field.sync(0) # draw the new towers right away
 		s.speed = 2
 
 

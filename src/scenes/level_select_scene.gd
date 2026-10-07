@@ -1,6 +1,7 @@
 class_name LevelSelectScene
 extends Node2D
-## Pick a level (or endless mode).
+## Pick a level (or endless mode), and how to play it: as designed or one of
+## the variants unlocked in the tech tree (night, reversed, ...).
 
 const CARD_W: float = 290
 const CARD_H: float = 236
@@ -10,11 +11,18 @@ const GAP: float = 20
 var play_buttons: Dictionary[String, GameButton] = {}
 var back_button: GameButton
 var tech_button: GameButton
+## The button that switches a card between its variants, by level id (only
+## levels with variants unlocked have one).
+var variant_buttons: Dictionary[String, GameButton] = {}
 
 var _stars: TextLabel
 ## Each card's status line ("★★☆", "Best: 4 waves") and description, by level id.
 var _status: Dictionary[String, TextLabel] = {}
 var _desc: Dictionary[String, TextLabel] = {}
+## The variant each card will play ("" as designed), by level id.
+var _chosen: Dictionary[String, String] = {}
+var _cards: Dictionary[String, Card] = {}
+var _profile: Profile
 
 
 class Card:
@@ -31,6 +39,7 @@ class Card:
 
 func _ready() -> void:
 	var profile: Profile = Profile.load_profile()
+	_profile = profile
 	var ui := Control.new()
 	ui.size = Vector2(Config.WIDTH, Config.HEIGHT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -96,16 +105,43 @@ func _ready() -> void:
 		var id: String = card.id
 		_status[id] = status
 		_desc[id] = desc
+		_cards[id] = card
+		_chosen[id] = ""
 		var play := GameButton.new(Rect2(x + 15, y + CARD_H - 44, CARD_W - 30, 34), "Play" if unlocked else "Locked",
 			func() -> void:
 				if unlocked:
-					Router.goto_game(id)).font(15)
+					Router.goto_game(play_id(id))).font(15)
+		var variants: Array[String] = profile.variants_for(id)
+		if unlocked and variants.size() > 1:
+			var vb := GameButton.new(Rect2(x + 168, y + 84, CARD_W - 183, 28), "Normal  ▸", func() -> void: next_variant(id)) \
+				.font(12)
+			ui.add_child(vb)
+			variant_buttons[id] = vb
 		if unlocked:
 			play.primary()
 		ui.add_child(play)
 		play.set_enabled(unlocked)
 		play_buttons[id] = play
 	Audio.set_intensity(0)
+
+
+## The level id the card's Play button starts ("meadow" or "meadow@night").
+func play_id(id: String) -> String:
+	var v: String = _chosen.get(id, "")
+	return id if v.is_empty() else "%s@%s" % [id, v]
+
+
+## Switches a card to its next variant (wrapping back to the level as designed).
+func next_variant(id: String) -> void:
+	var variants: Array[String] = _profile.variants_for(id)
+	var i: int = variants.find(_chosen.get(id, ""))
+	var v: String = variants[(i + 1) % variants.size()]
+	_chosen[id] = v
+	var b: GameButton = variant_buttons[id]
+	b.set_label(("%s  ▸" % Levels.get_variant(v).name) if not v.is_empty() else "Normal  ▸")
+	b.set_selected(not v.is_empty())
+	_status[id].show_text(Format.star_string(_profile.stars_on(play_id(id))))
+	_desc[id].show_text(Levels.get_variant(v).description if not v.is_empty() else _cards[id].desc)
 
 
 func _card_background(x: float, y: float, map: GameMap, unlocked: bool) -> PainterView:

@@ -28,6 +28,17 @@ project uses the Compatibility renderer, which is what web builds need.
 | Open Field | No road: enemies walk around your towers, so you build the maze |
 | Endless | Waves never stop, with a boss every 10 waves. Beat your best score |
 
+**Level variants.** Every level can also be played with a twist, once the
+variant is unlocked in the tech tree; each variant earns stars of its own.
+Pick one with the switch on the level's card.
+
+| Variant | Twist |
+| --- | --- |
+| Night | It's dark (light only around your towers) and every tower's range is 20% shorter |
+| Reversed | Enemies come in where they used to leave |
+| Last Stand | Only 5 lives |
+| No Gun | The Gun can't be built |
+
 **6 towers, each with 3 upgrade levels**
 
 | Tower | Role | In the tech tree |
@@ -97,7 +108,7 @@ lives, 2 for keeping at least half. Spend them in the **tech tree** (main menu,
 level select, or the victory dialog): towers, every tower branch, perks
 (starting money, lives, cheaper towers, damage; one node per rank) and starting
 bonuses (*Masonry*: the first 3 walls of every game are free; *Veterans*: the
-first tower you build starts at level 2). A node needs its parents first and a
+first tower you build starts at level 2) and the level variants. A node needs its parents first and a
 number of stars earned in total, so you choose the order but can't skip the
 early game. Every star can be refunded. The game screen only shows the towers
 you own (a **?** slot hints at the rest); locked content lives in the tree.

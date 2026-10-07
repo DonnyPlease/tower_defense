@@ -54,6 +54,7 @@ class Strike:
 
 var map: GameMap
 var level_id: String
+var variant: String = "" ## the level's variant ("" as designed), see Levels.VARIANTS
 var endless: bool
 var modifiers: Perks.Modifiers
 var start_lives: int
@@ -77,6 +78,8 @@ var strikes: Array[Strike] = []
 var damage_multiplier: float = 1.0
 ## Tower branches the player can't choose yet (all are open by default).
 var locked_branches: Dictionary[String, bool] = {}
+## Every tower's range is multiplied by this (a night variant).
+var tower_range: float = 1.0
 ## Starting bonuses from the tech tree: walls still free in this game, and
 ## whether the next tower built starts at level 2.
 var free_walls_left: int = 0
@@ -105,9 +108,12 @@ func _init(level: LevelDef, endless_waves: Callable = Callable(), p_modifiers: P
 	map = GameMap.new(level.name, level.tiles, level.maze, level.road_walls)
 	assert(map.error.is_empty(), map.error)
 	level_id = level.id
+	variant = level.variant
 	modifiers = p_modifiers if p_modifiers != null else Perks.no_modifiers()
 	for kind: String in unlocked:
-		_unlocked[kind] = true
+		if not level.banned.has(kind):
+			_unlocked[kind] = true
+	tower_range = level.tower_range
 	_endless_waves = endless_waves
 	endless = endless_waves.is_valid()
 	_static_waves = level.waves
@@ -282,6 +288,8 @@ func build(kind: String, col: int, row: int) -> Tower:
 	var cost: int = cost_of(kind)
 	# A wall under a tower raises it like high ground does.
 	var tower := Tower.new(kind, col, row, map.is_high_ground(col, row) or has_wall(col, row), cost)
+	if tower_range != 1.0:
+		tower.set_range_factor(tower_range)
 	if veteran_left:
 		tower.level = 1 # Veterans: the first tower starts at level 2
 		veteran_left = false
@@ -874,6 +882,7 @@ func restore(s: WorldSnapshot) -> void:
 		if not (map.is_buildable_terrain(save.col, save.row) or walled) or not Towers.is_kind(save.kind):
 			continue
 		var tower := Tower.new(save.kind, save.col, save.row, map.is_high_ground(save.col, save.row) or walled, save.invested)
+		tower.range_factor = tower_range
 		var b: String = save.branch
 		if Towers.is_branch(b) and Towers.get_branch(b).kind == save.kind and save.level >= Towers.BRANCH_LEVEL:
 			tower.branch = Towers.get_branch(b)

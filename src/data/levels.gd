@@ -6,7 +6,11 @@ static var LEVELS: Array[LevelDef] = _build()
 static var ENDLESS: LevelDef = _build_endless()
 
 
+## A level by id; "meadow@night" is Meadow's night variant.
 static func by_id(id: String) -> LevelDef:
+	var at: int = id.find("@")
+	if at >= 0:
+		return with_variant(by_id(id.substr(0, at)), id.substr(at + 1))
 	for level: LevelDef in LEVELS:
 		if level.id == id:
 			return level
@@ -24,6 +28,7 @@ static func _level(id: String, name: String, description: String, money: int, li
 		tiles: PackedStringArray, waves: Array[Wave], maze: bool = false, road_walls: bool = false) -> LevelDef:
 	var l := LevelDef.new()
 	l.id = id
+	l.base_id = id
 	l.name = name
 	l.description = description
 	l.money = money
@@ -164,6 +169,73 @@ static func _build() -> Array[LevelDef]:
 		], true)
 
 	return [meadow, riverside, highlands, openfield]
+
+
+# ---- Variants -------------------------------------------------------------------
+
+## Twists on the same maps. Each is unlocked in the tech tree (the node has the
+## variant's id) and earns stars of its own.
+const VARIANTS: Array[String] = ["night", "reversed", "laststand", "nogun"]
+
+
+class LevelVariant:
+	var id: String
+	var name: String
+	var description: String
+	var tower_range: float = 1.0
+	var lives: int = 0 ## 0: the level's own
+	var banned: Array[String] = []
+	var reversed: bool = false
+
+	func _init(p_id: String, p_name: String, p_description: String) -> void:
+		id = p_id
+		name = p_name
+		description = p_description
+
+
+static var _variants: Dictionary[String, LevelVariant] = _build_variants()
+
+
+static func _build_variants() -> Dictionary[String, LevelVariant]:
+	var night := LevelVariant.new("night", "Night", "It's dark: every tower sees 20% less far.")
+	night.tower_range = 0.8
+	var reversed := LevelVariant.new("reversed", "Reversed", "Enemies come in where they used to leave, and leave where they came in.")
+	reversed.reversed = true
+	var last := LevelVariant.new("laststand", "Last Stand", "Only 5 lives.")
+	last.lives = 5
+	var nogun := LevelVariant.new("nogun", "No Gun", "The Gun can't be built.")
+	nogun.banned = ["gun"]
+	return {"night": night, "reversed": reversed, "laststand": last, "nogun": nogun}
+
+
+static func get_variant(id: String) -> LevelVariant:
+	assert(_variants.has(id), "Unknown variant '%s'" % id)
+	return _variants[id]
+
+
+static func is_variant(id: String) -> bool:
+	return _variants.has(id)
+
+
+## The level with a variant applied ("" or an unknown variant: the level itself).
+static func with_variant(level: LevelDef, variant_id: String) -> LevelDef:
+	if not is_variant(variant_id) or level.id == ENDLESS.id:
+		return level
+	var v: LevelVariant = get_variant(variant_id)
+	var l: LevelDef = level.with_hp_scale(level.hp_scale)
+	l.id = "%s@%s" % [level.id, v.id]
+	l.variant = v.id
+	l.name = "%s (%s)" % [level.name, v.name]
+	l.tower_range = v.tower_range
+	l.banned = v.banned
+	if v.lives > 0:
+		l.lives = v.lives
+	if v.reversed:
+		var tiles: PackedStringArray = []
+		for row: String in level.tiles:
+			tiles.append(row.replace("S", "?").replace("E", "S").replace("?", "E"))
+		l.tiles = tiles
+	return l
 
 
 # ---- Endless mode ------------------------------------------------------------

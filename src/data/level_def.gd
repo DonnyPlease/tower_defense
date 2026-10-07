@@ -12,7 +12,9 @@ extends RefCounted
 ## In `road_walls` levels enemies stay on the road, but walls (and towers on
 ## walls) can be built on it where it is wide enough, and enemies walk around them.
 
-var id: String
+var id: String ## "meadow", or with a variant "meadow@night"
+var base_id: String ## the level without its variant ("meadow")
+var variant: String = "" ## "" for the level as designed (see Levels.VARIANTS)
 var name: String
 var description: String
 var tiles: PackedStringArray
@@ -23,12 +25,19 @@ var lives: int
 ## Multiplies every enemy's hitpoints on this level (the main difficulty knob).
 var hp_scale: float = 1.0
 var waves: Array[Wave] = []
+## Variants: multiplies every tower's range (night), and towers that can't be built.
+var tower_range: float = 1.0
+var banned: Array[String] = []
 
 
 ## A copy with a different hitpoint scale (used by the balance tuner).
 func with_hp_scale(value: float) -> LevelDef:
 	var copy := LevelDef.new()
 	copy.id = id
+	copy.base_id = base_id
+	copy.variant = variant
+	copy.tower_range = tower_range
+	copy.banned = banned
 	copy.name = name
 	copy.description = description
 	copy.tiles = tiles

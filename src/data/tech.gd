@@ -8,7 +8,7 @@ extends RefCounted
 ## The screen lays the nodes out on a grid (`col`, `row`): towers and their
 ## branches on the left, perks, starting bonuses and challenges on the right.
 
-enum Kind { TOWER, BRANCH, PERK, BONUS }
+enum Kind { TOWER, BRANCH, PERK, BONUS, VARIANT }
 
 ## Owned from the start, for free.
 const START: Array[String] = ["gun", "missile"]
@@ -107,6 +107,13 @@ static func _build() -> Array[TechNode]:
 		"Your first %d walls in every game are free." % MASONRY_WALLS))
 	out.append(TechNode.new("veterans", "Veterans", Kind.BONUS, 2, ["engineering2"], 4, 6, 2,
 		"The first tower you build in every game starts at level 2."))
+
+	# Level variants: the same maps with a twist, each with stars of its own.
+	var earned_for: Array[int] = [4, 6, 8, 10]
+	for i: int in Levels.VARIANTS.size():
+		var v: Levels.LevelVariant = Levels.get_variant(Levels.VARIANTS[i])
+		out.append(TechNode.new(v.id, v.name, Kind.VARIANT, 1, [], earned_for[i], 3 + i, 4,
+			"Level variant: %s Every level can be played this way, for 3 more stars each." % v.description))
 	return out
 
 

@@ -264,6 +264,22 @@ func perk_rank(perk: String) -> int:
 	return rank
 
 
+## Level variants unlocked in the tree.
+func is_variant_unlocked(variant: String) -> bool:
+	return Levels.is_variant(variant) and owns(variant)
+
+
+## The ways a level can be played: "" (as designed) and the unlocked variants.
+func variants_for(level_id: String) -> Array[String]:
+	var out: Array[String] = [""]
+	if level_id == Levels.ENDLESS.id:
+		return out
+	for v: String in Levels.VARIANTS:
+		if is_variant_unlocked(v):
+			out.append(v)
+	return out
+
+
 ## What the tree changes in a game: perks and starting bonuses.
 func modifiers() -> Perks.Modifiers:
 	var ranks: Dictionary[String, int] = {}

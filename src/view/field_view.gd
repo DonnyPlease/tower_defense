@@ -46,6 +46,8 @@ var _bullets: DrawNode
 var _beams: DrawNode
 var _bars: DrawNode
 var _rings: RingLayer
+## Darkness of night variants (null otherwise).
+var night: NightLayer = null
 var _explosion: Burst
 var _sparks: Burst
 var _smoke: Burst
@@ -75,6 +77,9 @@ func _init(p_world: World) -> void:
 	add_child(_abilities)
 	_rings = RingLayer.new(D_EFFECTS)
 	add_child(_rings)
+	if world.variant == "night":
+		night = NightLayer.new()
+		add_child(night)
 
 	_explosion = Burst.new(D_EFFECTS).speed(40, 170).lifespan(250, 550).scale_over_life(0.7, 0) \
 		.colors([0xffd166, 0xff8c42, 0xef476f, 0x8d99ae])
@@ -262,6 +267,8 @@ func sync(alpha: float) -> void:
 		_mines.queue_redraw()
 	_mines_drawn = not world.mines.is_empty()
 	_abilities.queue_redraw()
+	if night != null:
+		night.sync(world)
 	_sync_towers()
 	_sync_enemies()
 	if _frame_count % 3 == 0:

@@ -609,7 +609,7 @@ func _draw_hover(g: CanvasItem) -> void:
 		var ok: bool = reason == World.BlockReason.NONE and world.can_afford(tool)
 		var color: Color = Color.WHITE if ok else Palette.RED
 		if reason != World.BlockReason.TERRAIN:
-			var reach: float = Towers.get_def(tool).levels[0].attack_range \
+			var reach: float = Towers.get_def(tool).levels[0].attack_range * world.tower_range \
 				* (Config.HIGH_GROUND_RANGE if (world.map.is_high_ground(col, row) or world.has_wall(col, row)) else 1.0)
 			g.draw_circle(center, reach, Color(color, 0.12))
 			Paint.stroke_circle(g, center.x, center.y, reach, 2, Color(color, 0.6))
