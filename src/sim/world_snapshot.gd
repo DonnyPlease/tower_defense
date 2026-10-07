@@ -10,6 +10,7 @@ class TowerSave:
 	var col: int
 	var row: int
 	var level: int
+	var branch: String = "" ## "" before level 4
 	var target_mode: Towers.TargetMode
 	var invested: int
 
@@ -37,10 +38,13 @@ var used: Array[String] = []
 func to_dict() -> Dictionary:
 	var list: Array[Dictionary] = []
 	for t: TowerSave in towers:
-		list.append({
+		var item: Dictionary = {
 			"kind": t.kind, "col": t.col, "row": t.row, "level": t.level,
 			"target_mode": Towers.TARGET_MODE_IDS[t.target_mode], "invested": t.invested,
-		})
+		}
+		if not t.branch.is_empty():
+			item["branch"] = t.branch
+		list.append(item)
 	var wall_list: Array[Dictionary] = []
 	for w: WallSave in walls:
 		wall_list.append({"col": w.col, "row": w.row, "paid": w.paid})
@@ -91,6 +95,9 @@ static func from_dict(d: Variant) -> WorldSnapshot:
 		save.col = JsonRead.int_or(t.get("col"))
 		save.row = JsonRead.int_or(t.get("row"))
 		save.level = JsonRead.int_or(t.get("level"), 0)
+		var branch: Variant = t.get("branch")
+		if branch is String:
+			save.branch = branch
 		save.target_mode = Towers.target_mode_from_id(str(t.get("target_mode", "first")))
 		save.invested = JsonRead.int_or(t.get("invested"), Towers.get_def(save.kind).levels[0].cost)
 		s.towers.append(save)

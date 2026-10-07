@@ -20,6 +20,10 @@ class SpawnEntry:
 		order = p_order
 
 
+## Half the width of a sniper's rail shot (on top of the enemy's radius).
+const RAIL_WIDTH: float = 4.0
+
+
 ## A landmine waiting for a ground enemy.
 class Mine:
 	var col: int
@@ -71,6 +75,8 @@ var mines: Array[Mine] = []
 var strikes: Array[Strike] = []
 ## Damage multiplier of every tower: perks, and the damage boost while it lasts.
 var damage_multiplier: float = 1.0
+## Tower branches the player can't choose yet (all are open by default).
+var locked_branches: Dictionary[String, bool] = {}
 
 var _cooldowns: Dictionary[String, int] = {} ## ticks until an ability can be used again
 var _effects: Dictionary[String, int] = {} ## ticks left of timed abilities (slow, boost, bounty)
@@ -185,6 +191,20 @@ func upgrade_cost_of(tower: Tower) -> int:
 	return Tower.NO_UPGRADE if base == Tower.NO_UPGRADE else MathX.js_round(base * modifiers.cost_multiplier)
 
 
+## Price of growing a level-3 tower into a branch, or Tower.NO_UPGRADE if it can't grow into that one.
+func branch_cost_of(tower: Tower, branch_id: String) -> int:
+	if not Towers.is_branch(branch_id) or not tower.needs_branch():
+		return Tower.NO_UPGRADE
+	var b: TowerBranch = Towers.get_branch(branch_id)
+	if b.kind != tower.kind:
+		return Tower.NO_UPGRADE
+	return MathX.js_round(b.levels[0].cost * modifiers.cost_multiplier)
+
+
+func is_branch_unlocked(branch_id: String) -> bool:
+	return Towers.is_branch(branch_id) and not locked_branches.has(branch_id)
+
+
 func can_afford(kind: String) -> bool:
 	return money >= cost_of(kind)
 
@@ -274,6 +294,22 @@ func upgrade(tower: Tower) -> bool:
 	tower.level += 1
 	var ev := WorldEvent.new(WorldEvent.Type.UPGRADE, tower.x, tower.y)
 	ev.level = tower.level
+	events.append(ev)
+	return true
+
+
+## Grows a level-3 tower into one of its branches (its level 4). The choice is for good.
+func choose_branch(tower: Tower, branch_id: String) -> bool:
+	var cost: int = branch_cost_of(tower, branch_id)
+	if status != Status.PLAYING or cost == Tower.NO_UPGRADE or not is_branch_unlocked(branch_id) \
+			or money < cost or not towers.has(tower):
+		return false
+	money -= cost
+	tower.invested += cost
+	tower.set_branch(Towers.get_branch(branch_id))
+	var ev := WorldEvent.new(WorldEvent.Type.UPGRADE, tower.x, tower.y)
+	ev.level = tower.level
+	ev.kind = branch_id
 	events.append(ev)
 	return true
 
@@ -398,10 +434,13 @@ func spawn(type: String, from: Enemy = null) -> Enemy:
 	return enemy
 
 
-## Damages an enemy (armor and shields apply, a focus mark doubles it); pays
+## Damages an enemy (armor and shields apply, a focus mark doubles it, a
+## cryo chill adds to it); pays
 ## the reward (doubled during a bounty) and splits splitters when it dies.
 func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: bool = true) -> void:
 	var dealt: float = amount * e.mark_factor if e.mark_ticks > 0 else amount
+	if e.vulnerability > 0:
+		dealt *= 1 + e.vulnerability
 	if not e.hit(dealt, ignores_armor, flash):
 		return
 	kills += 1
@@ -427,8 +466,43 @@ func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: b
 func fire(b: Bullet, from: Tower) -> void:
 	bullets.append(b)
 	var ev := WorldEvent.new(WorldEvent.Type.SHOT, b.x, b.y)
-	ev.kind = from.kind
+	ev.kind = from.branch_id if from.branch != null else from.kind
 	events.append(ev)
+
+
+## A sniper's rail shot: instantly hits up to `max_hits` enemies along a line
+## of `length` from the tower, nearest first.
+func rail(from: Tower, angle: float, length: float, damage: float, max_hits: int) -> void:
+	var dx: float = cos(angle)
+	var dy: float = sin(angle)
+	var hits: Array[Enemy] = []
+	var along_of: Dictionary[Enemy, float] = {}
+	for e: Enemy in enemies:
+		if not from.can_target(e):
+			continue
+		var rx: float = e.x - from.x
+		var ry: float = e.y - from.y
+		var along: float = rx * dx + ry * dy
+		if along < -e.radius or along > length + e.radius:
+			continue
+		if absf(rx * dy - ry * dx) <= e.radius + RAIL_WIDTH:
+			hits.append(e)
+			along_of[e] = along
+	hits.sort_custom(func(a: Enemy, b: Enemy) -> bool: return along_of[a] < along_of[b])
+	var reach: float = length
+	if hits.size() >= max_hits:
+		hits.resize(max_hits)
+		reach = along_of[hits[max_hits - 1]]
+	var shot := WorldEvent.new(WorldEvent.Type.SHOT, from.x, from.y)
+	shot.kind = from.branch_id
+	events.append(shot)
+	var ev := WorldEvent.new(WorldEvent.Type.RAIL, from.x, from.y)
+	ev.x2 = from.x + dx * reach
+	ev.y2 = from.y + dy * reach
+	ev.kind = from.branch_id
+	events.append(ev)
+	for e: Enemy in hits:
+		damage_enemy(e, damage, from.ignores_armor)
 
 
 ## A frost tower pulsed (for effects).
@@ -674,14 +748,14 @@ func update() -> void:
 			var ev := WorldEvent.new(WorldEvent.Type.HIT, b.x, b.y)
 			ev.bullet = b.type
 			events.append(ev)
-			damage_enemy(b.hit_enemy, b.damage)
+			damage_enemy(b.hit_enemy, b.damage_to(b.hit_enemy), b.ignores_armor)
 		elif outcome == Bullet.Outcome.EXPLODE:
 			var ev := WorldEvent.new(WorldEvent.Type.EXPLODE, b.x, b.y)
 			ev.radius = b.splash
 			events.append(ev)
 			for e: Enemy in enemies.duplicate():
 				if b.can_hit(e) and MathX.hypot(e.x - b.x, e.y - b.y) <= b.splash + e.radius:
-					damage_enemy(e, b.damage)
+					damage_enemy(e, b.damage_to(e), b.ignores_armor)
 
 	var alive_enemies: Array[Enemy] = []
 	for e: Enemy in enemies:
@@ -713,7 +787,8 @@ func update() -> void:
 			events.append(WorldEvent.new(WorldEvent.Type.WON))
 
 
-## Beacons boost the fire rate of towers around them (the best one counts).
+## Beacons boost the fire rate of towers around them (the best one counts);
+## command posts add range too.
 func _update_buffs() -> void:
 	var beacons: Array[Tower] = []
 	for t: Tower in towers:
@@ -723,9 +798,12 @@ func _update_buffs() -> void:
 		t.buff = 0.0
 		if t.def.behavior == Towers.Behavior.SUPPORT:
 			continue
+		var range_buff: float = 0.0
 		for s: Tower in beacons:
 			if MathX.hypot(t.x - s.x, t.y - s.y) <= s.attack_range:
 				t.buff = maxf(t.buff, s.stats.buff)
+				range_buff = maxf(range_buff, s.stats.range_buff)
+		t.set_range_buff(range_buff)
 
 
 # ---- save / resume -------------------------------------------------------------
@@ -748,6 +826,7 @@ func snapshot() -> WorldSnapshot:
 		save.col = t.col
 		save.row = t.row
 		save.level = t.level
+		save.branch = t.branch_id
 		save.target_mode = t.target_mode
 		save.invested = t.invested
 		s.towers.append(save)
@@ -782,7 +861,12 @@ func restore(s: WorldSnapshot) -> void:
 		if not (map.is_buildable_terrain(save.col, save.row) or walled) or not Towers.is_kind(save.kind):
 			continue
 		var tower := Tower.new(save.kind, save.col, save.row, map.is_high_ground(save.col, save.row) or walled, save.invested)
-		tower.level = clampi(save.level, 0, 2)
+		var b: String = save.branch
+		if Towers.is_branch(b) and Towers.get_branch(b).kind == save.kind and save.level >= Towers.BRANCH_LEVEL:
+			tower.branch = Towers.get_branch(b)
+			tower.level = clampi(save.level, Towers.BRANCH_LEVEL, Towers.MAX_LEVEL)
+		else:
+			tower.level = clampi(save.level, 0, Towers.BRANCH_LEVEL - 1)
 		tower.target_mode = save.target_mode
 		towers.append(tower)
 	_obstacles_changed()

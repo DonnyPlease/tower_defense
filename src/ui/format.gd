@@ -21,24 +21,51 @@ static func num(x: float) -> String:
 	return str(int(x)) if x == floorf(x) and absf(x) < 1e15 else str(x)
 
 
-## Stat lines shown in the sidebar for a tower at a given level. `reach` is
-## the range to show (default: the level's), `buff` a beacon boost.
-static func tower_stats_text(kind: String, level: int, reach: float = -1.0, buff: float = 0.0) -> String:
+## Stat lines shown in the sidebar for a tower at a given level (levels 3 and
+## 4 with its branch). `reach` is the range to show (default: the level's),
+## `buff` a beacon boost.
+static func tower_stats_text(kind: String, level: int, reach: float = -1.0, buff: float = 0.0,
+		branch_id: String = "") -> String:
 	var d: TowerDef = Towers.get_def(kind)
-	var s: TowerLevel = d.levels[level]
+	var s: TowerLevel = Towers.level_stats(kind, level, branch_id)
+	var b: TowerBranch = Towers.get_branch(branch_id) if Towers.is_branch(branch_id) else null
 	var range_text: String = "Range %d" % MathX.js_round(s.attack_range if reach < 0 else reach)
+	var lines: PackedStringArray = []
 	match d.behavior:
 		Towers.Behavior.PROJECTILE:
-			var lines: PackedStringArray = ["Damage %s  ·  %.1f/s" % [num(s.damage), s.fire_rate], range_text]
+			var shot: String = "Damage %s" % num(s.damage)
+			if s.volley > 1:
+				shot = "%d x %s damage" % [s.volley, num(s.damage)]
+			lines = [shot + "  ·  %.1f/s" % s.fire_rate, range_text]
 			if s.splash > 0:
 				lines[1] += "  ·  Splash %s" % num(s.splash)
+			var extras: PackedStringArray = []
+			if s.pierce > 0:
+				extras.append("Hits %d in a line" % s.pierce)
+			if s.spin_up > 0:
+				extras.append("Spins up in %s s" % num(s.spin_up))
+			if s.boss_bonus > 1:
+				extras.append("x%s vs bosses" % num(s.boss_bonus))
+			if s.min_range > 0:
+				extras.append("Min range %d" % MathX.js_round(s.min_range))
+			if b != null and b.ignores_armor:
+				extras.append("Ignores armor")
+			if not extras.is_empty():
+				lines.append("  ·  ".join(extras))
 			if buff > 0:
 				lines.append("Boosted +%d%% fire rate" % MathX.js_round(buff * 100))
-			return "\n".join(lines)
 		Towers.Behavior.BEAM:
-			return "%s dps, heats to %s\n%s" % [num(s.damage), num(s.damage * 3), range_text]
+			var beams: String = "%d beams of " % s.beams if s.beams > 1 else ""
+			lines = ["%s%s dps, heats to %s" % [beams, num(s.damage), num(s.damage * (1 + s.max_heat))], range_text]
 		Towers.Behavior.AURA:
-			return "Slow %d%%  ·  %s dmg/s\n%s" % [MathX.js_round(s.slow * 100), num(s.damage), range_text]
+			if s.damage > 0:
+				lines = ["Slow %d%%  ·  %s dmg/s" % [MathX.js_round(s.slow * 100), num(s.damage * s.fire_rate)], range_text]
+			else:
+				lines = ["Slow %d%%  ·  no damage" % MathX.js_round(s.slow * 100), range_text]
+			if s.stun > 0:
+				lines.append("Freezes %s s  ·  +%d%% damage taken" % [num(s.stun), MathX.js_round(s.vulnerability * 100)])
 		Towers.Behavior.SUPPORT:
-			return "+%d%% fire rate nearby\n%s" % [MathX.js_round(s.buff * 100), range_text]
-	return range_text
+			lines = ["+%d%% fire rate nearby" % MathX.js_round(s.buff * 100), range_text]
+			if s.range_buff > 0:
+				lines[0] += "  ·  +%d%% range" % MathX.js_round(s.range_buff * 100)
+	return "\n".join(lines)

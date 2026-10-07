@@ -11,6 +11,7 @@ var tower: Tower
 var _base: DrawNode = null
 var _body: DrawNode
 var _frame: int = 0
+var _branch: String = ""
 
 
 func _init(t: Tower) -> void:
@@ -20,14 +21,19 @@ func _init(t: Tower) -> void:
 		Paint.fill_ellipse(ci, 0, 3, 34, 20, Color(0, 0, 0, 0.28)), DEPTH_SHADOW)
 	add_child(shadow)
 	if TowerArt.has_base(t.kind):
-		_base = DrawNode.new(func(ci: CanvasItem) -> void: TowerArt.draw_base(ci, tower.kind), DEPTH_BASE)
+		_base = DrawNode.new(func(ci: CanvasItem) -> void: TowerArt.draw_base(ci, tower.kind, _branch), DEPTH_BASE)
 		add_child(_base)
-	_body = DrawNode.new(func(ci: CanvasItem) -> void: TowerArt.draw_body(ci, tower.kind, _frame), DEPTH_BODY)
+	_body = DrawNode.new(func(ci: CanvasItem) -> void: TowerArt.draw_body(ci, tower.kind, _frame, _branch), DEPTH_BODY)
 	add_child(_body)
 
 
 func sync(alpha: float, frame_count: int) -> void:
 	var t: Tower = tower
+	if t.branch_id != _branch:
+		_branch = t.branch_id
+		_body.queue_redraw()
+		if _base != null:
+			_base.queue_redraw()
 	var frames: int = t.def.frames
 	if frames > 1:
 		var f: int = floori(t.frame) % frames
@@ -40,7 +46,7 @@ func sync(alpha: float, frame_count: int) -> void:
 	if t.def.behavior == Towers.Behavior.SUPPORT:
 		_body.rotation = frame_count * 0.02
 	var recoil: float = 0.9 if frames == 1 and t.shooting else 1.0
-	var level_scale: float = 1 + 0.06 * t.level
+	var level_scale: float = 1 + 0.06 * mini(t.level, Towers.BRANCH_LEVEL - 1)
 	_body.scale = Vector2.ONE * level_scale * recoil
 	if _base != null:
 		_base.scale = Vector2.ONE * level_scale

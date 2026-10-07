@@ -36,3 +36,23 @@ func test_describes_every_tower_at_every_level() -> void:
 	expect_contains(Format.tower_stats_text("laser", 0), "heats to 27")
 	expect_contains(Format.tower_stats_text("frost", 0), "Slow 35%")
 	expect_contains(Format.tower_stats_text("support", 0), "+20% fire rate")
+
+
+func test_describes_every_branch_and_what_makes_it_special() -> void:
+	for id: String in Towers.BRANCH_IDS:
+		var b: TowerBranch = Towers.get_branch(id)
+		for level: int in [3, 4]:
+			expect_match(Format.tower_stats_text(b.kind, level, -1, 0, id), "Range \\d+", "%s %d" % [id, level])
+	expect_contains(Format.tower_stats_text("gun", 3, -1, 0, "sniper"), "Hits 3 in a line")
+	expect_contains(Format.tower_stats_text("gun", 3, -1, 0, "minigun"), "Spins up in 2 s")
+	expect_contains(Format.tower_stats_text("missile", 3, -1, 0, "swarm"), "4 x 9 damage")
+	expect_contains(Format.tower_stats_text("missile", 4, -1, 0, "seeker"), "x2 vs bosses")
+	expect_contains(Format.tower_stats_text("cannon", 3, -1, 0, "mortar"), "Min range 90")
+	expect_contains(Format.tower_stats_text("cannon", 3, -1, 0, "siege"), "Ignores armor")
+	expect_contains(Format.tower_stats_text("frost", 3, -1, 0, "blizzard"), "no damage")
+	expect_contains(Format.tower_stats_text("frost", 3, -1, 0, "cryo"), "Freezes 0.5 s  ·  +25% damage taken")
+	expect_contains(Format.tower_stats_text("laser", 4, -1, 0, "prism"), "3 beams of 28 dps")
+	expect_contains(Format.tower_stats_text("laser", 4, -1, 0, "lance"), "heats to 200")
+	expect_contains(Format.tower_stats_text("support", 3, -1, 0, "command"), "+15% range")
+	# Without the branch, levels 4 and 5 fall back to level 3 (they can't exist).
+	expect_eq(Format.tower_stats_text("gun", 3), Format.tower_stats_text("gun", 2))

@@ -42,6 +42,24 @@ project uses the Compatibility renderer, which is what web builds need.
 Click a placed tower to upgrade it, sell it (50% of everything you spent), or
 choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
 
+**Branches.** At level 3 a tower stops upgrading in a line: it grows into one of
+two different towers, each with two more levels (levels 4 and 5). The choice is
+for good (selling and rebuilding is the only way back), so every army ends up
+different. Hover a branch button in the sidebar to read what it does.
+
+| Tower | Branch A | Branch B |
+| --- | --- | --- |
+| Gun | **Minigun**: spins up to a hail of bullets, short range | **Sniper**: long-range rail shots through a line of enemies |
+| Missile | **Swarm**: a volley of small missiles at several enemies | **Seeker**: one huge missile, extra damage to bosses |
+| Cannon | **Mortar**: long range, huge splash, slow shells, minimum range | **Siege**: armor-piercing, heavy single-target damage |
+| Frost | **Blizzard**: a huge slowing field, no damage | **Cryo**: pulses freeze enemies; chilled enemies take extra damage |
+| Laser | **Prism**: splits the beam over 2-3 enemies | **Lance**: heats up faster and up to 5x |
+| Beacon | **Overclock**: a big fire-rate boost close by | **Command**: a smaller boost over a wide area, plus range |
+
+Branch numbers live with the towers in `src/data/towers.gd`. Levels 1-3 are
+unchanged, so the balance measurements (made without branches, see
+[Balancing](#balancing)) still describe the base game.
+
 **Walls and abilities.** The bar along the bottom of the field holds the wall
 tool and seven abilities. Each costs money (and most have a cooldown), so using
 them is a decision. Everything about them (prices, cooldowns, strength, and an

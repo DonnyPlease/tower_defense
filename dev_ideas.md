@@ -22,54 +22,10 @@ What it lacks is **one thing that makes it special**. Today:
   your towers, you build the maze). It's one level of four.
 - Perks are flat stat bumps (+money, +lives, cheaper, +8% damage). They don't
   change how you play.
-- Tower upgrades are linear, so every Gun ends up as the same Gun.
 - Three of the four levels are "enemies follow a fixed road", where the only
   decision is where to put towers beside it.
 - Visuals are drawn in code and look like a prototype.
 - The in-game screen is getting crowded.
-
----
-
-## 1. Tower branching (favourite idea)
-
-Each tower follows a normal upgrade path, then **branches into two different
-towers** at a fork. Every run can end up with a different army, and it gives
-the player a real decision about what to build, not just how much to spend.
-
-**Rule of thumb:** base level 1 and 2 as today, then at level 3 choose branch A
-or B. Each branch then has its own further levels. Selling and rebuilding is the
-only way to change a branch (so the choice matters).
-
-Candidate branches (names and numbers are placeholders, to be balanced):
-
-| Tower | Branch A | Branch B |
-| --- | --- | --- |
-| Gun | **Minigun**: very fast, short range, spins up | **Sniper**: long range, slow, high damage, pierces |
-| Missile | **Swarm**: many small missiles, good vs. groups | **Seeker**: one huge homing missile, good vs. bosses |
-| Cannon | **Mortar** (favourite): long range, arcing shell, big splash, minimum range, slow shell so it misses fast targets | **Siege cannon**: armour-piercing, shorter range, high single-target damage |
-| Frost | **Blizzard**: huge slow aura, no damage | **Cryo**: slowed enemies take bonus damage, short freeze on a pulse |
-| Laser | **Prism**: splits the beam over 2-3 targets | **Lance**: heats up faster and to a higher multiplier on one target |
-| Beacon | **Overclock**: bigger fire-rate boost, small radius | **Command**: boosts range as well, big radius, smaller boost |
-
-Mortar notes:
-
-- Needs an arcing shell with a flight time and a **minimum range**. That pairs
-  well with Open Field mazes: a mortar behind the walls hitting enemies bunched
-  in a long corridor.
-- It should be bad against fast enemies (Racer, Scout) and good against Tank,
-  Armored and anything slowed by Frost. That gives Frost + Mortar a natural
-  combo.
-
-Implementation notes:
-
-- Tower data lives in `src/data/towers.gd` and `tower_level.gd`. Branching
-  means the upgrade path becomes a small tree instead of an array.
-- The save file (`src/game/profile.gd`) and the "game in progress" save will need
-  to store the chosen branch. Version the save format.
-- Balance tests (`tests/balance/`) and the determinism tests that compare
-  against the original JavaScript version will need updating: branches are new
-  content, so keep the old three levels as the base case.
-- The HUD's context panel (`src/ui/hud.gd`) needs a "choose a branch" state.
 
 ---
 
@@ -79,7 +35,7 @@ The star system already unlocks towers and buys perks. Grow it into a **tech
 tree** that is the long-term progression of the game: a screen where you see
 what you have, what's next and what it costs.
 
-- **Nodes** unlock: new towers, **tower branches** (section 1), perks, new
+- **Nodes** unlock: new towers, **tower branches**, perks, new
   levels or map variants, and starting bonuses.
 - **Currency:** keep stars (earned per level, 1-3 each) or add a separate
   research currency earned per run. Stars are simple and already work.
@@ -185,7 +141,7 @@ pause/speed/music/sound buttons. Perks are bought on a separate screen
 
 Problems:
 
-- The sidebar is crowded, and will get more so with branches.
+- The sidebar is crowded, and more so now with branches.
 - On a phone held sideways (e.g. 844 x 390) everything is scaled to about 65%,
   so 30-38 px buttons become small to tap, and the field and sidebar compete
   for a small screen.
@@ -239,8 +195,6 @@ Decisions needed before building: one layout for desktop and phone, or two?
 ## 9. Suggested order (if we want one)
 
 1. Decide the visual direction (cheap to decide, affects everything else).
-2. Tower branching with the Mortar branch of Cannon first, as the first test
-   of the idea, then the other branches.
 3. UI rework: hide locked towers, tap-to-build popup, slimmer HUD.
 4. Tech tree screen (needs branches to be worth having).
 5. Pathing in more levels and path-interacting towers.

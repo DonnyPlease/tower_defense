@@ -13,6 +13,8 @@ const UNAFFORDABLE: Color = Color("#ffd0cc")
 
 var tower_buttons: Dictionary[String, GameButton] = {}
 var upgrade_button: GameButton
+## The two branches a level-3 tower can grow into (shown instead of Upgrade).
+var branch_buttons: Array[GameButton] = []
 var target_button: GameButton
 var sell_button: GameButton
 var wave_button: GameButton
@@ -32,6 +34,8 @@ var _preview: Control
 var _preview_key: String = "-"
 var _hovered: String = ""
 var _hovered_ability: String = ""
+var _hovered_branch: int = -1
+var _panel_extra: TextLabel
 
 
 func _init(host: GameScene) -> void:
@@ -70,6 +74,21 @@ func _ready() -> void:
 	upgrade_button = GameButton.new(Rect2(X + 8, PANEL_Y + 86, W - 16, 36), "Upgrade", _host.upgrade_selected) \
 		.primary().font(14).key("U")
 	add_child(upgrade_button)
+	var bw: float = (W - 16 - 6) / 2
+	for i: int in 2:
+		var b := GameButton.new(Rect2(X + 8 + i * (bw + 6), PANEL_Y + 86, bw, 38), "", func() -> void: _host.choose_branch(i)) \
+			.primary().font(12).sublabel("")
+		b.hover_callback(func(on: bool) -> void:
+			if on:
+				_hovered_branch = i
+			elif _hovered_branch == i:
+				_hovered_branch = -1)
+		b.visible = false
+		add_child(b)
+		branch_buttons.append(b)
+	_panel_extra = Ui.text(self, X + 10, PANEL_Y + 130, "", 12, Palette.TEXT_DIM)
+	_panel_extra.set_wrap(W - 20)
+	_panel_extra.set_line_spacing(2)
 	target_button = GameButton.new(Rect2(X + 8, PANEL_Y + 126, W - 16, 30), "Target: First", _host.cycle_target_mode) \
 		.font(13).key("T")
 	add_child(target_button)
@@ -158,19 +177,35 @@ func _refresh_panel() -> void:
 	var world: World = _host.world
 	var selected: Tower = _host.selected
 	var show_tower_buttons: bool = selected != null
-	upgrade_button.visible = show_tower_buttons
-	target_button.visible = show_tower_buttons and selected.def.behavior != Towers.Behavior.SUPPORT \
+	var picking: bool = selected != null and selected.needs_branch()
+	if not picking:
+		_hovered_branch = -1
+	var describing: bool = picking and _hovered_branch >= 0
+	upgrade_button.visible = show_tower_buttons and not picking
+	for b: GameButton in branch_buttons:
+		b.visible = picking
+	target_button.visible = show_tower_buttons and not describing and selected.def.behavior != Towers.Behavior.SUPPORT \
 		and selected.def.behavior != Towers.Behavior.AURA
-	sell_button.visible = show_tower_buttons
+	sell_button.visible = show_tower_buttons and not describing
+	_panel_extra.show_text("")
 
 	if selected != null:
-		var d: TowerDef = selected.def
-		_panel_title.show_text("%s  ·  Level %d" % [d.name, selected.level + 1])
+		_panel_title.show_text("%s  ·  Level %d" % [selected.display_name, selected.level + 1])
+		if picking:
+			_refresh_branches(world, selected)
+		if describing:
+			var br: TowerBranch = selected.def.branches[_hovered_branch]
+			_panel_title.show_text("%s  ·  $%d" % [br.name, world.branch_cost_of(selected, br.id)])
+			_panel_body.show_text(br.description)
+			_panel_extra.show_text(Format.tower_stats_text(selected.kind, Towers.BRANCH_LEVEL, -1, 0, br.id) +
+				("" if world.is_branch_unlocked(br.id) else "\n\nUnlock it in the tech tree."))
+			return
 		var extra: String = ""
 		if selected.high_ground:
 			var on_wall: bool = world.has_wall(selected.col, selected.row) and not world.map.is_high_ground(selected.col, selected.row)
 			extra = "\nOn a wall: +25% range" if on_wall else "\nHigh ground: +25% range"
-		_panel_body.show_text(Format.tower_stats_text(selected.kind, selected.level, selected.attack_range, selected.buff) + extra)
+		_panel_body.show_text(Format.tower_stats_text(selected.kind, selected.level, selected.attack_range, selected.buff,
+			selected.branch_id) + extra)
 		var cost: int = world.upgrade_cost_of(selected)
 		if cost == Tower.NO_UPGRADE:
 			upgrade_button.set_label("Max level").set_enabled(false)
@@ -223,6 +258,18 @@ func _refresh_panel() -> void:
 		_panel_body.show_text("No road here: enemies walk around your towers and walls.\n\nClick a tower or wall to upgrade or sell it.\nQ: wall. Bottom bar: abilities.")
 	else:
 		_panel_body.show_text("Pick a tower above, then click the grass to build.\n\nClick a placed tower to upgrade it, change its target or sell it.\nQ: wall. Bottom bar: abilities.")
+
+
+## The two branch buttons of a level-3 tower: name and price, locked or not.
+func _refresh_branches(world: World, tower: Tower) -> void:
+	for i: int in branch_buttons.size():
+		var b: GameButton = branch_buttons[i]
+		var br: TowerBranch = tower.def.branches[i]
+		var cost: int = world.branch_cost_of(tower, br.id)
+		var unlocked: bool = world.is_branch_unlocked(br.id)
+		b.set_label(br.name if unlocked else "🔒 " + br.name)
+		b.set_sublabel("$%d" % cost, Palette.TEXT if world.money >= cost else UNAFFORDABLE)
+		b.set_enabled(unlocked and world.money >= cost and world.status == World.Status.PLAYING)
 
 
 func _ability_text(def: Abilities.AbilityDef) -> String:
@@ -292,6 +339,11 @@ func panel_title_text() -> String:
 
 func panel_body_text() -> String:
 	return _panel_body.text
+
+
+## The second text block of the panel (a branch's stats while its button is hovered).
+func panel_extra_text() -> String:
+	return _panel_extra.text
 
 
 ## The next-wave preview as "type count" pairs, e.g. "scout8,racer5".

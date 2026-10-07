@@ -36,8 +36,11 @@ var hit_flash: int = 0 ## ticks left of the white "got hit" flash
 var mark_ticks: int = 0 ## ticks left of a focus mark (it takes more damage while marked)
 var mark_factor: float = 1.0 ## damage multiplier while marked
 var ability_timer: int = 0 ## ticks until the next heal / summon
+var stun_ticks: int = 0 ## ticks left frozen solid (a cryo pulse): it doesn't move
+var vulnerability: float = 0.0 ## extra damage taken while chilled by a cryo tower (0.3 = +30 %)
 
 var _slow_ticks: int = 0
+var _chill_ticks: int = 0
 var _shield_cooldown: int = 0
 
 ## Current speed in pixels per tick (slowed by frost).
@@ -87,11 +90,20 @@ func update(extra_slow: float = 0.0) -> void:
 		_slow_ticks -= 1
 		if _slow_ticks == 0:
 			slow = 0.0
+	if _chill_ticks > 0:
+		_chill_ticks -= 1
+		if _chill_ticks == 0:
+			vulnerability = 0.0
 	if max_shield > 0:
 		if _shield_cooldown > 0:
 			_shield_cooldown -= 1
 		else:
 			shield = minf(max_shield, shield + max_shield * SHIELD_REGEN)
+	if stun_ticks > 0:
+		stun_ticks -= 1
+		vx = 0.0
+		vy = 0.0
+		return
 
 	if not nav.move(def.speed * (1 - maxf(slow, extra_slow))):
 		alive = false
@@ -113,6 +125,21 @@ func is_marked() -> bool:
 func mark(ticks: int, factor: float) -> void:
 	mark_ticks = ticks
 	mark_factor = factor
+
+
+func is_frozen() -> bool:
+	return stun_ticks > 0
+
+
+## Freezes it in place for `ticks` (a cryo pulse).
+func freeze(ticks: int) -> void:
+	stun_ticks = maxi(stun_ticks, ticks)
+
+
+## While chilled it takes `factor` more damage from everything.
+func chill(factor: float, ticks: int) -> void:
+	vulnerability = maxf(vulnerability, factor)
+	_chill_ticks = maxi(_chill_ticks, ticks)
 
 
 func apply_slow(amount: float, ticks: int) -> void:

@@ -22,6 +22,8 @@ var radius: float
 var hits_air: bool
 var hits_ground: bool
 var splash: float
+var ignores_armor: bool = false
+var boss_bonus: float = 1.0 ## damage multiplier against bosses (seeker)
 var target: Enemy
 ## Shells: total flight distance and progress, for the arc drawn by the view.
 var flight: float
@@ -97,6 +99,11 @@ func update(enemies: Array[Enemy]) -> Outcome:
 
 func can_hit(e: Enemy) -> bool:
 	return e.alive and (hits_air if e.flying else hits_ground)
+
+
+## Damage this bullet does to `e` (bosses take the seeker's bonus).
+func damage_to(e: Enemy) -> float:
+	return damage * boss_bonus if e.def.boss else damage
 
 
 ## Swept collision: tests the whole segment travelled during this tick, so

@@ -175,7 +175,20 @@ func toggle_sfx() -> void:
 func upgrade_selected() -> void:
 	if selected == null:
 		return
+	if selected.needs_branch():
+		_refuse("Choose a branch", Vector2(selected.x, selected.y - Config.TILE / 2.0))
+		return
 	if world.upgrade(selected):
+		_autosave()
+	else:
+		Audio.play("error")
+
+
+## Grows the selected level-3 tower into its first (0) or second (1) branch.
+func choose_branch(index: int) -> void:
+	if selected == null or not selected.needs_branch() or index < 0 or index >= selected.def.branches.size():
+		return
+	if world.choose_branch(selected, selected.def.branches[index].id):
 		_autosave()
 	else:
 		Audio.play("error")
