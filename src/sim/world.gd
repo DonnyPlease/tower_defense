@@ -105,6 +105,7 @@ var _pending_bonus: int = 0
 var _spawn_counter: int = 0
 var _lane_counter: int = 0 # gives every enemy its own lane
 var _flow: FlowField
+var _open_flow: FlowField ## the way out ignoring towers and walls (hoppers)
 var _tower_grid: Array[Tower] = []
 var _block_mask: PackedByteArray ## 1 where a tower or wall stands
 
@@ -135,6 +136,8 @@ func _init(level: LevelDef, endless_waves: Callable = Callable(), p_modifiers: P
 	_tower_grid.resize(Config.COLS * Config.ROWS)
 	_block_mask.resize(Config.COLS * Config.ROWS)
 	_flow = FlowField.new(map.distance_field(_block_mask))
+	_flow.blocked = _block_mask.duplicate()
+	_open_flow = FlowField.new(map.distance_field(_block_mask))
 
 
 # ---- waves -------------------------------------------------------------------
@@ -269,7 +272,7 @@ func _path_block_reason(col: int, row: int) -> BlockReason:
 		return BlockReason.NONE # nothing walks here, so nothing changes
 	var tile := Vector2i(col, row)
 	for e: Enemy in enemies:
-		if e.flying:
+		if e.flying or e.def.hops:
 			continue
 		if (floori(e.x / Config.TILE) == col and floori(e.y / Config.TILE) == row) or e.nav.target_tile() == tile:
 			return BlockReason.ENEMY
@@ -281,7 +284,7 @@ func _path_block_reason(col: int, row: int) -> BlockReason:
 			return BlockReason.BLOCKS_PATH
 	for e: Enemy in enemies:
 		var t: Vector2i = e.nav.target_tile()
-		if not e.flying and t != GameMap.NO_TILE and GameMap.dist_at(field, t.x, t.y) == GameMap.UNREACHABLE:
+		if not e.flying and not e.def.hops and t != GameMap.NO_TILE and GameMap.dist_at(field, t.x, t.y) == GameMap.UNREACHABLE:
 			return BlockReason.BLOCKS_PATH
 	return BlockReason.NONE
 
@@ -445,6 +448,7 @@ func _obstacles_changed() -> void:
 		_block_mask[k] = 1
 	for tile: Vector2i in walls:
 		_block_mask[tile.y * Config.COLS + tile.x] = 1
+	_flow.blocked = _block_mask.duplicate()
 	if map.flow:
 		_flow.dist = map.distance_field(_block_mask)
 
@@ -467,11 +471,14 @@ func spawn(type: String, from: Enemy = null) -> Enemy:
 			var flights: Array[Route] = map.flight_routes
 			nav = RouteNav.new(flights[i % flights.size()], lane_seed, true)
 		elif map.flow:
-			nav = FlowNav.new(map, _flow, map.starts[i % map.starts.size()], lane_seed)
+			var field: FlowField = _open_flow if Enemies.get_def(type).hops else _flow
+			nav = FlowNav.new(map, field, map.starts[i % map.starts.size()], lane_seed)
 		else:
 			var roads: Array[Route] = map.routes
 			nav = RouteNav.new(roads[i % roads.size()], lane_seed)
 		enemy = Enemy.new(type, nav, hp)
+	if enemy.def.hops:
+		enemy.obstacles = _flow
 	enemies.append(enemy)
 	return enemy
 
@@ -483,7 +490,11 @@ func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: b
 	var dealt: float = amount * e.mark_factor if e.mark_ticks > 0 else amount
 	if e.vulnerability > 0:
 		dealt *= 1 + e.vulnerability
+	if e.rallied:
+		dealt *= 1 - e.rally_toughness
 	if not e.hit(dealt, ignores_armor, flash):
+		if e.alive and not e.def.phases.is_empty():
+			_check_phase(e)
 		return
 	kills += 1
 	var reward: int = e.def.reward * (roundi(Abilities.get_def("bounty").power) if is_active("bounty") else 1)
@@ -556,10 +567,52 @@ func pulse(t: Tower) -> void:
 	events.append(ev)
 
 
+## A boss whose hitpoints fell below its next phase's threshold changes.
+func _check_phase(e: Enemy) -> void:
+	var phases: Array[EnemyDef.Phase] = e.def.phases
+	while e.phase < phases.size() and e.hitpoints < e.max_hitpoints * phases[e.phase].below:
+		var p: EnemyDef.Phase = phases[e.phase]
+		e.phase += 1
+		e.armor = p.armor
+		e.speed_mult = p.speed
+		if p.shield > 0:
+			e.max_shield = MathX.js_round(p.shield * e.max_hitpoints / e.def.hitpoints)
+			e.shield = e.max_shield
+		for i: int in p.summon_count:
+			var child: Enemy = spawn(p.summon_type, e)
+			child.nav.fall_back((i + 1) * 18)
+			child.x = child.nav.x
+			child.prev_x = child.x
+			child.y = child.nav.y
+			child.prev_y = child.y
+		var ev := WorldEvent.new(WorldEvent.Type.BOSS_PHASE, e.x, e.y)
+		ev.enemy = e.type
+		ev.text = p.message
+		events.append(ev)
+
+
+## Warchiefs rally the enemies around them (not themselves).
+func _update_rally() -> void:
+	var chiefs: Array[Enemy] = []
+	for e: Enemy in enemies:
+		if e.alive and e.def.rally != null:
+			chiefs.append(e)
+	for e: Enemy in enemies:
+		e.rallied = false
+		for c: Enemy in chiefs:
+			var r: EnemyDef.Rally = c.def.rally
+			if c != e and MathX.hypot(c.x - e.x, c.y - e.y) <= r.radius:
+				e.rallied = true
+				e.rally_speed = r.speed
+				e.rally_toughness = r.toughness
+				break
+
+
 func _update_abilities(e: Enemy) -> void:
 	var heal: EnemyDef.Heal = e.def.heal
 	var summon: EnemyDef.Summon = e.def.summon
-	if heal == null and summon == null:
+	var emp: EnemyDef.Emp = e.def.emp
+	if heal == null and summon == null and emp == null:
 		return
 	e.ability_timer -= 1
 	if e.ability_timer > 0:
@@ -579,6 +632,17 @@ func _update_abilities(e: Enemy) -> void:
 		for i: int in summon.count:
 			spawn(summon.type, e)
 		events.append(WorldEvent.new(WorldEvent.Type.SUMMON, e.x, e.y))
+	if emp != null:
+		e.ability_timer = MathX.js_round(emp.interval * Config.TICK_RATE)
+		var hit_any: bool = false
+		for t: Tower in towers:
+			if MathX.hypot(t.x - e.x, t.y - e.y) <= emp.radius:
+				t.disable(ticks_of(emp.duration))
+				hit_any = true
+		if hit_any:
+			var ev := WorldEvent.new(WorldEvent.Type.EMP, e.x, e.y)
+			ev.radius = emp.radius
+			events.append(ev)
 
 
 # ---- abilities ---------------------------------------------------------------
@@ -826,6 +890,7 @@ func update() -> void:
 		var entry: SpawnEntry = _spawn_queue.pop_front()
 		spawn(entry.type)
 
+	_update_rally()
 	var extra_slow: float = Abilities.get_def("slow").power if is_active("slow") else 0.0
 	for e: Enemy in enemies.duplicate():
 		e.update(extra_slow)
@@ -895,7 +960,7 @@ func update() -> void:
 func _update_buffs() -> void:
 	var beacons: Array[Tower] = []
 	for t: Tower in towers:
-		if t.def.behavior == Towers.Behavior.SUPPORT:
+		if t.def.behavior == Towers.Behavior.SUPPORT and not t.is_disabled():
 			beacons.append(t)
 	for t: Tower in towers:
 		t.buff = 0.0

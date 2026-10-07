@@ -18,7 +18,7 @@ project uses the Compatibility renderer, which is what web builds need.
 
 ## The game
 
-**4 levels + endless mode**
+**5 levels + endless mode**
 
 | Level | What's special |
 | --- | --- |
@@ -26,7 +26,8 @@ project uses the Compatibility renderer, which is what web builds need.
 | Riverside | Two entrances, a river you can't build on, and flying drones |
 | Highlands | A long road with wide stretches, rocks, and high ground (+25% tower range) |
 | Open Field | No road: enemies walk around your towers, so you build the maze |
-| Endless | Waves never stop, with a boss every 10 waves. Beat your best score |
+| Citadel | Wide roads and the enemies that beat mazes and builds; the Colossus is the final boss |
+| Endless | Waves never stop, with a boss every 10 waves (and the Colossus every 25). Hoppers, saboteurs and warchiefs join from wave 7. Beat your best score |
 
 **Level variants.** Every level can also be played with a twist, once the
 variant is unlocked in the tech tree; each variant earns stars of its own.
@@ -94,10 +95,18 @@ needs a wall under it first. Enemies and the path never get trapped: a wall
 that would close the last gap is refused. In Open Field walls are a cheap way
 to shape the maze.
 
-**10 enemy types:** Scout, Racer, Tank, Armored (flat damage reduction),
+**14 enemy types:** Scout, Racer, Tank, Armored (flat damage reduction),
 Shielded (recharging shield), Splitter (breaks into 3 minis), Medic (heals
 others), Drone (flies straight over everything), the Juggernaut mini-boss and
-the Warlord boss (armored, summons reinforcements).
+the Warlord boss (armored, summons reinforcements). And the ones that make you
+change your build:
+
+| Enemy | What it does |
+| --- | --- |
+| Saboteur | Every 4 s an EMP switches off the towers near it for 2.5 s |
+| Hopper | Jumps over walls and towers: a maze can't hold it |
+| Warchief | Enemies near it move 30% faster and take 25% less damage: kill it first |
+| Colossus | A boss in phases: heavy armor; below 66% it sheds the armor and speeds up; below 33% it raises a shield and calls two warchiefs |
 
 **Field orders (run perks).** Once *Field Orders* is unlocked in the tech tree,
 every game offers 3 perks to choose from at its start and after waves 5 and 10

@@ -47,18 +47,6 @@ Open Field is the best idea in the game, so use it everywhere.
 
 ---
 
-## 5. More enemy variety
-
-Enemies are mostly stat variants today. The ones that force you to change your
-build (Splitter, Medic, Shielded) are the best ones. More like those:
-
-- An enemy that **destroys or disables** a tower for a while.
-- An enemy that **jumps or digs** past walls, so pure mazes aren't enough.
-- An enemy that **buffs** others nearby, so you must kill it first.
-- Bosses that have phases.
-
----
-
 ## 6. Visual design
 
 The art is drawn in code (`src/view/tower_art.gd`, `enemy_art.gd`, `burst.gd`,
@@ -152,7 +140,7 @@ Decisions needed before building: one layout for desktop and phone, or two?
 1. Decide the visual direction (cheap to decide, affects everything else).
 3. UI rework: tap-to-build popup, slimmer HUD.
 5. Pathing in more levels and path-interacting towers.
-7. More levels to fill the tree (variants exist: night, reversed, last stand,
+7. More levels to fill the tree (Citadel is level 5) (variants exist: night, reversed, last stand,
    no gun; an *ever-narrower road* variant is still an idea).
 8. Android preset, safe area, back button, tap sizes.
 

@@ -44,6 +44,7 @@ var range_buff: float = 0.0 ## range bonus from a nearby command post, set by th
 var range_factor: float = 1.0 ## the level's range multiplier (night), see set_range_factor
 var heat: int = 0 ## laser: ticks spent on the current target
 var spin: float = 0.0 ## minigun: 0..1, how far it has spun up
+var disabled_ticks: int = 0 ## switched off by a saboteur's EMP
 
 ## Stats of the current level.
 var stats: TowerLevel
@@ -219,8 +220,24 @@ func pick_targets(enemies: Array[Enemy], count: int) -> Array[Enemy]:
 	return found
 
 
+## Switches the tower off for `ticks` (an EMP).
+func disable(ticks: int) -> void:
+	disabled_ticks = maxi(disabled_ticks, ticks)
+
+
+func is_disabled() -> bool:
+	return disabled_ticks > 0
+
+
 func update(world: World) -> void:
 	prev_angle = angle
+	if disabled_ticks > 0:
+		disabled_ticks -= 1
+		target = null
+		targets.clear()
+		heat = 0
+		spin = 0.0
+		return
 	if cooldown > 0:
 		cooldown -= 1
 	if shooting:

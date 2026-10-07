@@ -420,6 +420,23 @@ func _draw_bars(g: CanvasItem) -> void:
 			Paint.fill_circle(g, px, t.y + 17, 2.5, pip)
 		if t.buff > 0:
 			Paint.fill_triangle(g, t.x + 12, t.y - 10, t.x + 16, t.y - 16, t.x + 20, t.y - 10, Color(Palette.GOLD, 0.95))
+		if t.is_disabled():
+			# Sparks of the EMP that switched it off.
+			var k: float = float(_frame_count % 12) / 12.0
+			var blue: Color = Palette.rgb(0x74c0fc)
+			Paint.line(g, t.x - 10, t.y - 12, t.x - 3, t.y - 4 - 3 * k, 2, blue)
+			Paint.line(g, t.x - 3, t.y - 4 - 3 * k, t.x + 2, t.y - 12, 2, blue)
+			Paint.line(g, t.x + 2, t.y - 12, t.x + 10, t.y - 3, 2, blue)
+	# Enemies rallied by a warchief: a red chevron over them.
+	for e: Enemy in world.enemies:
+		if e.rallied:
+			var x: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var y: float = Format.lerp_value(e.prev_y, e.y, _alpha) - e.radius - 14
+			Paint.fill_triangle(g, x - 4, y - 3, x + 4, y - 3, x, y + 2, Palette.RED)
+		elif e.def.rally != null:
+			var x: float = Format.lerp_value(e.prev_x, e.x, _alpha)
+			var y: float = Format.lerp_value(e.prev_y, e.y, _alpha)
+			Paint.stroke_circle(g, x, y, e.def.rally.radius, 1.5, Color(Palette.RED, 0.35))
 
 
 # ---- events ------------------------------------------------------------------
@@ -514,6 +531,15 @@ func handle_events(events: Array[WorldEvent]) -> void:
 				_sound("bigExplosion")
 			WorldEvent.Type.ABILITY:
 				_ability_used(ev)
+			WorldEvent.Type.EMP:
+				_rings.add(ev.x, ev.y, ev.radius, Palette.rgb(0x74c0fc), 450)
+				_sparks.explode(10, ev.x, ev.y)
+				_sound("zap")
+			WorldEvent.Type.BOSS_PHASE:
+				_rings.add(ev.x, ev.y, 90, Palette.RED, 700)
+				_explosion.explode(24, ev.x, ev.y)
+				_shake(300, 0.008)
+				_sound("summon")
 			WorldEvent.Type.RUN_PERK:
 				if not quiet:
 					float_text(Config.FIELD_W / 2.0, 120, RunPerks.get_def(ev.kind).name + "!", Palette.GOLD)

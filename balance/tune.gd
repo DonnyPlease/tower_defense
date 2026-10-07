@@ -13,6 +13,7 @@ const TARGETS: Dictionary[String, Array] = {
 	"riverside": ["average", 0.75],
 	"highlands": ["average", 0.7],
 	"openfield": ["average", 0.6],
+	"citadel": ["average", 0.55],
 }
 const GAMES: int = 24
 ## Endless mode: average players should survive about this many waves.

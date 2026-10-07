@@ -5,6 +5,8 @@ extends RefCounted
 ## holder, so they re-route around new walls immediately.
 
 var dist: PackedInt32Array
+## 1 where a tower or wall stands (hoppers jump over these tiles).
+var blocked: PackedByteArray
 
 
 func _init(p_dist: PackedInt32Array = PackedInt32Array()) -> void:

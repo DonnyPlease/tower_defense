@@ -45,8 +45,18 @@ func sync(alpha: float, frame_count: int) -> void:
 	_body.rotation = Format.lerp_angle_short(t.prev_angle, t.angle, alpha) + PI / 2 if rotates else 0.0
 	if t.def.behavior == Towers.Behavior.SUPPORT:
 		_body.rotation = frame_count * 0.02
+	# Switched off by an EMP: grey and still.
+	var tint: Color = Color(0.45, 0.5, 0.6) if t.is_disabled() else Color.WHITE
+	_body.modulate = tint
+	if _base != null:
+		_base.modulate = tint
 	var recoil: float = 0.9 if frames == 1 and t.shooting else 1.0
 	var level_scale: float = 1 + 0.06 * mini(t.level, Towers.BRANCH_LEVEL - 1)
 	_body.scale = Vector2.ONE * level_scale * recoil
 	if _base != null:
 		_base.scale = Vector2.ONE * level_scale
+
+
+## The tint the body is drawn with (grey while an EMP has switched it off).
+func body_tint() -> Color:
+	return _body.modulate

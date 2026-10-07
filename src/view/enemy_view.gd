@@ -42,6 +42,11 @@ func sync(alpha: float, frame_count: int) -> void:
 	var e: Enemy = enemy
 	position = Vector2(Format.lerp_value(e.prev_x, e.x, alpha), Format.lerp_value(e.prev_y, e.y, alpha))
 	var bob: float = sin((frame_count + e.id * 13) * 0.12) * 2 if e.flying else 0.0
+	# Hoppers leap over walls and towers: up in the air, above the towers.
+	var jumping: bool = e.is_jumping()
+	if jumping:
+		bob = -12.0
+	_body.z_index = DEPTH_AIR if (e.flying or jumping) else DEPTH_GROUND
 	_body.position = Vector2(0, bob)
 	_body.rotation = Format.lerp_angle_short(e.prev_angle, e.angle, alpha)
 	if e.hit_flash > 0:
@@ -58,3 +63,12 @@ func sync(alpha: float, frame_count: int) -> void:
 
 func is_flashing() -> bool:
 	return _body.material != null
+
+
+## Where the body is drawn relative to the enemy (hoppers rise while jumping), and its depth.
+func body_offset() -> Vector2:
+	return _body.position
+
+
+func body_depth() -> int:
+	return _body.z_index

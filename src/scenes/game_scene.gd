@@ -498,6 +498,8 @@ func _handle_scene_events(events: Array[WorldEvent]) -> void:
 					show_banner("Wave cleared  +$%d%s" % [ev.bonus, interest], Palette.GOLD)
 					Audio.play("waveClear")
 				_autosave()
+			WorldEvent.Type.BOSS_PHASE:
+				show_banner(ev.text, Palette.RED)
 			WorldEvent.Type.WON:
 				_on_game_over(true)
 			WorldEvent.Type.LOST:
@@ -564,6 +566,11 @@ func _draw_boss_bar(g: CanvasItem) -> void:
 	Paint.fill_rounded_rect(g, x - 3, y - 3, w + 6, 16, 5, Color(0, 0, 0, 0.6))
 	Paint.fill_rounded_rect(g, x, y, w, 10, 3, Palette.rgb(0x5c1a1a))
 	Paint.fill_rounded_rect(g, x, y, maxf(6, w * f), 10, 3, Palette.RED)
+	# Where its phases begin.
+	for p: EnemyDef.Phase in boss.def.phases:
+		g.draw_line(Vector2(x + w * p.below, y - 2), Vector2(x + w * p.below, y + 12), Color.WHITE, 2)
+	if boss.max_shield > 0 and boss.shield > 0:
+		Paint.fill_rounded_rect(g, x, y + 11, w * boss.shield / boss.max_shield, 3, 1, Palette.rgb(0x7ad3ff))
 	_boss_text.show_text("%s  %d / %d" % [boss.def.name, ceili(boss.hitpoints), boss.max_hitpoints])
 
 

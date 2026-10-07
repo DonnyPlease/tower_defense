@@ -4,6 +4,7 @@ extends RefCounted
 
 const TYPES: Array[String] = [
 	"scout", "racer", "tank", "armored", "shielded", "splitter", "mini", "healer", "drone", "brute", "boss",
+	"saboteur", "hopper", "warchief", "colossus",
 ]
 
 static var _defs: Dictionary[String, EnemyDef] = _build()
@@ -84,5 +85,31 @@ static func _build() -> Dictionary[String, EnemyDef]:
 	boss.boss = true
 	boss.summon = EnemyDef.Summon.new("scout", 2, 7)
 	out["boss"] = boss
+
+	var saboteur := _enemy("saboteur", "Saboteur", "saboteur", 1.4, 50, 14, 1, 15,
+		"Every 4 s an EMP switches off the towers near it for 2.5 s.")
+	saboteur.emp = EnemyDef.Emp.new(80, 2.5, 4)
+	out["saboteur"] = saboteur
+
+	var hopper := _enemy("hopper", "Hopper", "hopper", 1.5, 40, 12, 1, 14,
+		"Jumps over walls and towers: a maze can't hold it.")
+	hopper.hops = true
+	out["hopper"] = hopper
+
+	var warchief := _enemy("warchief", "Warchief", "warchief", 1.0, 150, 25, 2, 18,
+		"Enemies near it move 30% faster and take 25% less damage. Kill it first.")
+	warchief.rally = EnemyDef.Rally.new(90, 0.3, 0.25)
+	out["warchief"] = warchief
+
+	var colossus := _enemy("colossus", "Colossus", "colossus", 0.5, 2600, 300, 15, 28,
+		"Final boss. Heavy armor, then rage, then a shield and reinforcements. Costs 15 lives.")
+	colossus.armor = 5
+	colossus.scale = 1.6
+	colossus.boss = true
+	colossus.phases = [
+		EnemyDef.Phase.new(0.66, "The Colossus sheds its armor!", 0, 1.6),
+		EnemyDef.Phase.new(0.33, "The Colossus calls for help!", 0, 1.6).with_summon("warchief", 2).with_shield(300),
+	]
+	out["colossus"] = colossus
 
 	return out

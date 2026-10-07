@@ -26,6 +26,8 @@ enum Type {
 	MINE_BLAST, ## x, y, radius
 	RAIL, ## x, y (the tower) to x2, y2 (where the shot ended), kind (branch id)
 	RUN_PERK, ## kind (run perk id): taken
+	EMP, ## x, y, radius: a saboteur switched towers off
+	BOSS_PHASE, ## x, y, enemy, text: a boss changed
 }
 
 var type: Type
@@ -37,6 +39,7 @@ var level: int = 0
 var amount: int = 0
 var bullet: Towers.BulletType = Towers.BulletType.NORMAL
 var radius: float = 0.0
+var text: String = ""
 var x2: float = 0.0
 var y2: float = 0.0
 var wave: int = 0

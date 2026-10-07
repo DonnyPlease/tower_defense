@@ -36,6 +36,14 @@ var hit_flash: int = 0 ## ticks left of the white "got hit" flash
 var mark_ticks: int = 0 ## ticks left of a focus mark (it takes more damage while marked)
 var mark_factor: float = 1.0 ## damage multiplier while marked
 var ability_timer: int = 0 ## ticks until the next heal / summon
+var armor: float ## flat damage reduction per hit (a boss phase can change it)
+var phase: int = 0 ## boss phases passed (EnemyDef.phases)
+var speed_mult: float = 1.0 ## from boss phases
+var rallied: bool = false ## near a warchief (set by the world every tick)
+var rally_speed: float = 0.0
+var rally_toughness: float = 0.0
+## Hoppers: the world's obstacles, to know when they are in the air.
+var obstacles: FlowField = null
 var stun_ticks: int = 0 ## ticks left frozen solid (a cryo pulse): it doesn't move
 var vulnerability: float = 0.0 ## extra damage taken while chilled by a cryo tower (0.3 = +30 %)
 
@@ -57,6 +65,7 @@ func _init(p_type: String, p_nav: Nav, hp_multiplier: float = 1.0) -> void:
 	def = Enemies.get_def(p_type)
 	radius = def.radius
 	flying = def.flying
+	armor = def.armor
 	max_hitpoints = MathX.js_round(def.hitpoints * hp_multiplier)
 	hitpoints = max_hitpoints
 	max_shield = MathX.js_round(def.shield * hp_multiplier)
@@ -72,6 +81,8 @@ func _init(p_type: String, p_nav: Nav, hp_multiplier: float = 1.0) -> void:
 		ability = def.heal.interval
 	elif def.summon != null:
 		ability = def.summon.interval
+	elif def.emp != null:
+		ability = def.emp.interval
 	ability_timer = MathX.js_round(ability * Config.TICK_RATE)
 	remaining = nav.remaining()
 
@@ -105,7 +116,7 @@ func update(extra_slow: float = 0.0) -> void:
 		vy = 0.0
 		return
 
-	if not nav.move(def.speed * (1 - maxf(slow, extra_slow))):
+	if not nav.move(def.speed * speed_factor() * (1 - maxf(slow, extra_slow))):
 		alive = false
 		escaped = true
 	x = nav.x
@@ -125,6 +136,20 @@ func is_marked() -> bool:
 func mark(ticks: int, factor: float) -> void:
 	mark_ticks = ticks
 	mark_factor = factor
+
+
+## Speed multiplier from boss phases and a warchief's rally (before slows).
+func speed_factor() -> float:
+	return speed_mult * (1 + rally_speed if rallied else 1.0)
+
+
+## A hopper over a wall or a tower is in the air.
+func is_jumping() -> bool:
+	if not def.hops or obstacles == null or obstacles.blocked.is_empty():
+		return false
+	var col: int = floori(x / Config.TILE)
+	var row: int = floori(y / Config.TILE)
+	return GameMap.in_bounds(col, row) and obstacles.blocked[row * Config.COLS + col] != 0
 
 
 func is_frozen() -> bool:
@@ -161,8 +186,8 @@ func hit(damage: float, ignores_armor: bool = false, flash: bool = true) -> bool
 	if not alive or damage <= 0:
 		return false
 	var dmg: float = damage
-	if def.armor > 0 and not ignores_armor:
-		dmg = maxf(dmg * MIN_DAMAGE_FRACTION, dmg - def.armor)
+	if armor > 0 and not ignores_armor:
+		dmg = maxf(dmg * MIN_DAMAGE_FRACTION, dmg - armor)
 	if max_shield > 0:
 		_shield_cooldown = SHIELD_DELAY
 		var absorbed: float = minf(shield, dmg)

@@ -168,7 +168,42 @@ static func _build() -> Array[LevelDef]:
 			Wave.new([_g("boss", 2, 10), _g("armored", 12, 0.9, 2), _g("splitter", 12, 0.8, 6), _g("healer", 5, 2, 4)]),
 		], true)
 
-	return [meadow, riverside, highlands, openfield]
+	var citadel := _level("citadel", "Citadel", "Wide roads, and the enemies that beat mazes. The Colossus awaits.", 400, 20,
+		1.03, # tuned with the balance tuner (without walls or abilities)
+		PackedStringArray([
+			"....................",
+			"S#####..............",
+			"S#####.......HH.....",
+			"....##.......HH.....",
+			"....##..............",
+			"....##########......",
+			"....##########..R...",
+			"..HH........##..R...",
+			"..HH........##......",
+			"......########......",
+			"......########...HH.",
+			"......##.........HH.",
+			"......#############E",
+			"......#############E",
+			"....................",
+		]), [
+			Wave.new([_g("scout", 12, 0.6)]),
+			Wave.new([_g("hopper", 8, 1.0)]),
+			Wave.new([_g("racer", 10, 0.4), _g("saboteur", 2, 3, 2)]),
+			Wave.new([_g("tank", 4, 2), _g("warchief", 1, 1, 3), _g("scout", 10, 0.5, 1)]),
+			Wave.new([_g("shielded", 10, 0.6), _g("hopper", 8, 0.8, 3)]),
+			Wave.new([_g("armored", 6, 1.3), _g("saboteur", 3, 2.5, 2)]),
+			Wave.new([_g("boss", 1, 1), _g("hopper", 10, 0.6, 3)]),
+			Wave.new([_g("splitter", 10, 1.0), _g("warchief", 2, 4, 2)]),
+			Wave.new([_g("drone", 10, 0.6), _g("saboteur", 4, 2, 2), _g("racer", 12, 0.35, 4)]),
+			Wave.new([_g("tank", 8, 1.1), _g("warchief", 3, 3, 2), _g("healer", 3, 3, 3)]),
+			Wave.new([_g("hopper", 20, 0.4), _g("shielded", 12, 0.5, 3)]),
+			Wave.new([_g("armored", 10, 1), _g("saboteur", 5, 1.8, 2), _g("warchief", 3, 3, 5)]),
+			Wave.new([_g("brute", 2, 5), _g("splitter", 12, 0.8, 2), _g("hopper", 14, 0.5, 6)]),
+			Wave.new([_g("colossus", 1, 1), _g("warchief", 2, 4, 4), _g("shielded", 12, 0.6, 6), _g("drone", 10, 0.6, 8)]),
+		], false, true)
+
+	return [meadow, riverside, highlands, openfield, citadel]
 
 
 # ---- Variants -------------------------------------------------------------------
@@ -242,7 +277,7 @@ static func with_variant(level: LevelDef, variant_id: String) -> LevelDef:
 
 static func _build_endless() -> LevelDef:
 	return _level("endless", "Endless", "Waves never stop. How long can you last?", 350, 20,
-		1.37, # tuned (balance/tune.gd -- endless): average players survive about 20 waves, without walls or abilities
+		1.30, # tuned (balance/tune.gd -- endless): average players survive about 20 waves, without walls or abilities
 		LEVELS[2].tiles, [], false, true)
 
 
@@ -272,8 +307,27 @@ static var ENDLESS_POOL: Array[PoolEntry] = [
 ]
 
 
-## Wave `index` of endless mode. Deterministic: the same index gives the same wave.
+## Wave `index` of endless mode: the classic wave, plus (from wave 7) the
+## enemies that beat mazes and builds: hoppers, saboteurs, warchiefs and,
+## every 25 waves, the Colossus. Deterministic: the same index gives the same wave.
 static func endless_wave(index: int) -> Wave:
+	var wave: Wave = classic_endless_wave(index)
+	if index < 6:
+		return wave
+	var rand := Mulberry32.new(index * 104729 + 3)
+	var delay: float = 3 + rand.next() * 4
+	wave.groups.append(_g("hopper", mini(20, 2 + floori(index / 4.0)), 0.6, delay))
+	if index >= 9 and index % 2 == 1:
+		wave.groups.append(_g("saboteur", 1 + floori(index / 10.0), 2.5, delay + 2 + rand.next() * 3))
+	if index >= 12 and index % 3 == 0:
+		wave.groups.append(_g("warchief", 1 + floori(index / 15.0), 4, delay + 1 + rand.next() * 3))
+	if (index + 1) % 25 == 0:
+		wave.groups.append(_g("colossus", floori((index + 1) / 25.0), 10, 2))
+	return wave
+
+
+## The endless wave as the original game made it (still matches it exactly).
+static func classic_endless_wave(index: int) -> Wave:
 	var rand := Mulberry32.new(index * 7919 + 17)
 	var wave := Wave.new()
 	var budget: float = 40 + 18 * index + 0.8 * index * index
