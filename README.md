@@ -58,13 +58,16 @@ Pick one with the switch on the level's card.
 | Beacon | Boosts the fire rate of nearby towers | ★ 3, after the Laser, 7 stars earned |
 | Magnet | Pulls the enemies' way towards it and slows them in its field | ★ 3, after the Beacon, 9 stars earned |
 
-Click a placed tower to upgrade it, sell it (50% of everything you spent), or
-choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
+Click a placed tower and a card pops up beside it: upgrade it (hovering
+*Upgrade* draws the next level's range), sell it (50% of everything you spent),
+or choose what it shoots at: **First**, **Last**, **Strongest** or **Closest**.
+*Details* folds out its stats, what the next level brings, and how it has done
+in this game (kills and damage dealt).
 
 **Branches.** At level 3 a tower stops upgrading in a line: it grows into one of
 two different towers, each with two more levels (levels 4 and 5). The choice is
 for good (selling and rebuilding is the only way back), so every army ends up
-different. Hover a branch button in the sidebar to read what it does.
+different. Hover a branch button on the tower's card to read what it does.
 
 | Tower | Branch A | Branch B |
 | --- | --- | --- |
@@ -87,8 +90,9 @@ Branch numbers live with the towers in `src/data/towers.gd`. Levels 1-3 are
 unchanged, so the balance measurements (made without branches, see
 [Balancing](#balancing)) still describe the base game.
 
-**Walls and abilities.** The bar along the bottom of the field holds the wall
-tool and seven abilities. Each costs money (and most have a cooldown), so using
+**Walls and abilities.** The rail has a *Wall* button under the towers, and an
+*Abilities* button that drops down the seven abilities beside it (their hotkeys
+work whether it is open or not). Each costs money (and most have a cooldown), so using
 them is a decision. Everything about them (prices, cooldowns, strength, and an
 on/off switch for each) is in `src/data/abilities.gd`.
 
@@ -143,20 +147,26 @@ They are in `src/data/run_perks.gd`:
 | Reinforcements | +10 lives |
 | Stonework | Every wall costs $10 |
 
-**First game.** On Meadow, a new player gets short hints at the top of the
-field (build, start a wave, select, upgrade, walls); they move on as you do
-each step, and can be skipped.
+**First game.** On Meadow, a new player gets short hints on the field (build,
+start a wave, select, upgrade, walls); they move on as you do each step, and
+can be skipped.
 
 **Economy.** You get a bonus for every wave you clear, plus 5% interest on
-unspent money. Call the next wave early for extra cash. The sidebar shows what
-the next wave contains.
+unspent money. Call the next wave early for extra cash. The rail shows what
+the next wave contains: hover (or tap) an enemy's icon for its hitpoints in
+that wave, speed, armor, shield and worth. With *Auto waves* on (gear menu),
+the next wave starts by itself 5 seconds after one is cleared.
 
 **Progression: the tech tree.** Earn 1–3 stars per level: 3 for losing no
 lives, 2 for keeping at least half. Spend them in the **tech tree** (main menu,
 level select, or the victory dialog): towers, every tower branch, perks
 (starting money, lives, cheaper towers, damage; one node per rank) and starting
 bonuses (*Masonry*: the first 3 walls of every game are free; *Veterans*: the
-first tower you build starts at level 2) and the level variants. A node needs its parents first and a
+first tower you build starts at level 2) and the level variants. The tree has
+two pages, switched at the top (or with `Tab`, `←`, `→`): **Towers**, a line of
+the towers with their two branches under each and a track of the stars earned,
+and **Upgrades**, the perk tracks, starting bonuses, field orders and variants.
+A node needs its parents first and a
 number of stars earned in total, so you choose the order but can't skip the
 early game. Every star can be refunded. The game screen only shows the towers
 you own (a **?** slot hints at the rest); locked content lives in the tree.
@@ -167,7 +177,31 @@ start of the wave).
 
 **Sound.** All sound effects and the music are synthesised when the game
 starts (on a background thread), so there are no audio files. You can toggle
-them in the menu or the sidebar.
+them in the main menu or the gear menu in a game.
+
+## The screen
+
+The map fills the window: it is scaled to the largest size that fits beside
+the rail and the land around it goes on to the window's edges, whatever the
+window's shape (the view is at least 1000 x 600 game units and grows with the
+window, see `src/ui/screen.gd`; the menus stay centred). Everything else stays
+out of the way until it is needed:
+
+- **The rail** at the right edge: money, lives and wave; the towers you own
+  (with a **?** while some are locked); the *Wall* and *Abilities* buttons;
+  the field orders you took (a drop-down); the next wave; and the wave, pause,
+  speed and gear buttons. The gear menu holds music, sound, auto waves and the
+  pause menu. The speed you pick is remembered for the next game.
+- **The tower card** pops up beside the selected tower or wall, and a **help
+  card** beside whatever button the pointer is on (or a finger holds down).
+- **Tap-to-build:** a click on an empty tile opens a small menu of what can be
+  built there; hovering a tower in it draws its range on the tile.
+- **On phones** the rail, the cards and the build menu are drawn up to 1.4x
+  bigger, for fingers, and the rail splits into two columns (towers by the
+  map, wave controls at the edge) so the map can stay as tall as the screen.
+  A notch or home bar is kept clear (`Screen.ui_scale`, `Screen.safe_insets`).
+
+The enemies' paths are not drawn: you see where they go by watching them.
 
 ## Controls
 
@@ -181,7 +215,9 @@ them in the menu or the sidebar.
 | `Q` `W` `E` `R` `Z` `X` `C` `V` | Wall and abilities (see above) |
 | `U` / `S` / `T` | Upgrade / sell / change target of the selected tower |
 | `Space` | Start the next wave (or call it early) |
-| `Esc` / right click | Cancel, or pause |
+| Hover or tap an enemy in the next-wave preview | What it is like |
+| `Tab` / `←` `→` (tech tree) | Switch between the Towers and Upgrades pages |
+| `Esc` / right click | Cancel (close a menu, deselect), or pause |
 | `F` | Speed 1x / 2x / 3x |
 | `M` | Music on/off |
 | Android back button | Pause (again: resume); back to the menu from other screens |
@@ -214,12 +250,14 @@ tests/run.sh smoke --filter=wave,maze
   Enter), sound buttons, building, upgrading, selling, refused builds and the
   maze rule, walls (on grass and on the road, selling them, towers on them),
   every ability (button, hotkey, aiming, cooldowns, messages), waves, calling a
-  wave early, pausing (button, keys, focus loss), game speed, saving and
-  continuing (walls and mines too), winning, losing and endless mode, the tech
-  tree (buying, refunding, what the game then offers), choosing branches,
-  level variants, field orders, the newer enemies and the Citadel, the
-  magnet, tap-to-build, holding a button, the back button, the tutorial, and
-  every map with a busy wave. `test_pixels.gd` checks pixels
+  wave early, auto waves, pausing (button, keys, focus loss), game speed (and
+  remembering it), saving and continuing (walls and mines too), winning,
+  losing and endless mode, the tech tree (both pages, buying, refunding, what
+  the game then offers), choosing branches, the tower card (placement, details,
+  kills and damage, range previews), the gear, abilities and orders drop-downs,
+  the next-wave enemy info, level variants, field orders, the newer enemies and
+  the Citadel, the magnet, tap-to-build, holding a button, the back button,
+  the tutorial, the map filling the window, and every map with a busy wave. `test_pixels.gd` checks pixels
   of real frames (terrain, sidebar, health bars, the build preview, dimmed
   dialogs, walls, mines, the ability bar and effects; also branch art, rail
   tracers, night, and the glow on shots), so the drawing code is tested too.
@@ -229,8 +267,9 @@ tests/run.sh smoke --filter=wave,maze
   state): Meadow is won, with its stars, unlocks and saved result checked, and
   a game without towers is lost.
 - **Phone tests** (`tests/phone/`) run in an 844 x 390 window (a phone held
-  sideways): the game is scaled and letterboxed, taps land where the finger
-  does, and taps on the black bars do nothing.
+  sideways): the game fills it, taps land where the finger does, taps beside
+  the map build nothing, and the phone layout (a bigger two-column rail clear
+  of a notch) is played by touch.
 - **Boot test** (`tests/boot/`) starts the project like a player does, with
   its real main scene and no test runner, records the first 90 frames and
   checks the title screen is drawn, its demo game is moving, nothing was logged
@@ -239,7 +278,7 @@ tests/run.sh smoke --filter=wave,maze
   it in Chromium: it loads without console errors, a level is played (build a
   tower, start a wave), a saved game and the music setting survive reloading
   the page (browser storage), the window can be resized, and on a phone-sized
-  window it is letterboxed and played by touch, and the build can be
+  window it fills the screen and is played by touch, and the build can be
   installed as an app (manifest, icons, service worker). They only look at the pixels
   of the page and use real mouse clicks and finger taps. The first run installs
   the Web export templates (it downloads a 1.2 GB archive, keeps 18 MB of it)
@@ -259,11 +298,12 @@ in and prints a `SCRIPT ERROR`. So the runner reads the engine's log after
 every test, and any script or engine error fails that test (with the error and
 where it happened).
 
-`tools/screenshots.tscn` renders every screen to PNG files (it needs a
+`tools/screenshots.tscn` renders every screen to PNG files, both tech tree
+pages, the game's cards and drop-downs, and the phone layout (it needs a
 display, e.g. `xvfb-run`):
 
 ```bash
-godot --path . res://tools/screenshots.tscn -- /tmp/screenshots
+godot --fixed-fps 60 --resolution 1280x720 --path . res://tools/screenshots.tscn -- /tmp/screenshots
 ```
 
 **CI:** `.github/workflows/ci.yml` runs on every pull request and push to
@@ -309,7 +349,7 @@ the difficulty *without* them: a human who uses them well has an easier game.
 ## Project layout
 
 ```
-project.godot        engine settings (1000 x 600 logical size, strict typing)
+project.godot        engine settings (1000 x 600 or more, expanding to the window; strict typing)
 scenes/              the four screens: menu, level select, tech tree, game
 src/
   config.gd          global constants (sizes, tick rate, economy formulas)
@@ -333,7 +373,7 @@ src/
   game/              saved profile, screen switching (the Router autoload)
   audio/             synthesiser, sound recipes, the Audio autoload
   view/              draws a World: vector art for towers and enemies, effects
-  ui/                sidebar, buttons, dialogs, colours, fonts
+  ui/                the rail, tower and help cards, buttons, dialogs, colours, fonts
   scenes/            the scripts of the screens
 assets/              enemy sprites; symbol fonts (Noto, SIL Open Font License)
 balance/             simulated players, balance report and tuner
@@ -350,11 +390,34 @@ whenever a tower or wall is built or sold, and steer like vehicles: they start
 turning before a corner, turn at a limited rate and slow down for sharp turns.
 Flyers always fly straight.
 
+Enemies turn at a limited rate and their facing is interpolated the short way
+round between ticks, so they don't jitter when their way changes.
+
 The **simulation** (`src/sim`) and the **view** are kept apart. The simulation
 runs at a fixed 60 ticks per second, whatever the monitor's refresh rate. The
 view reads its state every frame and interpolates between ticks, so movement
 stays smooth on 60, 120 or 144 Hz screens. Because of this split, the
 simulation is tested headlessly, and the balance tests play thousands of games.
+
+**Performance.** The work grows with what is on the map, not with time:
+
+- Ways are planned only when something changes. Building or selling bumps
+  `World.obstacles_version`; the distance field is recomputed then (not every
+  frame), enemies re-plan only when its version changed, and the "would this
+  block the path?" check is cached per tile until the next change.
+- Once there are many enemies (64 or more), they are sorted into an
+  `EnemyGrid` of buckets every tick, so towers and bullets look only at the
+  enemies near them instead of all of them (`World.nearby`). The order is kept,
+  so results are exactly the same as without the grid.
+- After a stall (a slow frame, a background tab) the fixed-step loop runs at
+  most `Config.MAX_TICKS_PER_FRAME` ticks per frame instead of trying to catch
+  up all at once.
+- The view redraws the map only when the obstacles change, and every tower
+  remembers the kills and damage it dealt without extra work per tick.
+
+To scale further (bigger maps, thousands of enemies), the grid and the
+version-stamped caches are the places to extend: the simulation never scans
+everything every tick except to move enemies.
 
 ## Adding content
 
