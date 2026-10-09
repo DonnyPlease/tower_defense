@@ -1,18 +1,19 @@
 extends SceneTestCase
 ## Touch controls on a phone held sideways. tests/run.sh runs this suite in an
-## 844 x 390 window: the 1000 x 600 game is scaled to 0.65 and letterboxed,
-## with 97 px bars left and right. Taps are given in game coordinates and
-## mapped to the window like a real finger would land.
+## 844 x 390 window. The game keeps its scale (600 game units tall, so 0.65)
+## and grows sideways to the window's shape: 1298 x 600 game units, with no
+## black bars. Taps are given in game units and mapped to the window like a
+## real finger would land.
 
 const WINDOW: Vector2 = Vector2(844, 390)
 
 
-func letterboxed() -> bool:
+func phone_window() -> bool:
 	return rendering_available() and Vector2(tree.root.size) == WINDOW
 
 
-func test_the_game_is_scaled_to_fit_and_letterboxed() -> void:
-	if not letterboxed():
+func test_the_game_fills_the_phone_screen() -> void:
+	if not phone_window():
 		skip("needs an 844 x 390 window; tests/run.sh phone runs one in xvfb")
 		return
 	use_profile()
@@ -22,25 +23,25 @@ func test_the_game_is_scaled_to_fit_and_letterboxed() -> void:
 	var t: Transform2D = tree.root.get_final_transform()
 	expect_near(t.get_scale().x, 0.65, 3, "scale")
 	expect_near(t.get_scale().y, 0.65, 3, "scale")
-	expect_near(t.origin.x, 97, 1, "left bar")
+	expect_near(t.origin.x, 0, 1, "no bar at the left")
 	expect_near(t.origin.y, 0, 1, "no bar at the top")
+	expect_near(Screen.size(game).x, WINDOW.x / 0.65, 0, "the view is as wide as the window")
 	var img: Image = await screenshot()
-	expect_eq(Vector2(img.get_size()), Vector2(650, 390), "the game is drawn at 65 %")
+	expect_eq(Vector2(img.get_size()), WINDOW, "the whole window is drawn")
 	var p: Vector2 = tile(0, 0)
 	expect_color(pixel_at(img, p.x, p.y), Palette.GRASS_ALT, "the field")
-	expect_color(pixel_at(img, 805, 250), Palette.PANEL, "the sidebar")
 
-	# The window itself, bars included, as the X server shows it.
+	# The window itself, as the X server shows it: no black bars at the sides.
 	await RenderingServer.frame_post_draw
 	var screen: Image = DisplayServer.screen_get_image(DisplayServer.window_get_current_screen())
 	if screen == null or screen.is_empty():
 		return
 	var at: Vector2i = DisplayServer.window_get_position()
-	expect_color(screen.get_pixelv(at + Vector2i(10, 200)), Color.BLACK, "left bar")
-	expect_color(screen.get_pixelv(at + Vector2i(835, 200)), Color.BLACK, "right bar")
+	for x: int in [4, 839]:
+		var c: Color = screen.get_pixelv(at + Vector2i(x, 200))
+		expect_gt(c.r + c.g + c.b, 0.15, "no black bar at x = %d (got #%s)" % [x, c.to_html(false)])
 	p = tile(1, 0)
-	expect_color(screen.get_pixelv(at + Vector2i(t * p)), Palette.GRASS, "the field, right of the left bar")
-	expect_color(screen.get_pixelv(at + Vector2i(t * Vector2(805, 250))), Palette.PANEL, "the sidebar, left of the right bar")
+	expect_color(screen.get_pixelv(at + Vector2i(t * p)), Palette.GRASS, "the field")
 
 
 func test_touch_controls_work_on_a_phone() -> void:
@@ -76,8 +77,8 @@ func test_touch_controls_work_on_a_phone() -> void:
 	expect_false(game.paused)
 
 
-func test_taps_on_the_letterbox_bars_do_nothing() -> void:
-	if not letterboxed():
+func test_taps_beside_the_field_build_nothing() -> void:
+	if not phone_window():
 		skip("needs an 844 x 390 window; tests/run.sh phone runs one in xvfb")
 		return
 	use_profile()
@@ -85,13 +86,12 @@ func test_taps_on_the_letterbox_bars_do_nothing() -> void:
 	if game == null:
 		return
 	await press_key(KEY_1)
-	for x: float in [10.0, 90.0]:
-		await tap_window(x, 10) # left bar, level with the top row of tiles
+	var left: float = game.field_to_screen(Vector2.ZERO).x
+	expect_gt(left, 20, "there is room left of the field")
+	for x: float in [6.0, left - 6]:
+		await tap(x, tile(0, 0).y) # left of the field, level with its top row
 	expect_eq(game.world.towers.size(), 0, "nothing built")
 	expect_eq(game.tool, "gun", "the tool is still picked")
-	await tap_window(835, 380) # right bar, level with the sidebar's sound buttons
-	Profile.forget_cache()
-	expect_false(Profile.load_profile().sfx, "no button pressed")
 	var p: Vector2 = tile(0, 0)
 	await tap(p.x, p.y) # just inside the field
 	expect_eq(tower_names(game), ["gun@0,0"])

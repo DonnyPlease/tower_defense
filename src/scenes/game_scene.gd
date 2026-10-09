@@ -43,7 +43,7 @@ var _stage: Node2D
 var _clock := FixedStep.new()
 var _alpha: float = 0.0
 var _hover_tile: Vector2i = GameMap.NO_TILE
-var _mouse: Vector2 = Vector2.ZERO ## the pointer, in game coordinates
+var _mouse: Vector2 = Vector2.ZERO ## the pointer, in field coordinates
 var _hover: DrawNode
 var _ghost: DrawNode
 var _hint: TextLabel
@@ -121,13 +121,32 @@ func _ready() -> void:
 		Overlay.Action.new("Level select", Router.goto_levels),
 	])
 	for o: Overlay in [pause_overlay, win_overlay, lose_overlay]:
-		_stage.add_child(o)
+		add_child(o) # they cover the whole window
 	draft = DraftOverlay.new(self)
 	_stage.add_child(draft)
+
+	Screen.on_resize(self, _layout)
 
 	var title: String = "Endless mode" if endless else world.map.name
 	show_banner(title + "\nGame resumed" if resumed else title, Palette.TEXT)
 	Audio.set_intensity(0)
+
+
+# ---- layout ------------------------------------------------------------------
+
+## Keeps the game in the middle of the window.
+func _layout() -> void:
+	_stage.position = Screen.center_offset(self)
+
+
+## A point of the field (simulation coordinates) on the screen.
+func field_to_screen(p: Vector2) -> Vector2:
+	return _stage.position + p * _stage.scale
+
+
+## A point of the screen in field coordinates.
+func screen_to_field(p: Vector2) -> Vector2:
+	return (p - _stage.position) / _stage.scale
 
 
 # ---- what the sidebar can do ---------------------------------------------------
@@ -434,7 +453,9 @@ func _notification(what: int) -> void:
 		toggle_pause()
 
 
-func _update_hover(p: Vector2) -> void:
+## `p` is a point on the screen.
+func _update_hover(screen_point: Vector2) -> void:
+	var p: Vector2 = screen_to_field(screen_point)
 	_mouse = p
 	if p.x >= 0 and p.x < Config.FIELD_W and p.y >= 0 and p.y < Config.FIELD_H:
 		_hover_tile = Vector2i(floori(p.x / Config.TILE), floori(p.y / Config.TILE))

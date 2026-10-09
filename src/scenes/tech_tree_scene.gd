@@ -39,15 +39,7 @@ static func node_rect(n: Tech.TechNode) -> Rect2:
 
 func _ready() -> void:
 	_profile = Profile.load_profile()
-	var ui := Control.new()
-	ui.size = Vector2(Config.WIDTH, Config.HEIGHT)
-	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(ui)
-	var bg := ColorRect.new()
-	bg.color = Palette.BACKGROUND
-	bg.size = ui.size
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui.add_child(bg)
+	var ui: Control = Screen.centered_page(self)
 	_links = DrawNode.new(_draw_links)
 	ui.add_child(_links)
 	Ui.text(ui, Config.WIDTH / 2.0, 34, "Tech tree", 30, Palette.TEXT, true, Vector2(0.5, 0.5))

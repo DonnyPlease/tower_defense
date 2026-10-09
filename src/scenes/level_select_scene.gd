@@ -40,15 +40,7 @@ class Card:
 func _ready() -> void:
 	var profile: Profile = Profile.load_profile()
 	_profile = profile
-	var ui := Control.new()
-	ui.size = Vector2(Config.WIDTH, Config.HEIGHT)
-	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(ui)
-	var bg := ColorRect.new()
-	bg.color = Palette.BACKGROUND
-	bg.size = ui.size
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui.add_child(bg)
+	var ui: Control = Screen.centered_page(self)
 
 	Ui.text(ui, Config.WIDTH / 2.0, 36, "Choose a level", 30, Palette.TEXT, true, Vector2(0.5, 0.5))
 	_stars = Ui.text(ui, Config.WIDTH / 2.0, 66, "★ %d stars" % profile.total_stars(), 15, Palette.GOLD, false, Vector2(0.5, 0.5))

@@ -31,6 +31,7 @@ func shake(duration_ms: float, intensity: float) -> void:
 func flash(duration_ms: float, color: Color) -> void:
 	_flash_duration = duration_ms / 1000.0
 	_flash_left = _flash_duration
+	_flash.size = Screen.size(_flash)
 	_flash.color = color
 	_flash.visible = true
 
