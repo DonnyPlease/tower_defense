@@ -133,6 +133,18 @@ func clamp_offset(offset: float, i: int) -> float:
 	return maxf(-right[i], minf(left[i], offset))
 
 
+## Allowed offset range at distance `s` (in sample segment `i`), blended
+## between the samples so a lane at the edge of the road changes smoothly
+## (clamping to one sample's width at a time made enemies jitter sideways).
+func clamp_offset_at(offset: float, s: float, i: int) -> float:
+	var j: int = i + 1 if i + 1 < px.size() else i
+	var seg: float = cum[j] - cum[i]
+	var t: float = clampf((s - cum[i]) / seg, 0.0, 1.0) if seg > 0.0 else 0.0
+	var l: float = left[i] + (left[j] - left[i]) * t
+	var r: float = right[i] + (right[j] - right[i]) * t
+	return maxf(-r, minf(l, offset))
+
+
 ## Turns a tile-by-tile path (along the middle of the road) into a natural
 ## curve: relaxes the zig-zags into diagonals and the corners into arcs as
 ## wide as the road allows. `clearance(x, y)` is the distance from (x, y) to

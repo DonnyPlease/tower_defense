@@ -61,7 +61,7 @@ func move(step: float) -> bool:
 		_i = _route.seek(_s, _i)
 		var want: float = _desired_offset()
 		var shift: float = maxf(-LANE_SHIFT * ds, minf(LANE_SHIFT * ds, want - off0))
-		_offset = _route.clamp_offset(off0 + shift, _i)
+		_offset = _route.clamp_offset_at(off0 + shift, _s, _i)
 		_place()
 		var moved: float = MathX.hypot(x - x0, y - y0)
 		if k == 0 and moved > 1e-6:
@@ -76,7 +76,7 @@ func move(step: float) -> bool:
 func fall_back(dist: float) -> void:
 	_s = maxf(0.0, _s - dist)
 	_i = _route.seek(_s, _i)
-	_offset = _route.clamp_offset(_offset, _i)
+	_offset = _route.clamp_offset_at(_offset, _s, _i)
 	_place()
 
 

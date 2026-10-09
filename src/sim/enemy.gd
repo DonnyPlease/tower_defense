@@ -5,6 +5,7 @@ extends RefCounted
 const SHIELD_DELAY: int = 3 * Config.TICK_RATE # ticks without damage before the shield recharges
 const SHIELD_REGEN: float = 0.25 / Config.TICK_RATE # fraction of max shield per tick
 const MIN_DAMAGE_FRACTION: float = 0.25 # armor never blocks more than 75 % of a hit
+const MAX_TURN: float = 0.15 # fastest the drawn body turns, radians per tick (a U-turn takes a moment)
 
 static var _next_id: int = 1
 
@@ -125,8 +126,9 @@ func update(extra_slow: float = 0.0) -> void:
 	vy = y - prev_y
 	remaining = nav.remaining()
 
-	# Turn the sprite smoothly instead of snapping at corners.
-	angle += MathX.angle_diff(angle, nav.heading) * 0.25
+	# Turn the sprite smoothly instead of snapping at corners, and never
+	# faster than a vehicle could.
+	angle += clampf(MathX.angle_diff(angle, nav.heading) * 0.25, -MAX_TURN, MAX_TURN)
 
 
 func is_marked() -> bool:
