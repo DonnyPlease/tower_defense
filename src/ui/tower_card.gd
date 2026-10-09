@@ -254,9 +254,11 @@ func _resize(h: float) -> void:
 		queue_redraw()
 
 
-## Stats now, what the next level brings, and the tower's description.
+## Stats now, how it has done, what the next level brings, and the tower's description.
 static func details_text_for(world: World, t: Tower) -> String:
 	var lines: PackedStringArray = [Format.tower_stats_text(t.kind, t.level, t.attack_range, t.buff, t.branch_id)]
+	if t.def.behavior != Towers.Behavior.SUPPORT:
+		lines.append("This game: %d kill%s  ·  %s damage" % [t.kills, "" if t.kills == 1 else "s", Format.compact(t.damage_done)])
 	if not t.is_max_level() and not t.needs_branch():
 		var next: int = t.level + 1
 		var reach: float = Towers.level_stats(t.kind, next, t.branch_id).attack_range \

@@ -285,6 +285,25 @@ func test_round_trips_a_snapshot_between_waves() -> void:
 	expect_true(copy.tower_at(0, 0) == c)
 
 
+func test_towers_are_credited_with_their_kills_and_damage() -> void:
+	var w := World.new(meadow)
+	w.money = 1000
+	var gun: Tower = w.build("gun", 6, 9)
+	var missile: Tower = w.build("missile", 13, 7)
+	w.start_next_wave()
+	for i: int in 60 * 60:
+		w.update()
+		if not w.is_spawning() and w.enemies.is_empty():
+			break
+	expect_gt(w.kills, 0)
+	expect_eq(gun.kills + missile.kills, w.kills, "every kill was a tower's")
+	expect_gt(gun.damage_done + missile.damage_done, 0.0)
+	var copy := World.new(meadow)
+	copy.restore(WorldSnapshot.from_dict(JSON.parse_string(JSON.stringify(w.snapshot().to_dict()))))
+	expect_eq(copy.tower_at(6, 9).kills, gun.kills, "kept when the game is saved")
+	expect_near(copy.tower_at(13, 7).damage_done, roundf(missile.damage_done), 0)
+
+
 func test_cannot_snapshot_during_a_wave() -> void:
 	var w := World.new(meadow)
 	w.start_next_wave()

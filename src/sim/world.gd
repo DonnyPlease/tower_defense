@@ -549,17 +549,24 @@ func spawn(type: String, from: Enemy = null) -> Enemy:
 ## Damages an enemy (armor and shields apply, a focus mark doubles it, a
 ## cryo chill adds to it); pays
 ## the reward (doubled during a bounty) and splits splitters when it dies.
-func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: bool = true) -> void:
+## The tower that dealt it, if any, is credited with the damage and the kill.
+func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: bool = true, by: Tower = null) -> void:
 	var dealt: float = amount * e.mark_factor if e.mark_ticks > 0 else amount
 	if e.vulnerability > 0:
 		dealt *= 1 + e.vulnerability
 	if e.rallied:
 		dealt *= 1 - e.rally_toughness
-	if not e.hit(dealt, ignores_armor, flash):
+	var before: float = e.hitpoints + e.shield
+	var killed: bool = e.hit(dealt, ignores_armor, flash)
+	if by != null:
+		by.damage_done += before - (e.hitpoints + e.shield)
+	if not killed:
 		if e.alive and not e.def.phases.is_empty():
 			_check_phase(e)
 		return
 	kills += 1
+	if by != null:
+		by.kills += 1
 	var reward: int = e.def.reward * (roundi(Abilities.get_def("bounty").power) if is_active("bounty") else 1)
 	if has_perk("headhunter"):
 		reward += RunPerks.HEADHUNTER_BONUS
@@ -598,6 +605,7 @@ func enemy_grid() -> EnemyGrid:
 
 ## A tower fired a bullet.
 func fire(b: Bullet, from: Tower) -> void:
+	b.source = from
 	bullets.append(b)
 	var ev := WorldEvent.new(WorldEvent.Type.SHOT, b.x, b.y)
 	ev.kind = from.branch_id if from.branch != null else from.kind
@@ -639,7 +647,7 @@ func rail(from: Tower, angle: float, length: float, damage: float, max_hits: int
 	ev.kind = from.branch_id
 	events.append(ev)
 	for e: Enemy in hits:
-		damage_enemy(e, damage, from.ignores_armor)
+		damage_enemy(e, damage, from.ignores_armor, true, from)
 
 
 ## A frost tower pulsed (for effects).
@@ -1002,14 +1010,14 @@ func update() -> void:
 			var ev := WorldEvent.new(WorldEvent.Type.HIT, b.x, b.y)
 			ev.bullet = b.type
 			events.append(ev)
-			damage_enemy(b.hit_enemy, b.damage_to(b.hit_enemy), b.ignores_armor)
+			damage_enemy(b.hit_enemy, b.damage_to(b.hit_enemy), b.ignores_armor, true, b.source)
 		elif outcome == Bullet.Outcome.EXPLODE:
 			var ev := WorldEvent.new(WorldEvent.Type.EXPLODE, b.x, b.y)
 			ev.radius = b.splash
 			events.append(ev)
 			for e: Enemy in enemies.duplicate():
 				if b.can_hit(e) and MathX.hypot(e.x - b.x, e.y - b.y) <= b.splash + e.radius:
-					damage_enemy(e, b.damage_to(e), b.ignores_armor)
+					damage_enemy(e, b.damage_to(e), b.ignores_armor, true, b.source)
 
 	_grid_ready = false
 	var alive_enemies: Array[Enemy] = []
@@ -1087,6 +1095,8 @@ func snapshot() -> WorldSnapshot:
 		save.branch = t.branch_id
 		save.target_mode = t.target_mode
 		save.invested = t.invested
+		save.kills = t.kills
+		save.damage = roundi(t.damage_done)
 		s.towers.append(save)
 	for tile: Vector2i in walls:
 		var wall := WorldSnapshot.WallSave.new()
@@ -1134,6 +1144,8 @@ func restore(s: WorldSnapshot) -> void:
 		else:
 			tower.level = clampi(save.level, 0, Towers.BRANCH_LEVEL - 1)
 		tower.target_mode = save.target_mode
+		tower.kills = save.kills
+		tower.damage_done = save.damage
 		towers.append(tower)
 	_obstacles_changed()
 	mines = []

@@ -649,6 +649,7 @@ func test_the_tower_card_folds_out_its_details() -> void:
 	await click_button(card.details_button)
 	expect_contains(card.body_text(), "Damage 6")
 	expect_contains(card.body_text(), "Next level:\nDamage 10")
+	expect_contains(card.body_text(), "This game: 0 kills  ·  0 damage", "and how it has done")
 	expect_gt(card.size.y, folded + 60, "the card grows to show them")
 	# The choice is kept for the next tower.
 	await press_key(KEY_ESCAPE)

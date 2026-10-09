@@ -65,3 +65,11 @@ func test_failure_messages_name_objects_instead_of_serialising_them() -> void:
 	expect_match(TestCase.describe_value(w.towers), "^\\[<Tower#-?\\d+>\\]$")
 	expect_eq(TestCase.describe_value(3), "3")
 	expect_eq(TestCase.describe_value("a"), '"a"')
+
+
+func test_compact_keeps_big_counts_short() -> void:
+	expect_eq(Format.compact(0), "0")
+	expect_eq(Format.compact(949.6), "950")
+	expect_eq(Format.compact(12340), "12.3k")
+	expect_eq(Format.compact(123456), "123k")
+	expect_eq(Format.compact(4100000), "4.1M")

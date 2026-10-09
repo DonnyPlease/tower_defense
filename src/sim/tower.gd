@@ -45,6 +45,8 @@ var range_factor: float = 1.0 ## the level's range multiplier (night), see set_r
 var heat: int = 0 ## laser: ticks spent on the current target
 var spin: float = 0.0 ## minigun: 0..1, how far it has spun up
 var disabled_ticks: int = 0 ## switched off by a saboteur's EMP
+var kills: int = 0 ## enemies this tower finished off
+var damage_done: float = 0.0 ## damage it dealt (after armor and shields)
 
 ## Stats of the current level.
 var stats: TowerLevel
@@ -366,7 +368,7 @@ func _update_beam(world: World) -> void:
 	targets.append(target)
 	heat = heat + (2 if world.has_perk("overcharge") else 1) if target == previous else 0
 	angle = atan2(target.y - y, target.x - x)
-	world.damage_enemy(target, _beam_damage(world), ignores_armor, false)
+	world.damage_enemy(target, _beam_damage(world), ignores_armor, false, self)
 
 
 ## Prism: burns several enemies at once; heat builds while it burns anything.
@@ -380,7 +382,7 @@ func _update_prism(world: World) -> void:
 	angle = atan2(target.y - y, target.x - x)
 	var per_tick: float = _beam_damage(world)
 	for e: Enemy in targets.duplicate():
-		world.damage_enemy(e, per_tick, ignores_armor, false)
+		world.damage_enemy(e, per_tick, ignores_armor, false, self)
 
 
 func _beam_damage(world: World) -> float:
@@ -415,7 +417,7 @@ func _update_aura(world: World) -> void:
 			if e.max_shield > 0 and world.has_perk("shatter"):
 				e.shield = maxf(0.0, e.shield - e.max_shield * 0.5)
 			if stats.damage > 0:
-				world.damage_enemy(e, stats.damage * world.damage_multiplier, false, true)
+				world.damage_enemy(e, stats.damage * world.damage_multiplier, false, true, self)
 			if freeze > 0 and e.alive:
 				e.freeze(maxi(1, floori(freeze / 3.0)) if e.def.boss else freeze)
 		i += 1

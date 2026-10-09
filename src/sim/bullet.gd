@@ -36,6 +36,7 @@ var alive: bool = true
 ## What happened during the last update().
 var outcome: Outcome = Outcome.NONE
 var hit_enemy: Enemy = null ## Outcome.HIT: the enemy that was hit
+var source: Tower = null ## the tower that fired it (credited with its damage)
 
 
 ## `aim` is where a shell explodes (other bullets ignore it).
