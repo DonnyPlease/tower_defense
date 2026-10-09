@@ -7,7 +7,6 @@ extends Node2D
 ## Draw order (z_index) of the layers inside the playing field. Towers (5-10)
 ## and enemies (5, 20, 26) set their own; see TowerView and EnemyView.
 const D_MAP: int = 0
-const D_PATH_PREVIEW: int = 2
 const D_MINES: int = 3
 const D_WALLS: int = 4
 const D_BULLETS: int = 30
@@ -36,10 +35,10 @@ var _towers: Dictionary[Tower, TowerView] = {}
 var _enemies: Dictionary[Enemy, EnemyView] = {}
 var _alpha: float = 0.0
 var _frame_count: int = 0
-var _path_key: String = "-"
-var _wall_key: String = "-"
+var _obstacles_seen: int = -1 ## world.obstacles_version the walls were drawn for
+var _towers_seen: int = -1 ## world.obstacles_version the tower views match
 var _mines_drawn: bool = false
-var _path_preview: DrawNode
+var _abilities_drawn: bool = false
 var _walls: DrawNode
 var _mines: DrawNode
 var _abilities: DrawNode
@@ -64,8 +63,6 @@ var _rails: Array[PackedFloat32Array] = []
 func _init(p_world: World) -> void:
 	world = p_world
 	add_child(DrawNode.new(_draw_map, D_MAP))
-	_path_preview = DrawNode.new(_draw_path_preview, D_PATH_PREVIEW)
-	add_child(_path_preview)
 	_mines = DrawNode.new(_draw_mines, D_MINES)
 	add_child(_mines)
 	_walls = DrawNode.new(_draw_walls, D_WALLS)
@@ -188,28 +185,6 @@ func _arrow(g: CanvasItem, t: Vector2i, inward: bool) -> void:
 		p.x - ax * 6 + ay * 8, p.y - ay * 6 + ax * 8, Color(1, 1, 1, 0.55))
 
 
-## Levels where enemies re-route: dotted line showing the route they will take right now.
-func _draw_path_preview(g: CanvasItem) -> void:
-	var map: GameMap = world.map
-	if not map.flow:
-		return
-	var dist: PackedInt32Array = world.distance_field
-	var dot := Color(1, 1, 1, 0.35)
-	for s: Vector2i in map.starts:
-		var cur: Vector2i = s
-		var dir: Vector2i = GameMap.NO_TILE
-		var i: int = 0
-		while cur != GameMap.NO_TILE and i < 400:
-			var p: Vector2 = GameMap.tile_center(cur)
-			g.draw_circle(p, 3, dot)
-			var next: Vector2i = GameMap.next_tile(dist, cur, dir)
-			if next != GameMap.NO_TILE:
-				dir = next - cur
-				g.draw_circle(p + Vector2(dir) * (Config.TILE / 2.0), 2, dot)
-			cur = next
-			i += 1
-
-
 ## Walls (and the stone under towers on the road).
 func _draw_walls(g: CanvasItem) -> void:
 	for tile: Vector2i in world.walls:
@@ -220,6 +195,20 @@ func _draw_mines(g: CanvasItem) -> void:
 	var blink: float = 0.5 + 0.5 * sin(_frame_count * 0.18)
 	for m: World.Mine in world.mines:
 		AbilityArt.draw_mine(g, Vector2(m.x, m.y), blink)
+
+
+## Whether the abilities' layer has anything to show (a timed ability, an
+## airstrike, a focus mark).
+func _abilities_showing() -> bool:
+	if not world.strikes.is_empty():
+		return true
+	for id: String in ["slow", "boost", "bounty"]:
+		if world.is_active(id):
+			return true
+	for e: Enemy in world.enemies:
+		if e.mark_ticks > 0:
+			return true
+	return false
 
 
 ## What the abilities show on the field: tint and frame while one lasts,
@@ -261,20 +250,17 @@ func _draw_abilities(g: CanvasItem) -> void:
 func sync(alpha: float) -> void:
 	_alpha = alpha
 	_frame_count += 1
-	if world.map.flow:
-		var key: String = ";".join(world.towers.map(func(t: Tower) -> String: return "%d,%d,%d" % [t.col, t.row, t.level]))
-		key += "|" + ";".join(world.walls.keys().map(func(t: Vector2i) -> String: return "%d,%d" % [t.x, t.y]))
-		if key != _path_key:
-			_path_key = key
-			_path_preview.queue_redraw()
-	var walls_key: String = ";".join(world.walls.keys().map(func(t: Vector2i) -> String: return "%d,%d" % [t.x, t.y]))
-	if walls_key != _wall_key:
-		_wall_key = walls_key
+	if _obstacles_seen != world.obstacles_version:
+		_obstacles_seen = world.obstacles_version
 		_walls.queue_redraw()
 	if not world.mines.is_empty() or _mines_drawn:
 		_mines.queue_redraw()
 	_mines_drawn = not world.mines.is_empty()
-	_abilities.queue_redraw()
+	# The abilities' layer only changes while one of them shows something.
+	var showing: bool = _abilities_showing()
+	if showing or _abilities_drawn:
+		_abilities.queue_redraw()
+	_abilities_drawn = showing
 	if night != null:
 		night.sync(world)
 	_sync_towers()
@@ -297,19 +283,22 @@ func sync(alpha: float) -> void:
 
 
 func _sync_towers() -> void:
-	var live: Dictionary[Tower, bool] = {}
-	for t: Tower in world.towers:
-		live[t] = true
-	for t: Tower in _towers.keys():
-		if not live.has(t):
-			_towers[t].queue_free()
-			_towers.erase(t)
-	for t: Tower in world.towers:
-		var v: TowerView = _towers.get(t)
-		if v == null:
-			v = TowerView.new(t)
-			add_child(v)
-			_towers[t] = v
+	# Towers only come and go when the world's obstacles change.
+	if _towers_seen != world.obstacles_version or _towers.size() != world.towers.size():
+		_towers_seen = world.obstacles_version
+		var live: Dictionary[Tower, bool] = {}
+		for t: Tower in world.towers:
+			live[t] = true
+		for t: Tower in _towers.keys():
+			if not live.has(t):
+				_towers[t].queue_free()
+				_towers.erase(t)
+		for t: Tower in world.towers:
+			if not _towers.has(t):
+				var view := TowerView.new(t)
+				add_child(view)
+				_towers[t] = view
+	for v: TowerView in _towers.values():
 		v.sync(_alpha, _frame_count)
 
 

@@ -73,6 +73,8 @@ var waves_cleared: int = 0
 var kills: int = 0
 var status: Status = Status.PLAYING
 var events: Array[WorldEvent] = []
+## Changes whenever a tower or wall is built or sold (views compare it).
+var obstacles_version: int = 0
 ## Walls by tile, with what each cost (the refund when it is sold).
 var walls: Dictionary[Vector2i, int] = {}
 var mines: Array[Mine] = []
@@ -321,7 +323,7 @@ func has_wall(col: int, row: int) -> bool:
 	return walls.has(Vector2i(col, row))
 
 
-## Current distance field (maze levels), for drawing the enemy path.
+## Current distance field enemies follow (levels where they re-route).
 var distance_field: PackedInt32Array:
 	get:
 		return _flow.dist
@@ -468,6 +470,7 @@ func start_next_wave() -> bool:
 
 ## Towers or walls were added or removed: enemies re-plan their way.
 func _obstacles_changed() -> void:
+	obstacles_version += 1
 	_what_if.clear()
 	_tower_grid.fill(null)
 	_block_mask.fill(0)

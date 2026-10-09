@@ -22,8 +22,12 @@ func test_the_field_and_the_sidebar_are_drawn() -> void:
 	expect_color(pixel_at(img, p.x, p.y), Palette.GRASS_ALT, "grass, light square")
 	p = tile(1, 0)
 	expect_color(pixel_at(img, p.x, p.y), Palette.GRASS, "grass, dark square")
+	# The road is plain: the way the enemies will take is not drawn on it.
+	for row: int in [10, 11, 12]:
+		for col: int in [1, 3, 5]:
+			p = tile(col, row)
+			expect_color(pixel_at(img, p.x, p.y), Palette.PATH, "the road at %d,%d, without a path drawn on it" % [col, row])
 	p = tile(3, 10)
-	expect_color(pixel_at(img, p.x + 12, p.y + 12), Palette.PATH, "the road (off the dotted path)")
 	p = tile(3, 10)
 	expect_color(pixel_at(img, p.x, p.y - 19), Palette.PATH_EDGE, "the road's edge")
 	expect_color(pixel_at(img, 805, 250), Palette.PANEL, "the sidebar")
