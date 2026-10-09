@@ -61,7 +61,8 @@ func _init(p_x: float, p_y: float, p_angle: float, p_speed: float, p_damage: flo
 
 
 ## Moves the bullet. Returns what happened this tick (see `outcome`, `hit_enemy`).
-func update(enemies: Array[Enemy]) -> Outcome:
+## With `grid` (up to date for `enemies`), only enemies near the bullet are tested.
+func update(enemies: Array[Enemy], grid: EnemyGrid = null) -> Outcome:
 	prev_x = x
 	prev_y = y
 	age += 1
@@ -88,7 +89,7 @@ func update(enemies: Array[Enemy]) -> Outcome:
 	x += cos(angle) * speed
 	y += sin(angle) * speed
 
-	var hit: Enemy = find_hit(enemies)
+	var hit: Enemy = find_hit(enemies, grid)
 	if hit != null:
 		if pierce_left > 0:
 			pierce_left -= 1
@@ -114,7 +115,7 @@ func damage_to(e: Enemy) -> float:
 
 ## Swept collision: tests the whole segment travelled during this tick, so
 ## fast bullets can't tunnel through enemies. Returns the first enemy hit.
-func find_hit(enemies: Array[Enemy]) -> Enemy:
+func find_hit(enemies: Array[Enemy], grid: EnemyGrid = null) -> Enemy:
 	var sx: float = prev_x
 	var sy: float = prev_y
 	var dx: float = x - sx
@@ -122,7 +123,11 @@ func find_hit(enemies: Array[Enemy]) -> Enemy:
 	var len2: float = dx * dx + dy * dy
 	var best: Enemy = null
 	var best_t: float = INF
-	for e: Enemy in enemies:
+	var candidates: Array[Enemy] = enemies
+	if grid != null:
+		var pad: float = radius + grid.max_radius
+		candidates = grid.pick(grid.query(minf(sx, x) - pad, minf(sy, y) - pad, maxf(sx, x) + pad, maxf(sy, y) + pad))
+	for e: Enemy in candidates:
 		if not e.alive or not (hits_air if e.flying else hits_ground): # can_hit(), inlined
 			continue
 		if not _passed.is_empty() and _passed.has(e):

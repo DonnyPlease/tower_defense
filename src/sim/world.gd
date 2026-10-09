@@ -22,6 +22,9 @@ class SpawnEntry:
 
 ## Half the width of a sniper's rail shot (on top of the enemy's radius).
 const RAIL_WIDTH: float = 4.0
+## From this many enemies on, towers and bullets look them up in a grid
+## (see nearby()) instead of checking every one.
+const GRID_MIN_ENEMIES: int = 64
 
 
 ## A landmine waiting for a ground enemy.
@@ -108,6 +111,9 @@ var _flow: FlowField
 var _open_flow: FlowField ## the way out ignoring towers and walls (hoppers)
 var _tower_grid: Array[Tower] = []
 var _block_mask: PackedByteArray ## 1 where a tower or wall stands
+## Enemies by position, rebuilt every tick before the towers act (see nearby()).
+var _grid := EnemyGrid.new()
+var _grid_ready: bool = false ## the grid matches `enemies` (during the towers' and bullets' turn)
 
 
 ## `endless_waves(index) -> Wave` turns on endless mode: waves come from it
@@ -506,6 +512,8 @@ func spawn(type: String, from: Enemy = null) -> Enemy:
 	if enemy.def.hops:
 		enemy.obstacles = _flow
 	enemies.append(enemy)
+	if _grid_ready:
+		_grid.add(enemies.size() - 1)
 	return enemy
 
 
@@ -543,6 +551,22 @@ func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: b
 			child.prev_y = child.y
 
 
+## The enemies that may be within `reach` (plus their radius) of (x, y), in
+## the order of `enemies`: during the towers' turn only those near the spot
+## (from the grid), otherwise all of them. Callers still check the distance.
+func nearby(x: float, y: float, reach: float) -> Array[Enemy]:
+	return _grid.pick(_grid.near(x, y, reach)) if _grid_ready else enemies
+
+
+func _in_box(x0: float, y0: float, x1: float, y1: float) -> Array[Enemy]:
+	return _grid.pick(_grid.query(x0, y0, x1, y1)) if _grid_ready else enemies
+
+
+## The grid of enemies by position, while it is up to date (null otherwise).
+func enemy_grid() -> EnemyGrid:
+	return _grid if _grid_ready else null
+
+
 ## A tower fired a bullet.
 func fire(b: Bullet, from: Tower) -> void:
 	bullets.append(b)
@@ -558,7 +582,10 @@ func rail(from: Tower, angle: float, length: float, damage: float, max_hits: int
 	var dy: float = sin(angle)
 	var hits: Array[Enemy] = []
 	var along_of: Dictionary[Enemy, float] = {}
-	for e: Enemy in enemies:
+	var pad: float = RAIL_WIDTH + (_grid.max_radius if _grid_ready else 0.0)
+	var x1: float = from.x + dx * length
+	var y1: float = from.y + dy * length
+	for e: Enemy in _in_box(minf(from.x, x1) - pad, minf(from.y, y1) - pad, maxf(from.x, x1) + pad, maxf(from.y, y1) + pad):
 		if not from.can_target(e):
 			continue
 		var rx: float = e.x - from.x
@@ -931,12 +958,17 @@ func update() -> void:
 
 	_update_mines()
 	_update_strikes()
+	# Only worth it on a crowded field: with few enemies (mostly along one
+	# road, in range of most towers) looking at all of them is cheaper.
+	_grid_ready = enemies.size() >= GRID_MIN_ENEMIES
+	if _grid_ready:
+		_grid.rebuild(enemies)
 	_update_buffs()
 	for t: Tower in towers:
 		t.update(self)
 
 	for b: Bullet in bullets:
-		var outcome: Bullet.Outcome = b.update(enemies)
+		var outcome: Bullet.Outcome = b.update(enemies, enemy_grid())
 		if outcome == Bullet.Outcome.HIT:
 			var ev := WorldEvent.new(WorldEvent.Type.HIT, b.x, b.y)
 			ev.bullet = b.type
@@ -950,6 +982,7 @@ func update() -> void:
 				if b.can_hit(e) and MathX.hypot(e.x - b.x, e.y - b.y) <= b.splash + e.radius:
 					damage_enemy(e, b.damage_to(e), b.ignores_armor)
 
+	_grid_ready = false
 	var alive_enemies: Array[Enemy] = []
 	for e: Enemy in enemies:
 		if e.alive:

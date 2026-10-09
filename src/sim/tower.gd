@@ -274,7 +274,7 @@ func _update_projectile(world: World) -> void:
 	if stats.volley > 1:
 		_update_volley(world)
 		return
-	target = pick_target(world.enemies)
+	target = pick_target(world.nearby(x, y, attack_range))
 	_spin(target != null)
 	if target == null:
 		return
@@ -326,7 +326,7 @@ func _update_projectile(world: World) -> void:
 
 ## Swarm: a volley of missiles, spread over the best targets in range.
 func _update_volley(world: World) -> void:
-	var picks: Array[Enemy] = pick_targets(world.enemies, stats.volley)
+	var picks: Array[Enemy] = pick_targets(world.nearby(x, y, attack_range), stats.volley)
 	target = picks[0] if not picks.is_empty() else null
 	if target == null:
 		return
@@ -352,7 +352,7 @@ func _update_beam(world: World) -> void:
 	if previous != null and can_target(previous) and in_range(previous.x, previous.y, previous.radius):
 		target = previous
 	else:
-		target = pick_target(world.enemies)
+		target = pick_target(world.nearby(x, y, attack_range))
 	targets.clear()
 	if target == null:
 		heat = 0
@@ -365,7 +365,7 @@ func _update_beam(world: World) -> void:
 
 ## Prism: burns several enemies at once; heat builds while it burns anything.
 func _update_prism(world: World) -> void:
-	targets = pick_targets(world.enemies, stats.beams)
+	targets = pick_targets(world.nearby(x, y, attack_range), stats.beams)
 	target = targets[0] if not targets.is_empty() else null
 	if target == null:
 		heat = 0
@@ -386,7 +386,7 @@ func _update_aura(world: World) -> void:
 	var slow: float = stats.slow
 	var chill: float = stats.vulnerability
 	var any: bool = false
-	for e: Enemy in world.enemies:
+	for e: Enemy in world.nearby(x, y, attack_range):
 		if can_target(e) and in_range(e.x, e.y, e.radius):
 			e.apply_slow(slow, SLOW_TICKS)
 			if chill > 0:
