@@ -30,9 +30,9 @@ export const AT = {
 // The game screen (src/scenes/game_scene.gd, src/ui/hud.gd, src/ui/ability_bar.gd).
 const RAIL_W = 116;
 const FIELD = [800, 600];
-// A new profile owns two towers (and a "?" slot): two rows of build buttons,
-// so the wall button starts at y = 80 + 2 * 54 + 4.
-const TOOLS_Y = 192;
+// On a small touch screen (the phone project) the rail is drawn 1.4x bigger and
+// split in two columns: towers by the map, wave controls at the edge (Screen.ui_scale).
+const PHONE_UI = 1.4;
 
 function hexOf(r, g, b) {
   return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
@@ -89,10 +89,18 @@ export class Game {
     return [x + Math.floor((l.viewW - 1000) / 2), y + Math.floor((l.viewH - 600) / 2)];
   }
 
+  /** The game screen's rail: its scale, columns and left edge in the view. */
+  railLayout() {
+    const l = this.layout();
+    const ui = this.touch ? PHONE_UI : 1;
+    const columns = this.touch ? 2 : 1;
+    return { ui, columns, left: l.viewW - RAIL_W * columns * ui, height: l.viewH / ui };
+  }
+
   /** The game screen: a point of the field (800 x 600) on the view (the map is scaled to fit left of the rail). */
   field(fx, fy) {
     const l = this.layout();
-    const areaW = l.viewW - RAIL_W;
+    const areaW = this.railLayout().left;
     const k = Math.min(areaW / FIELD[0], l.viewH / FIELD[1]);
     const x0 = Math.round((areaW - FIELD[0] * k) / 2);
     const y0 = Math.round((l.viewH - FIELD[1] * k) / 2);
@@ -106,17 +114,22 @@ export class Game {
 
   /** The game screen: points on the rail at the right edge (and its drop-down). */
   rail(what) {
-    const l = this.layout();
-    const left = l.viewW - RAIL_W;
-    const waveTop = l.viewH - 8 - 32 - 8 - 54;
+    const { ui, columns, left, height } = this.railLayout();
+    // In the rail's own units (it is scaled by `ui`):
+    const towersY = columns === 1 ? 80 : 12;
+    // A new profile owns two towers (and a "?" slot): two rows of build buttons.
+    const toolsY = towersY + 2 * 54 + 4;
+    const statusX = RAIL_W * (columns - 1); // the wave controls' column
+    const waveTop = height - 8 - 32 - 8 - 54;
+    const at = (x, y) => [left + x * ui, y * ui];
     return {
-      towerGun: [left + 32, 105], // the first build button (two per row)
-      wall: [left + 58, TOOLS_Y + 17], // the wall button
-      abilities: [left + 58, TOOLS_Y + 40 + 17], // opens the abilities' drop-down
-      slow: [left - 168, 109], // its first button (time slow), while it is open
-      background: [left + 58, TOOLS_Y + 150], // the rail between its buttons
-      waveButton: [left + 58, waveTop + 27], // centre of the wave button
-      waveButtonColor: [left + 14, waveTop + 27], // the same button, without text
+      towerGun: at(32, towersY + 25), // the first build button (two per row)
+      wall: at(58, toolsY + 17), // the wall button
+      abilities: at(58, toolsY + 40 + 17), // opens the abilities' drop-down
+      slow: at(-168, toolsY - 83), // its first button (time slow), while it is open
+      background: at(58, toolsY + 150), // the rail between its buttons
+      waveButton: at(statusX + 58, waveTop + 27), // centre of the wave button
+      waveButtonColor: at(statusX + 14, waveTop + 27), // the same button, without text
     }[what];
   }
 
