@@ -44,9 +44,9 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	Paint.fill_rounded_rect(self, 0, 3, W, H, 10, Color(0, 0, 0, 0.3))
-	Paint.fill_rounded_rect(self, 0, 0, W, H, 10, Color(Palette.PANEL, 0.95))
-	Paint.stroke_rounded_rect(self, 0, 0, W, H, 10, 2, Palette.GOLD)
+	Paint.fill_rounded_rect(self, 0, 3, W, size.y, 10, Color(0, 0, 0, 0.3))
+	Paint.fill_rounded_rect(self, 0, 0, W, size.y, 10, Color(Palette.PANEL, 0.95))
+	Paint.stroke_rounded_rect(self, 0, 0, W, size.y, 10, 2, Palette.GOLD)
 
 
 ## Called every frame: moves on once the player did what the hint asks.
@@ -92,6 +92,12 @@ func _show() -> void:
 	if _label != null and TEXT.has(step):
 		_label.show_text(TEXT[step])
 		_label.set_wrap(W - 90)
+		# As tall as the hint needs, the text and the Skip button in the middle.
+		var h: float = maxf(H, _label.size.y + 16)
+		size.y = h
+		_label.move_to(14, h / 2)
+		skip_button.position.y = (h - skip_button.size.y) / 2
+		queue_redraw()
 
 
 ## The hint showing now ("" when the tutorial is over).
