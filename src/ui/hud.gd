@@ -43,7 +43,6 @@ var _panel_extra: TextLabel
 
 func _init(host: GameScene) -> void:
 	_host = host
-	position = Vector2(Config.FIELD_W, 0)
 	size = Vector2(Config.SIDEBAR_W, Config.HEIGHT)
 	z_index = DEPTH
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -128,9 +127,16 @@ func _small(i: int, q: float, label: String, on_click: Callable) -> GameButton:
 	return b
 
 
+## Places the sidebar at the right edge of a `screen`-sized view, full height.
+func layout(screen: Vector2) -> void:
+	position = Vector2(screen.x - Config.SIDEBAR_W, 0)
+	size = Vector2(Config.SIDEBAR_W, screen.y)
+	queue_redraw()
+
+
 func _draw() -> void:
-	draw_rect(Rect2(0, 0, Config.SIDEBAR_W, Config.HEIGHT), Palette.PANEL)
-	draw_rect(Rect2(0, 0, 2, Config.HEIGHT), Palette.BORDER)
+	draw_rect(Rect2(Vector2.ZERO, size), Palette.PANEL)
+	draw_rect(Rect2(0, 0, 2, size.y), Palette.BORDER)
 	Paint.fill_rounded_rect(self, X, PANEL_Y, W, PANEL_H, 8, Color(Palette.PANEL_LIGHT, 0.6))
 
 

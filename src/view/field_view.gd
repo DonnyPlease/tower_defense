@@ -6,6 +6,7 @@ extends Node2D
 
 ## Draw order (z_index) of the layers inside the playing field. Towers (5-10)
 ## and enemies (5, 20, 26) set their own; see TowerView and EnemyView.
+const D_SURROUNDINGS: int = -1
 const D_MAP: int = 0
 const D_MINES: int = 3
 const D_WALLS: int = 4
@@ -25,6 +26,10 @@ const SHOT_SOUND: Dictionary[String, String] = {
 }
 const RAIL_TIME: float = 0.18 ## seconds a rail tracer stays on screen
 
+## How much darker the land around the playing field is drawn (by day, at night).
+const SURROUNDINGS_SHADE: Color = Color(0.03, 0.05, 0.08, 0.3)
+const NIGHT_SHADE: Color = Color(0.02, 0.03, 0.07, 0.78)
+
 ## Menu demo: no floating text, screen effects or sound.
 var quiet: bool = false
 ## Screen shake and flash (optional).
@@ -38,6 +43,8 @@ var _frame_count: int = 0
 var _obstacles_seen: int = -1 ## world.obstacles_version the walls were drawn for
 var _towers_seen: int = -1 ## world.obstacles_version the tower views match
 var _mines_drawn: bool = false
+var _surroundings: DrawNode
+var _surround_rect: Rect2 = Rect2()
 var _abilities_drawn: bool = false
 var _walls: DrawNode
 var _mines: DrawNode
@@ -62,6 +69,8 @@ var _rails: Array[PackedFloat32Array] = []
 
 func _init(p_world: World) -> void:
 	world = p_world
+	_surroundings = DrawNode.new(_draw_surroundings, D_SURROUNDINGS)
+	add_child(_surroundings)
 	add_child(DrawNode.new(_draw_map, D_MAP))
 	_mines = DrawNode.new(_draw_mines, D_MINES)
 	add_child(_mines)
@@ -242,6 +251,110 @@ func _draw_abilities(g: CanvasItem) -> void:
 			for k: int in 4:
 				var a: float = k * PI / 2 + _frame_count * 0.05
 				Paint.line(g, x + cos(a) * (r - 3), y + sin(a) * (r - 3), x + cos(a) * (r + 5), y + sin(a) * (r + 5), 2.5, Palette.RED)
+
+
+## Land drawn around the playing field (in field coordinates), so the map
+## fills the whole screen: grass with trees and bushes, and the roads and
+## rivers that leave the field carry on to the edge of the screen.
+func set_surroundings(rect: Rect2) -> void:
+	if rect != _surround_rect:
+		_surround_rect = rect
+		_surroundings.queue_redraw()
+
+
+func _draw_surroundings(g: CanvasItem) -> void:
+	var rect: Rect2 = _surround_rect
+	if not rect.has_area():
+		return
+	var map: GameMap = world.map
+	var t: float = Config.TILE
+	var c0: int = floori(rect.position.x / t)
+	var c1: int = ceili(rect.end.x / t)
+	var r0: int = floori(rect.position.y / t)
+	var r1: int = ceili(rect.end.y / t)
+	var decorations: Array[Vector2i] = []
+	for r: int in range(r0, r1):
+		for c: int in range(c0, c1):
+			if GameMap.in_bounds(c, r):
+				continue
+			var x: float = c * t
+			var y: float = r * t
+			match _outside_terrain(map, c, r):
+				GameMap.Terrain.ROAD:
+					g.draw_rect(Rect2(x, y, t, t), Palette.PATH)
+					# Edges along the sides of a road that leaves the field.
+					var horizontal: bool = c < 0 or c >= Config.COLS
+					if horizontal:
+						if _outside_terrain(map, c, r - 1) != GameMap.Terrain.ROAD:
+							g.draw_rect(Rect2(x, y, t, 3), Palette.PATH_EDGE)
+						if _outside_terrain(map, c, r + 1) != GameMap.Terrain.ROAD:
+							g.draw_rect(Rect2(x, y + t - 3, t, 3), Palette.PATH_EDGE)
+					else:
+						if _outside_terrain(map, c - 1, r) != GameMap.Terrain.ROAD:
+							g.draw_rect(Rect2(x, y, 3, t), Palette.PATH_EDGE)
+						if _outside_terrain(map, c + 1, r) != GameMap.Terrain.ROAD:
+							g.draw_rect(Rect2(x + t - 3, y, 3, t), Palette.PATH_EDGE)
+				GameMap.Terrain.WATER:
+					g.draw_rect(Rect2(x, y, t, t), Palette.WATER)
+					var wave := Color(Palette.WATER_LIGHT, 0.7)
+					var k: int = posmod(r, 2)
+					Paint.line(g, x + 6 + k * 10, y + 12, x + 18 + k * 10, y + 12, 2, wave)
+					Paint.line(g, x + 14 - k * 8, y + 28, x + 26 - k * 8, y + 28, 2, wave)
+				_:
+					g.draw_rect(Rect2(x, y, t, t), Palette.GRASS if posmod(r + c, 2) == 1 else Palette.GRASS_ALT)
+					decorations.append(Vector2i(c, r))
+	for d: Vector2i in decorations:
+		_decoration(g, d.x, d.y)
+	# Shade everything outside the field, with a soft dark rim along its edge.
+	var field := Rect2(0, 0, Config.FIELD_W, Config.FIELD_H)
+	var shade: Color = SURROUNDINGS_SHADE if night == null else NIGHT_SHADE
+	g.draw_rect(Rect2(rect.position.x, rect.position.y, rect.size.x, field.position.y - rect.position.y), shade)
+	g.draw_rect(Rect2(rect.position.x, field.end.y, rect.size.x, rect.end.y - field.end.y), shade)
+	g.draw_rect(Rect2(rect.position.x, 0, field.position.x - rect.position.x, field.size.y), shade)
+	g.draw_rect(Rect2(field.end.x, 0, rect.end.x - field.end.x, field.size.y), shade)
+	for i: int in 4:
+		g.draw_rect(field.grow(1.0 + i * 2.0), Color(0, 0, 0, 0.16 - i * 0.035), false, 2.0)
+
+
+## Terrain just outside the field: roads and water at the field's edge go
+## straight on; everything else is grass.
+static func _outside_terrain(map: GameMap, c: int, r: int) -> GameMap.Terrain:
+	var inside_cols: bool = c >= 0 and c < Config.COLS
+	var inside_rows: bool = r >= 0 and r < Config.ROWS
+	if inside_cols == inside_rows:
+		return GameMap.Terrain.GRASS if not inside_cols else map.terrain_at(c, r)
+	var edge: GameMap.Terrain = map.terrain_at(clampi(c, 0, Config.COLS - 1), clampi(r, 0, Config.ROWS - 1))
+	if edge == GameMap.Terrain.ROAD or edge == GameMap.Terrain.BRIDGE:
+		return GameMap.Terrain.ROAD
+	if edge == GameMap.Terrain.WATER:
+		return GameMap.Terrain.WATER
+	return GameMap.Terrain.GRASS
+
+
+## A tree, bush, flowers or a stone on some tiles outside the field (the
+## same ones every time).
+func _decoration(g: CanvasItem, c: int, r: int) -> void:
+	var seed_value: int = (c + 512) * 1024 + (r + 512)
+	var roll: float = MathX.hash01(seed_value, 11)
+	var x: float = c * Config.TILE + 8 + MathX.hash01(seed_value, 12) * 24
+	var y: float = r * Config.TILE + 8 + MathX.hash01(seed_value, 13) * 24
+	if roll < 0.16:
+		var s: float = 0.8 + MathX.hash01(seed_value, 14) * 0.5
+		Paint.fill_ellipse(g, x + 3, y + 9 * s, 30 * s, 14 * s, Color(0, 0, 0, 0.22))
+		Paint.fill_circle(g, x, y, 13 * s, Palette.rgb(0x3f6f2a))
+		Paint.fill_circle(g, x - 4 * s, y - 4 * s, 8 * s, Palette.rgb(0x4f8535))
+		Paint.fill_circle(g, x - 6 * s, y - 6 * s, 3 * s, Palette.rgb(0x6aa14a))
+	elif roll < 0.26:
+		Paint.fill_circle(g, x - 5, y + 1, 6, Palette.rgb(0x4a7d31))
+		Paint.fill_circle(g, x + 4, y, 7, Palette.rgb(0x4a7d31))
+		Paint.fill_circle(g, x, y - 4, 6, Palette.rgb(0x568f3a))
+	elif roll < 0.34:
+		var petal: Color = [Palette.rgb(0xf7f3e3), Palette.rgb(0xf5c542), Palette.rgb(0xe88aa8)][floori(roll * 1000) % 3]
+		for k: int in 3:
+			Paint.fill_circle(g, x + (k - 1) * 7, y + (k % 2) * 5, 2.2, petal)
+	elif roll < 0.38:
+		Paint.fill_ellipse(g, x + 1, y + 2, 16, 11, Palette.ROCK_DARK)
+		Paint.fill_ellipse(g, x, y, 14, 10, Palette.ROCK)
 
 
 # ---- per-frame sync ----------------------------------------------------------

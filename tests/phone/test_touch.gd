@@ -31,15 +31,20 @@ func test_the_game_fills_the_phone_screen() -> void:
 	var p: Vector2 = tile(0, 0)
 	expect_color(pixel_at(img, p.x, p.y), Palette.GRASS_ALT, "the field")
 
-	# The window itself, as the X server shows it: no black bars at the sides.
+	var map: Rect2 = game.map_rect()
+	expect_near(map.size.y, Screen.size(game).y, 0, "the map is as tall as the screen")
+
+	# The window itself, as the X server shows it: the land goes on to its left
+	# edge (no black bar), and the sidebar is at its right edge.
 	await RenderingServer.frame_post_draw
 	var screen: Image = DisplayServer.screen_get_image(DisplayServer.window_get_current_screen())
 	if screen == null or screen.is_empty():
 		return
 	var at: Vector2i = DisplayServer.window_get_position()
-	for x: int in [4, 839]:
-		var c: Color = screen.get_pixelv(at + Vector2i(x, 200))
-		expect_gt(c.r + c.g + c.b, 0.15, "no black bar at x = %d (got #%s)" % [x, c.to_html(false)])
+	var left: Color = screen.get_pixelv(at + Vector2i(4, 200))
+	expect_gt(left.g, left.r + 0.08, "grass at the left edge of the window (got #%s)" % left.to_html(false))
+	var rail: Color = screen.get_pixelv(at + Vector2i(840, 200))
+	expect_color(rail, Palette.PANEL, "the sidebar at the right edge", 0.06)
 	p = tile(1, 0)
 	expect_color(screen.get_pixelv(at + Vector2i(t * p)), Palette.GRASS, "the field")
 

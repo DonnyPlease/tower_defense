@@ -3,6 +3,11 @@ extends Node2D
 ## A game in progress: runs the simulation at a fixed rate, draws it, and
 ## handles building, selecting, the sidebar, pausing and the end of the game.
 ## The level comes from Router (Router.goto_game).
+##
+## The map is drawn as large as the window allows beside the sidebar, and the
+## land around it carries on to the edges of the window. Positions in the
+## simulation are "field" coordinates (800 x 600); the screen shows them
+## scaled and moved (see field_to_screen()).
 
 const SPEEDS: Array[int] = [1, 2, 3]
 const BLOCK_MESSAGE: Dictionary[World.BlockReason, String] = {
@@ -95,7 +100,7 @@ func _ready() -> void:
 	_boss_text = Ui.text(_stage, Config.FIELD_W / 2.0, 12, "", 13, Palette.TEXT, true, Vector2(0.5, 0)).set_outline(3)
 	_boss_text.z_index = FieldView.D_FLOATERS
 	hud = Hud.new(self)
-	_stage.add_child(hud)
+	add_child(hud)
 	ability_bar = AbilityBar.new(self)
 	_stage.add_child(ability_bar)
 	build_menu = BuildMenu.new(self)
@@ -134,9 +139,24 @@ func _ready() -> void:
 
 # ---- layout ------------------------------------------------------------------
 
-## Keeps the game in the middle of the window.
+## Scales the map to the largest size that fits beside the sidebar, centres
+## it there, and lets the land around it fill the rest of the window.
 func _layout() -> void:
-	_stage.position = Screen.center_offset(self)
+	var screen: Vector2 = Screen.size(self)
+	hud.layout(screen)
+	var area := Rect2(0, 0, screen.x - hud.size.x, screen.y)
+	var k: float = minf(area.size.x / Config.FIELD_W, area.size.y / Config.FIELD_H)
+	var map_size := Vector2(Config.FIELD_W, Config.FIELD_H) * k
+	_stage.scale = Vector2(k, k)
+	_stage.position = (area.position + (area.size - map_size) / 2).round()
+	# The whole window in field coordinates, with a tile to spare for screen shake.
+	var top_left: Vector2 = screen_to_field(Vector2.ZERO)
+	field.set_surroundings(Rect2(top_left, screen_to_field(screen) - top_left).grow(Config.TILE))
+
+
+## Where the map is drawn on the screen.
+func map_rect() -> Rect2:
+	return Rect2(_stage.position, Vector2(Config.FIELD_W, Config.FIELD_H) * _stage.scale)
 
 
 ## A point of the field (simulation coordinates) on the screen.
