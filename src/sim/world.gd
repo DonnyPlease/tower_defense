@@ -199,7 +199,12 @@ func enemies_remaining() -> int:
 
 
 func hp_multiplier() -> float:
-	var i: int = maxi(0, wave_index)
+	return hp_multiplier_at(wave_index)
+
+
+## How much tougher than their base the enemies of a wave (by index) are.
+func hp_multiplier_at(index: int) -> float:
+	var i: int = maxi(0, index)
 	# Endless waves also get tougher quadratically, so every run ends eventually.
 	return hp_scale * (1 + Config.WAVE_HP_GROWTH * i + (Config.ENDLESS_HP_GROWTH * i * i if endless else 0.0))
 

@@ -60,6 +60,10 @@ var _wave: TextLabel
 var _preview_label: TextLabel
 var _preview: Control
 var _preview_key: String = "-"
+## The next wave's enemy types, each a button that tells about it (hover, or tap).
+var preview_buttons: Dictionary[String, GameButton] = {}
+var _hovered_enemy: String = ""
+var _pinned_enemy: String = "" ## tapped: shown until tapped again or the wave starts
 var _preview_y: float = 0.0
 var _hovered: String = ""
 var _hovered_ability: String = ""
@@ -262,6 +266,16 @@ func is_menu_open() -> bool:
 	return _menu.visible
 
 
+## A tap anywhere but on the tapped enemy of the preview puts its help away.
+func _input(event: InputEvent) -> void:
+	var mb := event as InputEventMouseButton
+	if _pinned_enemy.is_empty() or mb == null or not mb.pressed:
+		return
+	var b: GameButton = preview_buttons.get(_pinned_enemy)
+	if b == null or not b.get_global_rect().has_point(mb.position):
+		_pinned_enemy = ""
+
+
 ## Shows an ability's help while the pointer is over its button ("" to stop).
 func show_ability_help(id: String) -> void:
 	_hovered_ability = id
@@ -297,8 +311,8 @@ func refresh() -> void:
 		b.set_label("$%d" % cost, Palette.TEXT if world.money >= cost else Palette.RED) \
 			.set_selected(_host.tool == kind).set_enabled(world.status == World.Status.PLAYING)
 
+	_refresh_preview() # first: the help may be about one of its enemies
 	_refresh_help()
-	_refresh_preview()
 	_refresh_orders()
 
 	if world.status != World.Status.PLAYING:
@@ -346,6 +360,18 @@ func _refresh_help() -> void:
 		var button: GameButton = _host.ability_bar.buttons.get(ability)
 		var anchor: Rect2 = button.get_global_rect() if button != null and button.is_visible_in_tree() else get_global_rect()
 		help.show_help("%s  ·  $%d" % [def.name, world.ability_cost(ability)], _ability_text(def), "", anchor, bounds)
+		return
+
+	var enemy: String = _hovered_enemy if not _hovered_enemy.is_empty() else _pinned_enemy
+	if preview_buttons.has(enemy) and _hovered.is_empty():
+		var wave: Wave = world.next_wave()
+		var count: int = 0
+		for g: SpawnGroup in wave.groups:
+			if g.type == enemy:
+				count += g.count
+		var def: EnemyDef = Enemies.get_def(enemy)
+		help.show_help("%s  ·  ×%d" % [def.name, count], Format.enemy_text(def, world.hp_multiplier_at(world.wave_index + 1)),
+			"", preview_buttons[enemy].get_global_rect(), bounds)
 		return
 
 	if _hovered == "?" and teaser_button != null:
@@ -401,6 +427,9 @@ func _refresh_preview() -> void:
 	_preview_key = key
 	for child: Node in _preview.get_children():
 		child.queue_free()
+	preview_buttons = {}
+	_hovered_enemy = ""
+	_pinned_enemy = ""
 	_preview_label.show_text("Next" if wave != null else "")
 	var x: float = PAD + 2
 	var y: float = _preview_y + 16
@@ -421,6 +450,15 @@ func _refresh_preview() -> void:
 			icon.modulate = def.tint
 		_preview.add_child(icon)
 		Ui.text(_preview, x + 17, y + 1, label, 11, Palette.TEXT, true)
+		var b := GameButton.new(Rect2(x - 2, y - 2, w - 2, 20), "", func() -> void:
+			_pinned_enemy = "" if _pinned_enemy == type else type).flat()
+		b.hover_callback(func(on: bool) -> void:
+			if on:
+				_hovered_enemy = type
+			elif _hovered_enemy == type:
+				_hovered_enemy = "")
+		_preview.add_child(b)
+		preview_buttons[type] = b
 		x += w
 
 

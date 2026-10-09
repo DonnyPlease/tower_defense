@@ -300,6 +300,28 @@ func test_pausing_leaving_and_continuing_a_saved_game() -> void:
 	expect_eq(game.banner_text(), "Meadow\nGame resumed")
 
 
+func test_the_next_wave_preview_tells_about_its_enemies() -> void:
+	use_profile()
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	var hud: Hud = game.hud
+	var scout: GameButton = hud.preview_buttons["scout"]
+	var at: Vector2 = scout.get_global_rect().get_center()
+	await hover(at.x, at.y)
+	expect_eq(hud.panel_title_text(), "Scout  ·  ×8")
+	expect_contains(hud.panel_body_text(), "HP %d  ·  Speed 90" % MathX.js_round(20 * game.world.hp_multiplier_at(0)))
+	expect_contains(hud.panel_body_text(), "Worth $5  ·  Costs 1 life")
+	await hover_field(400, 300)
+	expect_eq(hud.panel_title_text(), "", "gone when the pointer leaves")
+	# A tap keeps it up (touch screens can't hover), until a tap elsewhere.
+	await click_button(scout)
+	await hover_field(400, 300)
+	expect_eq(hud.panel_title_text(), "Scout  ·  ×8")
+	await right_click_beside_map()
+	expect_eq(hud.panel_title_text(), "")
+
+
 func test_the_wave_button_previews_the_next_wave_and_pays_for_calling_early() -> void:
 	use_profile()
 	var game: GameScene = await open_game("meadow")
