@@ -164,6 +164,16 @@ func test_buying_and_refunding_in_the_tech_tree() -> void:
 	expect_eq(tree.state_text("frost"), "Locked", "needs the Cannon first")
 	expect_eq(tree.state_text("support"), "Locked")
 	expect_true(tree.node_buttons["gun"].is_selected(), "owned nodes are framed")
+	expect_eq(tree.page, TechTreeScene.Page.TOWERS, "it opens on the towers")
+	expect_true(tree.node_buttons["cannon"].is_visible_in_tree())
+	expect_false(tree.node_buttons["capital1"].is_visible_in_tree(), "the perks are on the other page")
+
+	# The switch shows the perks and bonuses.
+	await click_button(tree.tab_buttons["upgrades"])
+	await frames(15) # the page fades in
+	expect_eq(tree.page, TechTreeScene.Page.UPGRADES)
+	expect_true(tree.node_buttons["capital1"].is_visible_in_tree())
+	expect_false(tree.node_buttons["cannon"].is_visible_in_tree())
 
 	# Hovering a node explains it and what it takes.
 	var r: Rect2 = tree.node_buttons["capital2"].get_global_rect()
@@ -180,10 +190,15 @@ func test_buying_and_refunding_in_the_tech_tree() -> void:
 	expect_eq(Profile.load_profile().perk_rank("capital"), 1)
 
 	# The cannon: then its branches open up (once enough stars are earned).
+	await press_key(KEY_TAB) # back to the towers
+	await frames(15)
+	expect_eq(tree.page, TechTreeScene.Page.TOWERS)
 	await click_button(tree.node_buttons["cannon"])
 	expect_eq(tree.state_text("cannon"), "Owned")
 	expect_eq(tree.state_text("mortar"), "★ 2", "its branches open up")
 	expect_eq(tree.stars_text(), "★ 1 to spend  (3 earned)")
+	await press_key(KEY_RIGHT)
+	await frames(15)
 	await click_button(tree.node_buttons["capital2"])
 	expect_eq(tree.stars_text(), "★ 1 to spend  (3 earned)", "too expensive: nothing bought")
 

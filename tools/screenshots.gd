@@ -54,9 +54,14 @@ class Driver:
 		levels.next_variant("meadow")
 		await _frames(2)
 		await _snap("levels_variant")
+		TechTreeScene.last_page = TechTreeScene.Page.TOWERS
 		Router.goto_tech()
 		await _wait_for("TechTreeScene")
 		await _snap("tech_tree")
+		var tech: TechTreeScene = get_tree().current_scene
+		tech.show_page(TechTreeScene.Page.UPGRADES, false)
+		await _frames(3)
+		await _snap("tech_tree_upgrades")
 
 		for id: String in ["meadow", "riverside", "highlands", "openfield", "highlands@night"]:
 			Router.goto_game(id)
@@ -70,6 +75,16 @@ class Driver:
 			_busy_wave(s)
 			await _frames(150)
 			await _snap("game_" + id)
+			if id == "meadow":
+				# The selected tower's details folded out, a tower's help and the abilities' drop-down.
+				s.card.toggle_details()
+				s.hud.show_tower_help("cannon", true)
+				s.ability_bar.open()
+				await _frames(20)
+				await _snap("game_meadow_menus")
+				s.card.toggle_details()
+				s.hud.show_tower_help("cannon", false)
+				s.ability_bar.close()
 
 		var game: GameScene = get_tree().current_scene
 		game.toggle_pause()

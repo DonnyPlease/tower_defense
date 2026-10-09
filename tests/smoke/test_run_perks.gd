@@ -88,6 +88,8 @@ func test_the_tech_tree_sells_field_orders() -> void:
 	var tree: TechTreeScene = scene()
 	expect_eq(tree.state_text("orders"), "★ 2")
 	expect_eq(tree.state_text("orders2"), "Locked")
+	await click_button(tree.tab_buttons["upgrades"]) # on the second page
+	await frames(15)
 	await click_button(tree.node_buttons["orders"])
 	expect_eq(tree.state_text("orders"), "Owned")
 	expect_eq(tree.state_text("orders2"), "Earn ★9")
