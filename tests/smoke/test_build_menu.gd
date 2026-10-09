@@ -20,11 +20,13 @@ func test_a_click_on_empty_grass_opens_a_menu_of_what_can_go_there() -> void:
 	var b: Rect2 = menu.buttons["missile"].get_global_rect()
 	await hover(b.get_center().x, b.get_center().y)
 	expect_eq(game.hud.panel_title_text(), "Missile  ·  $%d" % game.world.cost_of("missile"))
+	expect_eq(menu.previewing, "missile", "and its reach is drawn around the tile")
 	var money: int = game.world.money
 	await click_button(menu.buttons["missile"])
 	expect_eq(tower_names(game), ["missile@6,9"])
 	expect_eq(game.world.money, money - game.world.cost_of("missile"))
 	expect_false(menu.is_open(), "closed after building")
+	expect_eq(menu.previewing, "", "and the reach with it")
 
 
 func test_on_a_wide_road_the_menu_offers_a_wall() -> void:

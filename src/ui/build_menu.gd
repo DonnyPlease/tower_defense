@@ -15,6 +15,8 @@ const PAD: float = 6
 var buttons: Dictionary[String, GameButton] = {}
 ## The tile the menu builds on (GameMap.NO_TILE when closed).
 var tile: Vector2i = GameMap.NO_TILE
+## The tower whose choice is under the pointer, its reach shown on the tile ("" when none).
+var previewing: String = ""
 
 var _host: GameScene
 var _size: Vector2 = Vector2.ZERO
@@ -64,7 +66,12 @@ func open(col: int, row: int) -> bool:
 			b.icon(func(ci: CanvasItem, c: Vector2, s: float) -> void: AbilityArt.draw_icon(ci, "wall", c, s))
 		else:
 			b.icon(func(ci: CanvasItem, c: Vector2, s: float) -> void: TowerArt.draw_icon(ci, id, c, s))
-			b.hover_callback(func(on: bool) -> void: _host.hud.show_tower_help(id, on))
+			b.hover_callback(func(on: bool) -> void:
+				_host.hud.show_tower_help(id, on)
+				if on:
+					previewing = id
+				elif previewing == id:
+					previewing = "")
 		add_child(b)
 		buttons[id] = b
 	visible = true
@@ -78,6 +85,7 @@ func close() -> void:
 		b.queue_free()
 	buttons = {}
 	tile = GameMap.NO_TILE
+	previewing = ""
 	visible = false
 
 

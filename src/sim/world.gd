@@ -231,6 +231,13 @@ func build_cost(kind: String, col: int, row: int) -> int:
 	return cost
 
 
+## How far a tower built now on a tile would reach (for the build previews).
+func reach_at(kind: String, col: int, row: int) -> float:
+	var level: int = 1 if veteran_left else 0
+	var raised: bool = map.is_high_ground(col, row) or has_wall(col, row)
+	return Towers.level_stats(kind, level).attack_range * (Config.HIGH_GROUND_RANGE if raised else 1.0) * tower_range
+
+
 ## Price of the tower's next upgrade, or Tower.NO_UPGRADE at max level.
 func upgrade_cost_of(tower: Tower) -> int:
 	var base: int = tower.upgrade_cost()

@@ -776,6 +776,12 @@ func _draw_hover(g: CanvasItem) -> void:
 		g.draw_rect(Rect2(s.col * t + 1, s.row * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
 	if selected_wall != GameMap.NO_TILE and not is_modal_open():
 		g.draw_rect(Rect2(selected_wall.x * t + 1, selected_wall.y * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
+	if build_menu.is_open() and not build_menu.previewing.is_empty():
+		var at: Vector2i = build_menu.tile
+		var c: Vector2 = GameMap.tile_center(at)
+		var reach: float = world.reach_at(build_menu.previewing, at.x, at.y)
+		g.draw_circle(c, reach, Color(1, 1, 1, 0.12))
+		Paint.stroke_circle(g, c.x, c.y, reach, 2, Color(1, 1, 1, 0.6))
 	if not is_modal_open() and _mouse.x >= 0 and _mouse.x < Config.FIELD_W and _mouse.y >= 0 and _mouse.y < Config.FIELD_H:
 		_draw_aim(g)
 	if _hover_tile == GameMap.NO_TILE or is_modal_open():
@@ -789,8 +795,7 @@ func _draw_hover(g: CanvasItem) -> void:
 		var ok: bool = reason == World.BlockReason.NONE and world.can_afford(tool)
 		var color: Color = Color.WHITE if ok else Palette.RED
 		if reason != World.BlockReason.TERRAIN:
-			var reach: float = Towers.get_def(tool).levels[0].attack_range * world.tower_range \
-				* (Config.HIGH_GROUND_RANGE if (world.map.is_high_ground(col, row) or world.has_wall(col, row)) else 1.0)
+			var reach: float = world.reach_at(tool, col, row)
 			g.draw_circle(center, reach, Color(color, 0.12))
 			Paint.stroke_circle(g, center.x, center.y, reach, 2, Color(color, 0.6))
 		g.draw_rect(Rect2(col * t + 1, row * t + 1, t - 2, t - 2), Color(color, 0.9), false, 2)

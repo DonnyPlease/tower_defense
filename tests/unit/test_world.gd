@@ -507,3 +507,16 @@ func test_split_children_fan_out_from_their_parent() -> void:
 	for m: Enemy in minis:
 		spots["%d,%d" % [MathX.js_round(m.x), MathX.js_round(m.y)]] = true
 	expect_eq(spots.size(), 3)
+
+
+func test_reach_at_is_the_reach_the_tower_gets_when_built() -> void:
+	var w := World.new(meadow)
+	expect_near(w.reach_at("gun", 6, 9), Towers.get_def("gun").levels[0].attack_range)
+	w.tower_range = 0.8
+	var expected: float = w.reach_at("missile", 6, 9)
+	expect_near(w.build("missile", 6, 9).attack_range, expected, 2, "the level's range modifier counts")
+	w.money = 1000
+	expect_true(w.build_wall(12, 3))
+	var raised: float = w.reach_at("gun", 12, 3)
+	expect_near(raised, Towers.get_def("gun").levels[0].attack_range * 0.8 * Config.HIGH_GROUND_RANGE)
+	expect_near(w.build("gun", 12, 3).attack_range, raised, 2, "a wall raises it")
