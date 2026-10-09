@@ -122,6 +122,12 @@ func set_range_buff(value: float) -> void:
 		attack_range = _base_range * (1 + range_buff)
 
 
+## How far this tower would reach at another level of its line (buffs included).
+func reach_at_level(lv: int) -> float:
+	return Towers.level_stats(kind, lv, branch_id).attack_range * (Config.HIGH_GROUND_RANGE if high_ground else 1.0) \
+		* range_factor * (1 + range_buff)
+
+
 ## At level 3 a tower grows only by choosing a branch.
 func needs_branch() -> bool:
 	return branch == null and level == Towers.BRANCH_LEVEL - 1 and not def.branches.is_empty()

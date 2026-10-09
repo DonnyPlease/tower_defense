@@ -774,6 +774,8 @@ func _draw_hover(g: CanvasItem) -> void:
 		g.draw_circle(Vector2(s.x, s.y), s.attack_range, Color(1, 1, 1, 0.1))
 		Paint.stroke_circle(g, s.x, s.y, s.attack_range, 2, Color(Palette.GOLD, 0.8))
 		g.draw_rect(Rect2(s.col * t + 1, s.row * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
+		if card.upgrade_hovered and not s.is_max_level() and not s.needs_branch():
+			_dashed_circle(g, Vector2(s.x, s.y), s.reach_at_level(s.level + 1), Color(Palette.GOLD, 0.9))
 	if selected_wall != GameMap.NO_TILE and not is_modal_open():
 		g.draw_rect(Rect2(selected_wall.x * t + 1, selected_wall.y * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
 	if build_menu.is_open() and not build_menu.previewing.is_empty():
@@ -813,6 +815,13 @@ func _draw_hover(g: CanvasItem) -> void:
 	elif tower != null and tower != selected:
 		g.draw_circle(Vector2(tower.x, tower.y), tower.attack_range, Color(1, 1, 1, 0.08))
 		Paint.stroke_circle(g, tower.x, tower.y, tower.attack_range, 2, Color(1, 1, 1, 0.45))
+
+
+static func _dashed_circle(g: CanvasItem, c: Vector2, radius: float, color: Color) -> void:
+	var dashes: int = maxi(12, roundi(radius / 8))
+	var step: float = TAU / dashes
+	for i: int in dashes:
+		g.draw_arc(c, radius, i * step, i * step + step * 0.55, 4, color, 2)
 
 
 ## What the airstrike and the focus mark would hit, under the pointer.

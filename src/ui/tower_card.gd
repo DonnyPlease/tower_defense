@@ -22,6 +22,8 @@ var branch_buttons: Array[GameButton] = []
 var target_button: GameButton
 var sell_button: GameButton
 var details_button: GameButton
+## Whether the pointer is on Upgrade (the next level's reach is then drawn on the map).
+var upgrade_hovered: bool = false
 
 var _host: GameScene
 var _tower: Tower = null
@@ -72,6 +74,7 @@ func _ready() -> void:
 
 	upgrade_button = GameButton.new(Rect2(PAD, 0, W - 2 * PAD, 36), "Upgrade", _host.upgrade_selected) \
 		.primary().font(14).key("U")
+	upgrade_button.hover_callback(func(on: bool) -> void: upgrade_hovered = on)
 	add_child(upgrade_button)
 	var bw: float = (W - 2 * PAD - 6) / 2
 	for i: int in 2:
@@ -121,6 +124,7 @@ func show_for(tower: Tower, wall: Vector2i = GameMap.NO_TILE) -> void:
 		return
 	_tower = tower
 	_wall = wall
+	upgrade_hovered = false
 	if _tween != null:
 		_tween.kill()
 	if tower == null and wall == GameMap.NO_TILE:
