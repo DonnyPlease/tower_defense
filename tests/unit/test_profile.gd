@@ -75,6 +75,8 @@ func test_saves_to_and_loads_from_storage() -> void:
 	w.build("gun", 3, 9)
 	p.save = w.snapshot()
 	p.music = false
+	p.speed = 2
+	p.auto_waves = true
 	Profile.save_profile(p)
 	var stored: Variant = JSON.parse_string(FileAccess.get_file_as_string(profile_path))
 	expect_true(stored is Dictionary)
@@ -85,6 +87,8 @@ func test_saves_to_and_loads_from_storage() -> void:
 	expect_eq(q.stars["meadow"], 2)
 	expect_false(q.music)
 	expect_true(q.sfx)
+	expect_eq(q.speed, 2)
+	expect_true(q.auto_waves)
 	expect_not_null(q.save)
 	if q.save != null:
 		expect_eq(q.save.level_id, "meadow")
@@ -100,10 +104,14 @@ func test_starts_fresh_when_the_stored_data_is_corrupt_or_from_another_version()
 		expect_eq(Profile.load_profile().stars.size(), 0, raw)
 
 
-func test_reset_keeps_the_sound_settings() -> void:
+func test_reset_keeps_the_settings() -> void:
 	var p: Profile = Profile.load_profile()
 	p.sfx = false
+	p.speed = 3
+	p.auto_waves = true
 	p.record_win("meadow", 3)
 	var fresh: Profile = Profile.reset()
 	expect_false(fresh.sfx)
+	expect_eq(fresh.speed, 3)
+	expect_true(fresh.auto_waves)
 	expect_eq(fresh.total_stars(), 0)

@@ -30,6 +30,7 @@ var menu_button: GameButton
 var music_button: GameButton
 var sfx_button: GameButton
 var quit_button: GameButton
+var auto_button: GameButton
 ## Opens the list of the field orders taken in this game (shown once there is one).
 var orders_button: GameButton
 ## Where the help appears.
@@ -139,7 +140,7 @@ func _small(i: int, q: float, label: String, on_click: Callable, icon: Callable 
 
 ## The gear menu: music, sound and the pause menu, opening upwards to the left.
 func _build_menu() -> void:
-	var h: float = 3 * 40 + 12
+	var h: float = 4 * 40 + 12
 	_menu = PainterView.new(func(g: CanvasItem, _center: Vector2, _s: float) -> void:
 		Paint.fill_rounded_rect(g, 3, 4, MENU_W, h, 10, Color(0, 0, 0, 0.3))
 		Paint.fill_rounded_rect(g, 0, 0, MENU_W, h, 10, Color(Palette.PANEL, 0.98))
@@ -152,7 +153,9 @@ func _build_menu() -> void:
 	_menu.add_child(music_button)
 	sfx_button = GameButton.new(Rect2(8, 48, MENU_W - 16, 34), "", _host.toggle_sfx).font(13)
 	_menu.add_child(sfx_button)
-	quit_button = GameButton.new(Rect2(8, 88, MENU_W - 16, 34), "Pause menu", func() -> void:
+	auto_button = GameButton.new(Rect2(8, 88, MENU_W - 16, 34), "", _host.toggle_auto_waves).font(13)
+	_menu.add_child(auto_button)
+	quit_button = GameButton.new(Rect2(8, 128, MENU_W - 16, 34), "Pause menu", func() -> void:
 		close_menu()
 		_host.toggle_pause()).font(13)
 	_menu.add_child(quit_button)
@@ -325,6 +328,9 @@ func refresh() -> void:
 	elif world.early_bonus_now() > 0:
 		wave_button.set_label("Call wave %d" % (world.wave_index + 2)) \
 			.set_sublabel("+$%d early" % world.early_bonus_now(), Palette.GOLD).set_enabled(true)
+	elif _host.auto_wave_seconds() >= 0:
+		wave_button.set_label("Start wave %d" % (world.wave_index + 2)) \
+			.set_sublabel("auto in %d s" % _host.auto_wave_seconds(), Palette.GOLD).set_enabled(true)
 	else:
 		wave_button.set_label("Start wave %d" % (world.wave_index + 2)) \
 			.set_sublabel("build first!" if world.wave_index < 0 else "Space").set_enabled(true)
@@ -332,6 +338,8 @@ func refresh() -> void:
 	speed_button.set_label("%dx" % _host.speed).set_selected(_host.speed > 1)
 	music_button.set_label("♪  Music %s" % ("on" if _host.music_on() else "off"),
 		Palette.TEXT if _host.music_on() else Palette.TEXT_DIM).set_selected(_host.music_on())
+	auto_button.set_label("Auto waves %s" % ("on" if _host.auto_waves_on() else "off"),
+		Palette.TEXT if _host.auto_waves_on() else Palette.TEXT_DIM).set_selected(_host.auto_waves_on())
 	sfx_button.set_label("Sound %s" % ("on" if _host.sfx_on() else "off"),
 		Palette.TEXT if _host.sfx_on() else Palette.TEXT_DIM).set_selected(_host.sfx_on())
 

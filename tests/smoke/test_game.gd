@@ -169,6 +169,47 @@ func test_right_click_and_escape_cancel_the_tool_and_the_selection() -> void:
 	expect_false(game.paused, "Esc only pauses when nothing is selected")
 
 
+func test_a_new_game_starts_at_the_speed_last_picked() -> void:
+	var p: Profile = use_profile()
+	p.speed = 3
+	Profile.save_profile(p)
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	expect_eq(game.speed, 3)
+	expect_eq(game.hud.speed_button.label_text(), "3x")
+
+
+func test_auto_waves_start_the_next_wave_after_a_pause() -> void:
+	use_profile()
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	var hud: Hud = game.hud
+	var w: World = game.world
+	await click_button(hud.menu_button)
+	await frames(10)
+	expect_eq(hud.auto_button.label_text(), "Auto waves off")
+	await click_button(hud.auto_button)
+	expect_eq(hud.auto_button.label_text(), "Auto waves on")
+	expect_true(Profile.load_profile().auto_waves, "saved")
+	await press_key(KEY_ESCAPE)
+	await frames(30)
+	expect_eq(w.wave_index, -1, "the first wave still waits for the player")
+	expect_eq(hud.wave_button.sublabel_text(), "build first!")
+
+	game.speed = 3
+	await click_button(hud.wave_button)
+	# Clear the wave at once.
+	expect_true(await until(func() -> bool:
+		for e: Enemy in w.enemies.duplicate():
+			w.damage_enemy(e, 1e9)
+		return not w.wave_in_progress()), "wave 1 cleared")
+	await frames(2)
+	expect_eq(hud.wave_button.sublabel_text(), "auto in 5 s")
+	expect_true(await until(func() -> bool: return w.wave_index == 1), "wave 2 starts by itself")
+
+
 func test_rail_pause_speed_and_sound_buttons() -> void:
 	use_profile()
 	var game: GameScene = await open_game("meadow")
@@ -181,6 +222,12 @@ func test_rail_pause_speed_and_sound_buttons() -> void:
 		expect_eq(hud.speed_button.label_text(), label)
 		expect_eq(game.speed, label.to_int())
 		expect_eq(hud.speed_button.is_selected(), label != "1x", label)
+
+	await click_button(hud.speed_button)
+	Profile.forget_cache()
+	expect_eq(Profile.load_profile().speed, 2, "the speed is remembered")
+	await click_button(hud.speed_button)
+	await click_button(hud.speed_button)
 
 	# The sound switches are in the gear menu.
 	expect_false(hud.music_button.is_visible_in_tree(), "the gear menu starts closed")

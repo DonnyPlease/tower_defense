@@ -10,6 +10,8 @@ extends Node2D
 ## scaled and moved (see field_to_screen()).
 
 const SPEEDS: Array[int] = [1, 2, 3]
+## With auto waves on, how long after a wave is cleared the next one starts.
+const AUTO_WAVE_TICKS: int = 5 * Config.TICK_RATE
 const BLOCK_MESSAGE: Dictionary[World.BlockReason, String] = {
 	World.BlockReason.TERRAIN: "Can't build here",
 	World.BlockReason.OCCUPIED: "Tile taken",
@@ -29,6 +31,7 @@ var selected_wall: Vector2i = GameMap.NO_TILE
 var aim: String = ""
 var paused: bool = false
 var speed: int = 1
+var _auto_wave_at: int = -1 ## the tick the next wave starts by itself (-1: not counting down)
 var level_id: String
 var resumed: bool = false
 
@@ -65,6 +68,7 @@ var _tips_label: TextLabel
 func _ready() -> void:
 	level_id = Router.launch_level_id
 	var profile: Profile = Profile.load_profile()
+	speed = profile.speed if SPEEDS.has(profile.speed) else 1
 	var endless: bool = level_id == Levels.ENDLESS.id
 	world = World.new(Levels.by_id(level_id), Levels.endless_wave if endless else Callable(),
 		profile.modifiers(), profile.unlocked_towers())
@@ -249,6 +253,40 @@ func toggle_pause() -> void:
 
 func toggle_speed() -> void:
 	speed = SPEEDS[(SPEEDS.find(speed) + 1) % SPEEDS.size()]
+	var p: Profile = Profile.load_profile()
+	p.speed = speed
+	Profile.save_profile(p)
+
+
+func auto_waves_on() -> bool:
+	return Profile.load_profile().auto_waves
+
+
+func toggle_auto_waves() -> void:
+	var p: Profile = Profile.load_profile()
+	p.auto_waves = not p.auto_waves
+	Profile.save_profile(p)
+
+
+## Seconds until the next wave starts by itself, or -1 when it won't.
+func auto_wave_seconds() -> int:
+	if _auto_wave_at < 0:
+		return -1
+	return ceili(maxi(0, _auto_wave_at - world.tick) / float(Config.TICK_RATE))
+
+
+## With auto waves on, counts down between waves (once the first was
+## started by hand) and starts the next one.
+func _update_auto_wave() -> void:
+	var waiting: bool = world.status == World.Status.PLAYING and world.wave_index >= 0 \
+		and not world.wave_in_progress() and world.next_wave() != null
+	if not waiting or not auto_waves_on():
+		_auto_wave_at = -1
+	elif _auto_wave_at < 0:
+		_auto_wave_at = world.tick + AUTO_WAVE_TICKS
+	elif world.tick >= _auto_wave_at and not is_modal_open():
+		_auto_wave_at = -1
+		start_wave()
 
 
 func toggle_music() -> void:
@@ -600,6 +638,7 @@ func _process(delta: float) -> void:
 	if selected_wall != GameMap.NO_TILE and not world.has_wall(selected_wall.x, selected_wall.y):
 		selected_wall = GameMap.NO_TILE
 	_handle_scene_events(world.events)
+	_update_auto_wave()
 	field.handle_events(world.events)
 	field.sync(_alpha)
 	_update_hover_objects()
