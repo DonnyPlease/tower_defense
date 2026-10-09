@@ -25,6 +25,8 @@ static var profile_path: String = "user://test_profile_%d.json" % OS.get_process
 
 
 func after_each() -> void:
+	# Screens remember a few choices for the session; every test starts afresh.
+	TowerCard.details_open = false
 	Profile.storage_path = Profile.DEFAULT_PATH
 	Profile.forget_cache()
 	DirAccess.remove_absolute(profile_path)
