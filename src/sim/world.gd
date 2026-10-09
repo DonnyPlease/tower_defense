@@ -113,6 +113,9 @@ var _tower_grid: Array[Tower] = []
 var _block_mask: PackedByteArray ## 1 where a tower or wall stands
 ## Enemies by position, rebuilt every tick before the towers act (see nearby()).
 var _grid := EnemyGrid.new()
+# The distance field with one more obstacle, by tile, for the current towers
+# and walls (the build check asks for it every frame the player hovers a tile).
+var _what_if: Dictionary[int, PackedInt32Array] = {}
 var _grid_ready: bool = false ## the grid matches `enemies` (during the towers' and bullets' turn)
 
 
@@ -282,17 +285,32 @@ func _path_block_reason(col: int, row: int) -> BlockReason:
 			continue
 		if (floori(e.x / Config.TILE) == col and floori(e.y / Config.TILE) == row) or e.nav.target_tile() == tile:
 			return BlockReason.ENEMY
-	var mask: PackedByteArray = _block_mask.duplicate()
-	mask[row * Config.COLS + col] = 1
-	var field: PackedInt32Array = map.distance_field(mask)
-	for s: Vector2i in map.starts:
-		if GameMap.dist_at(field, s.x, s.y) == GameMap.UNREACHABLE:
-			return BlockReason.BLOCKS_PATH
+	var field: PackedInt32Array = _field_with_obstacle_at(col, row)
+	if field.is_empty():
+		return BlockReason.BLOCKS_PATH # an entrance would be cut off
 	for e: Enemy in enemies:
 		var t: Vector2i = e.nav.target_tile()
 		if not e.flying and not e.def.hops and t != GameMap.NO_TILE and GameMap.dist_at(field, t.x, t.y) == GameMap.UNREACHABLE:
 			return BlockReason.BLOCKS_PATH
 	return BlockReason.NONE
+
+
+## The distance field with an extra obstacle at (col, row), or an empty array
+## if that would cut an entrance off the exit. Kept until towers or walls change.
+func _field_with_obstacle_at(col: int, row: int) -> PackedInt32Array:
+	var k: int = row * Config.COLS + col
+	var cached: Variant = _what_if.get(k)
+	if cached != null:
+		return cached
+	var mask: PackedByteArray = _block_mask.duplicate()
+	mask[k] = 1
+	var field: PackedInt32Array = map.distance_field(mask)
+	for s: Vector2i in map.starts:
+		if GameMap.dist_at(field, s.x, s.y) == GameMap.UNREACHABLE:
+			field = PackedInt32Array()
+			break
+	_what_if[k] = field
+	return field
 
 
 func can_build_at(col: int, row: int) -> bool:
@@ -450,6 +468,7 @@ func start_next_wave() -> bool:
 
 ## Towers or walls were added or removed: enemies re-plan their way.
 func _obstacles_changed() -> void:
+	_what_if.clear()
 	_tower_grid.fill(null)
 	_block_mask.fill(0)
 	for t: Tower in towers:
