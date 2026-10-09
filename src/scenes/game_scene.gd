@@ -138,7 +138,7 @@ func _ready() -> void:
 	for o: Overlay in [pause_overlay, win_overlay, lose_overlay]:
 		add_child(o) # they cover the whole window
 	draft = DraftOverlay.new(self)
-	_stage.add_child(draft)
+	add_child(draft) # over the whole window, the rail too
 	_build_tips()
 
 	Screen.on_resize(self, _layout)
@@ -164,6 +164,7 @@ func _layout() -> void:
 	var top_left: Vector2 = screen_to_field(Vector2.ZERO)
 	field.set_surroundings(Rect2(top_left, screen_to_field(screen) - top_left).grow(Config.TILE))
 	var map: Rect2 = map_rect()
+	draft.layout(screen, map)
 	_tips.position = Vector2(map.get_center().x - _tips.size.x / 2, map.position.y + 8).round()
 
 
