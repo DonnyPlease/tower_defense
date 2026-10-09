@@ -55,3 +55,26 @@ func test_lanes_change_smoothly_where_the_road_narrows() -> void:
 		prev = now
 		s += 1.0
 
+
+func test_selling_a_wall_in_the_way_turns_enemies_towards_the_gap_at_once() -> void:
+	var w := World.new(Levels.by_id("openfield"))
+	w.money = 100_000
+	# Beacons don't shoot: a wall of them from row 1 to 12, open at the bottom.
+	for r: int in range(1, 13):
+		w.build("support", 10, r)
+	w.start_next_wave()
+	for t: int in 300:
+		w.update()
+	var e: Enemy = w.enemies[0]
+	for t: Tower in w.towers.duplicate():
+		if t.row >= 6 and t.row <= 8:
+			w.sell(t)
+	var best: float = e.remaining
+	var worse: float = 0.0
+	for t: int in 120:
+		w.update()
+		worse = maxf(worse, e.remaining - best)
+		best = minf(best, e.remaining)
+	expect_lt(worse, 1.0, "it never walks away from the exit (on to the old tile and back)")
+	expect_gt(e.x, 10 * Config.TILE, "through the gap")
+	expect_lt(e.y, 12 * Config.TILE, "not round the bottom of the wall")

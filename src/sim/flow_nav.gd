@@ -17,6 +17,7 @@ var _target_x: float
 var _target_y: float
 var _exiting: bool = false
 var _ax: float # this enemy's aim offset from tile centres
+var _seen_version: int # the field's version when the next tile was picked
 var _ay: float
 
 
@@ -24,6 +25,7 @@ func _init(map: GameMap, field: FlowField, tile: Vector2i, lane_seed: int, dir: 
 		from: FlowNav = null) -> void:
 	_map = map
 	_field = field
+	_seen_version = field.version
 	_tile = tile
 	_dir = dir
 	_ax = (MathX.hash01(lane_seed, 5) * 2 - 1) * AIM_JITTER
@@ -73,9 +75,34 @@ func _advance() -> bool:
 	return true
 
 
+## Towers or walls changed: if a neighbour of the tile the enemy stands on is
+## now a better step than the tile it is walking to (a wall was sold and a
+## shorter way opened, say), turn towards it at once instead of first walking
+## on to the old tile and turning back.
+func _replan() -> void:
+	_seen_version = _field.version
+	if _exiting:
+		return
+	var dist: PackedInt32Array = _field.dist
+	var here := Vector2i(floori(x / Config.TILE), floori(y / Config.TILE))
+	var d_here: int = GameMap.dist_at(dist, here.x, here.y)
+	if here == _tile or d_here == GameMap.UNREACHABLE or d_here == 0:
+		return
+	var next: Vector2i = GameMap.next_tile(dist, here, _tile - here if (_tile - here).length_squared() == 1 else _dir)
+	if next == GameMap.NO_TILE or next == _tile:
+		return
+	if GameMap.dist_at(dist, next.x, next.y) >= GameMap.dist_at(dist, _tile.x, _tile.y):
+		return # the old step is as good
+	_dir = next - here
+	_tile = next
+	_aim(next)
+
+
 func move(step: float) -> bool:
 	if step <= 0:
 		return true
+	if _seen_version != _field.version:
+		_replan()
 	var d: float = MathX.hypot(_target_x - x, _target_y - y)
 	if _exiting:
 		if d <= step:
