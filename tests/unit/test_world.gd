@@ -285,6 +285,25 @@ func test_round_trips_a_snapshot_between_waves() -> void:
 	expect_true(copy.tower_at(0, 0) == c)
 
 
+func test_towers_are_credited_with_their_kills_and_damage() -> void:
+	var w := World.new(meadow)
+	w.money = 1000
+	var gun: Tower = w.build("gun", 6, 9)
+	var missile: Tower = w.build("missile", 13, 7)
+	w.start_next_wave()
+	for i: int in 60 * 60:
+		w.update()
+		if not w.is_spawning() and w.enemies.is_empty():
+			break
+	expect_gt(w.kills, 0)
+	expect_eq(gun.kills + missile.kills, w.kills, "every kill was a tower's")
+	expect_gt(gun.damage_done + missile.damage_done, 0.0)
+	var copy := World.new(meadow)
+	copy.restore(WorldSnapshot.from_dict(JSON.parse_string(JSON.stringify(w.snapshot().to_dict()))))
+	expect_eq(copy.tower_at(6, 9).kills, gun.kills, "kept when the game is saved")
+	expect_near(copy.tower_at(13, 7).damage_done, roundf(missile.damage_done), 0)
+
+
 func test_cannot_snapshot_during_a_wave() -> void:
 	var w := World.new(meadow)
 	w.start_next_wave()
@@ -507,3 +526,16 @@ func test_split_children_fan_out_from_their_parent() -> void:
 	for m: Enemy in minis:
 		spots["%d,%d" % [MathX.js_round(m.x), MathX.js_round(m.y)]] = true
 	expect_eq(spots.size(), 3)
+
+
+func test_reach_at_is_the_reach_the_tower_gets_when_built() -> void:
+	var w := World.new(meadow)
+	expect_near(w.reach_at("gun", 6, 9), Towers.get_def("gun").levels[0].attack_range)
+	w.tower_range = 0.8
+	var expected: float = w.reach_at("missile", 6, 9)
+	expect_near(w.build("missile", 6, 9).attack_range, expected, 2, "the level's range modifier counts")
+	w.money = 1000
+	expect_true(w.build_wall(12, 3))
+	var raised: float = w.reach_at("gun", 12, 3)
+	expect_near(raised, Towers.get_def("gun").levels[0].attack_range * 0.8 * Config.HIGH_GROUND_RANGE)
+	expect_near(w.build("gun", 12, 3).attack_range, raised, 2, "a wall raises it")

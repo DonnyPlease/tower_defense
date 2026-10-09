@@ -25,6 +25,8 @@ var endless_best: int = 0 ## most waves cleared in endless mode
 var tutorial_done: bool = false ## the first-game hints on Meadow were finished or skipped
 var sfx: bool = true
 var music: bool = true
+var speed: int = 1 ## the game speed last picked (1, 2 or 3)
+var auto_waves: bool = false ## start the next wave by itself a few seconds after one is cleared
 var save: WorldSnapshot = null ## game in progress
 
 
@@ -63,12 +65,14 @@ static func save_profile(p: Profile = null) -> void:
 		DirAccess.rename_absolute(tmp, storage_path)
 
 
-## Starts over (keeping the sound settings).
+## Starts over (keeping the settings: sound, speed, auto waves).
 static func reset() -> Profile:
 	var keep: Profile = load_profile()
 	var p := Profile.new()
 	p.sfx = keep.sfx
 	p.music = keep.music
+	p.speed = keep.speed
+	p.auto_waves = keep.auto_waves
 	save_profile(p)
 	return p
 
@@ -81,7 +85,8 @@ static func forget_cache() -> void:
 func to_dict() -> Dictionary:
 	return {
 		"v": VERSION, "stars": stars, "tech": tech.keys(), "free_tech": free_tech.keys(), "endless_best": endless_best,
-		"tutorial_done": tutorial_done, "sfx": sfx, "music": music, "save": save.to_dict() if save != null else null,
+		"tutorial_done": tutorial_done, "sfx": sfx, "music": music, "speed": speed, "auto_waves": auto_waves,
+		"save": save.to_dict() if save != null else null,
 	}
 
 
@@ -99,6 +104,8 @@ static func from_dict(d: Variant) -> Profile:
 	p.endless_best = JsonRead.int_or(dict.get("endless_best"))
 	p.sfx = dict.get("sfx") != false
 	p.music = dict.get("music") != false
+	p.speed = clampi(JsonRead.int_or(dict.get("speed"), 1), 1, 3)
+	p.auto_waves = dict.get("auto_waves") == true
 	p.save = WorldSnapshot.from_dict(dict.get("save"))
 	# Players from before the tutorial existed have played already.
 	p.tutorial_done = dict.get("tutorial_done") == true or (version == 1 and p.total_stars() > 0)

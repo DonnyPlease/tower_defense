@@ -14,23 +14,25 @@ export const COLORS = {
   stone: '#8d939c',
 };
 
-// Where things are, in game coordinates (the game is 1000 x 600).
+// Where things are on the menus, which are laid out for 1000 x 600 and centred
+// in the view (see Game.centred).
 export const AT = {
   menuPlay: [500, 263], // click the Play button here (centre)
   menuPlayColor: [400, 250], // a point of it without text, when there is no saved game
   menuContinue: [500, 233], // click the Continue button here (only with a saved game)
   menuContinueColor: [400, 225],
   menuMusicBorder: [370, 384], // left edge of the music button
+  menuMusic: [432, 384],
   levelMeadowPlay: [190, 305], // click here
   levelMeadowPlayColor: [100, 305], // the same button, without text
-  towerGun: [854, 121],
-  waveButton: [900, 519], // click here
-  waveButtonColor: [830, 505], // the same button, without text
-  tile: (col, row) => [col * 40 + 20, row * 40 + 20],
-  // The bar along the bottom of the field: wall, time slow, damage boost, ... (84 px wide, 4 px apart).
-  abilityButton: (i) => [50 + i * 88 + 42, 579],
-  fieldFrame: [400, 1.5], // the strip along the top edge where a running ability draws its frame
 };
+
+// The game screen (src/scenes/game_scene.gd, src/ui/hud.gd, src/ui/ability_bar.gd).
+const RAIL_W = 116;
+const FIELD = [800, 600];
+// On a small touch screen (the phone project) the rail is drawn 1.4x bigger and
+// split in two columns: towers by the map, wave controls at the edge (Screen.ui_scale).
+const PHONE_UI = 1.4;
 
 function hexOf(r, g, b) {
   return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
@@ -64,16 +66,71 @@ export class Game {
     });
   }
 
-  /** Where the 1000 x 600 game sits in the window (it keeps its aspect ratio). */
+  /**
+   * How the game fills the window. It is designed for a 1000 x 600 view; the
+   * view keeps that scale and grows to the window's shape (no black bars), so
+   * it is at least 1000 x 600 game units and `scale` page pixels per unit.
+   */
   layout() {
     const { width, height } = this.page.viewportSize();
     const scale = Math.min(width / 1000, height / 600);
-    return { scale, x: (width - 1000 * scale) / 2, y: (height - 600 * scale) / 2, width, height };
+    return { scale, viewW: width / scale, viewH: height / scale, width, height };
   }
 
+  /** A point of the view on the page. */
   toPage(gx, gy) {
     const l = this.layout();
-    return [l.x + gx * l.scale, l.y + gy * l.scale];
+    return [gx * l.scale, gy * l.scale];
+  }
+
+  /** A point of a screen laid out for 1000 x 600 (the menus), centred in the view. */
+  centred([x, y]) {
+    const l = this.layout();
+    return [x + Math.floor((l.viewW - 1000) / 2), y + Math.floor((l.viewH - 600) / 2)];
+  }
+
+  /** The game screen's rail: its scale, columns and left edge in the view. */
+  railLayout() {
+    const l = this.layout();
+    const ui = this.touch ? PHONE_UI : 1;
+    const columns = this.touch ? 2 : 1;
+    return { ui, columns, left: l.viewW - RAIL_W * columns * ui, height: l.viewH / ui };
+  }
+
+  /** The game screen: a point of the field (800 x 600) on the view (the map is scaled to fit left of the rail). */
+  field(fx, fy) {
+    const l = this.layout();
+    const areaW = this.railLayout().left;
+    const k = Math.min(areaW / FIELD[0], l.viewH / FIELD[1]);
+    const x0 = Math.round((areaW - FIELD[0] * k) / 2);
+    const y0 = Math.round((l.viewH - FIELD[1] * k) / 2);
+    return [x0 + fx * k, y0 + fy * k];
+  }
+
+  /** The game screen: centre of a map tile. */
+  tile(col, row) {
+    return this.field(col * 40 + 20, row * 40 + 20);
+  }
+
+  /** The game screen: points on the rail at the right edge (and its drop-down). */
+  rail(what) {
+    const { ui, columns, left, height } = this.railLayout();
+    // In the rail's own units (it is scaled by `ui`):
+    const towersY = columns === 1 ? 80 : 12;
+    // A new profile owns two towers (and a "?" slot): two rows of build buttons.
+    const toolsY = towersY + 2 * 54 + 4;
+    const statusX = RAIL_W * (columns - 1); // the wave controls' column
+    const waveTop = height - 8 - 32 - 8 - 54;
+    const at = (x, y) => [left + x * ui, y * ui];
+    return {
+      towerGun: at(32, towersY + 25), // the first build button (two per row)
+      wall: at(58, toolsY + 17), // the wall button
+      abilities: at(58, toolsY + 40 + 17), // opens the abilities' drop-down
+      slow: at(-168, toolsY - 83), // its first button (time slow), while it is open
+      background: at(58, toolsY + 150), // the rail between its buttons
+      waveButton: at(statusX + 58, waveTop + 27), // centre of the wave button
+      waveButtonColor: at(statusX + 14, waveTop + 27), // the same button, without text
+    }[what];
   }
 
   async click([gx, gy]) {
@@ -116,29 +173,29 @@ export class Game {
 
   /** The title screen: the Play (or Continue) button is drawn in the accent colour. */
   async waitForMenu({ saved = false } = {}) {
-    await this.waitForColor(saved ? AT.menuContinueColor : AT.menuPlayColor, COLORS.accent, {
+    await this.waitForColor(this.centred(saved ? AT.menuContinueColor : AT.menuPlayColor), COLORS.accent, {
       timeout: 60_000,
       what: saved ? 'the Continue button' : 'the Play button',
     });
   }
 
   async startMeadow() {
-    await this.click(AT.menuPlay);
-    await this.waitForColor(AT.levelMeadowPlayColor, COLORS.accent, { what: 'the level select screen' });
-    await this.click(AT.levelMeadowPlay);
-    await this.waitForColor(AT.tile(0, 0), COLORS.grassAlt, { tolerance: 8, what: 'the game field' });
+    await this.click(this.centred(AT.menuPlay));
+    await this.waitForColor(this.centred(AT.levelMeadowPlayColor), COLORS.accent, { what: 'the level select screen' });
+    await this.click(this.centred(AT.levelMeadowPlay));
+    await this.waitForColor(this.tile(0, 0), COLORS.grassAlt, { tolerance: 8, what: 'the game field' });
   }
 
   /** Builds a gun tower on a free grass tile and waits until it is drawn. */
   async buildGun(col, row) {
-    await this.waitForColor(AT.tile(col, row), COLORS.grass, { tolerance: 8, what: `free grass at ${col},${row}` });
-    await this.click(AT.towerGun);
-    await this.click(AT.tile(col, row));
+    await this.waitForColor(this.tile(col, row), COLORS.grass, { tolerance: 8, what: `free grass at ${col},${row}` });
+    await this.click(this.rail('towerGun'));
+    await this.click(this.tile(col, row));
     // Put the tool away and the pointer elsewhere, so only a real tower is left on the tile
     // (while building, a preview of the tower is drawn under the pointer).
     await this.page.keyboard.press('Escape');
-    if (!this.touch) await this.page.mouse.move(...this.toPage(900, 300));
-    await this.waitForColor(AT.tile(col, row), COLORS.grass, { not: true, tolerance: 20, what: `a tower at ${col},${row}` });
+    if (!this.touch) await this.page.mouse.move(...this.toPage(...this.rail('background')));
+    await this.waitForColor(this.tile(col, row), COLORS.grass, { not: true, tolerance: 20, what: `a tower at ${col},${row}` });
   }
 
   expectNoProblems() {

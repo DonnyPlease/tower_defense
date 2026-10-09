@@ -1,10 +1,17 @@
 class_name GameScene
 extends Node2D
 ## A game in progress: runs the simulation at a fixed rate, draws it, and
-## handles building, selecting, the sidebar, pausing and the end of the game.
+## handles building, selecting, the rail (Hud), pausing and the end of the game.
 ## The level comes from Router (Router.goto_game).
+##
+## The map is drawn as large as the window allows beside the rail, and the
+## land around it carries on to the edges of the window. Positions in the
+## simulation are "field" coordinates (800 x 600); the screen shows them
+## scaled and moved (see field_to_screen()).
 
 const SPEEDS: Array[int] = [1, 2, 3]
+## With auto waves on, how long after a wave is cleared the next one starts.
+const AUTO_WAVE_TICKS: int = 5 * Config.TICK_RATE
 const BLOCK_MESSAGE: Dictionary[World.BlockReason, String] = {
 	World.BlockReason.TERRAIN: "Can't build here",
 	World.BlockReason.OCCUPIED: "Tile taken",
@@ -24,11 +31,14 @@ var selected_wall: Vector2i = GameMap.NO_TILE
 var aim: String = ""
 var paused: bool = false
 var speed: int = 1
+var _auto_wave_at: int = -1 ## the tick the next wave starts by itself (-1: not counting down)
 var level_id: String
 var resumed: bool = false
 
 var field: FieldView
 var hud: Hud
+## The selected tower's (or wall's) controls, next to it.
+var card: TowerCard
 var pause_overlay: Overlay
 var win_overlay: Overlay
 var lose_overlay: Overlay
@@ -43,7 +53,7 @@ var _stage: Node2D
 var _clock := FixedStep.new()
 var _alpha: float = 0.0
 var _hover_tile: Vector2i = GameMap.NO_TILE
-var _mouse: Vector2 = Vector2.ZERO ## the pointer, in game coordinates
+var _mouse: Vector2 = Vector2.ZERO ## the pointer, in field coordinates
 var _hover: DrawNode
 var _ghost: DrawNode
 var _hint: TextLabel
@@ -51,11 +61,14 @@ var _banner: TextLabel
 var _banner_tween: Tween
 var _boss_bar: DrawNode
 var _boss_text: TextLabel
+var _tips: Control
+var _tips_label: TextLabel
 
 
 func _ready() -> void:
 	level_id = Router.launch_level_id
 	var profile: Profile = Profile.load_profile()
+	speed = profile.speed if SPEEDS.has(profile.speed) else 1
 	var endless: bool = level_id == Levels.ENDLESS.id
 	world = World.new(Levels.by_id(level_id), Levels.endless_wave if endless else Callable(),
 		profile.modifiers(), profile.unlocked_towers())
@@ -94,10 +107,15 @@ func _ready() -> void:
 	_stage.add_child(_boss_bar)
 	_boss_text = Ui.text(_stage, Config.FIELD_W / 2.0, 12, "", 13, Palette.TEXT, true, Vector2(0.5, 0)).set_outline(3)
 	_boss_text.z_index = FieldView.D_FLOATERS
+	card = TowerCard.new(self)
+	add_child(card)
 	hud = Hud.new(self)
-	_stage.add_child(hud)
+	hud.card = card
+	hud.help = HelpCard.new()
+	add_child(hud)
+	add_child(hud.help)
 	ability_bar = AbilityBar.new(self)
-	_stage.add_child(ability_bar)
+	hud.add_tools(ability_bar)
 	build_menu = BuildMenu.new(self)
 	_stage.add_child(build_menu)
 	if level_id == "meadow" and not profile.tutorial_done:
@@ -121,16 +139,85 @@ func _ready() -> void:
 		Overlay.Action.new("Level select", Router.goto_levels),
 	])
 	for o: Overlay in [pause_overlay, win_overlay, lose_overlay]:
-		_stage.add_child(o)
+		add_child(o) # they cover the whole window
 	draft = DraftOverlay.new(self)
-	_stage.add_child(draft)
+	add_child(draft) # over the whole window, the rail too
+	_build_tips()
+
+	Screen.on_resize(self, _layout)
 
 	var title: String = "Endless mode" if endless else world.map.name
 	show_banner(title + "\nGame resumed" if resumed else title, Palette.TEXT)
 	Audio.set_intensity(0)
 
 
-# ---- what the sidebar can do ---------------------------------------------------
+# ---- layout ------------------------------------------------------------------
+
+## Scales the map to the largest size that fits beside the sidebar, centres
+## it there, and lets the land around it fill the rest of the window. On a
+## phone the rail gets bigger (and two columns wide) when the map can still
+## be as tall as the screen beside it; a notch's margins are left free.
+func _layout() -> void:
+	var screen: Vector2 = Screen.size(self)
+	var insets: Vector4 = Screen.safe_insets(self)
+	var safe := Rect2(insets.x, insets.y, screen.x - insets.x - insets.z, screen.y - insets.y - insets.w)
+	var ui: float = Screen.ui_scale()
+	var full_map_w: float = Config.FIELD_W * safe.size.y / Config.FIELD_H
+	var cols: int = 1
+	if ui > 1.0:
+		cols = 2
+		ui = minf(ui, (safe.size.x - full_map_w) / (2 * Hud.W))
+		if ui < 1.0:
+			cols = 1
+			ui = 1.0
+	hud.layout(safe, ui, cols, insets)
+	card.ui_scale = ui
+	hud.help.ui_scale = ui
+	build_menu.scale = Vector2(ui, ui)
+	var area := Rect2(safe.position.x, safe.position.y, safe.size.x - hud.width_on_screen(), safe.size.y)
+	var k: float = minf(area.size.x / Config.FIELD_W, area.size.y / Config.FIELD_H)
+	var map_size := Vector2(Config.FIELD_W, Config.FIELD_H) * k
+	_stage.scale = Vector2(k, k)
+	_stage.position = (area.position + (area.size - map_size) / 2).round()
+	# The whole window in field coordinates, with a tile to spare for screen shake.
+	var top_left: Vector2 = screen_to_field(Vector2.ZERO)
+	field.set_surroundings(Rect2(top_left, screen_to_field(screen) - top_left).grow(Config.TILE))
+	var map: Rect2 = map_rect()
+	draft.layout(screen, map)
+	_tips.position = Vector2(map.get_center().x - _tips.size.x / 2, map.position.y + 8).round()
+
+
+## Where the map is drawn on the screen.
+func map_rect() -> Rect2:
+	return Rect2(_stage.position, Vector2(Config.FIELD_W, Config.FIELD_H) * _stage.scale)
+
+
+## A point of the field (simulation coordinates) on the screen.
+func field_to_screen(p: Vector2) -> Vector2:
+	return _stage.position + p * _stage.scale
+
+
+## A point of the screen in field coordinates.
+func screen_to_field(p: Vector2) -> Vector2:
+	return (p - _stage.position) / _stage.scale
+
+
+## A short hint at the top of the map until the first tower is built (unless
+## the first-game tutorial is showing its own).
+func _build_tips() -> void:
+	var text: String = "No road here: enemies walk around your towers and walls.\nBuild a maze to make their way long." \
+		if world.map.maze else "Pick a tower on the right (or click the grass), then build.\nClick a tower or wall to upgrade or sell it."
+	_tips = PainterView.new(func(g: CanvasItem, _center: Vector2, _s: float) -> void:
+		Paint.fill_rounded_rect(g, 0, 0, _tips.size.x, _tips.size.y, 10, Color(Palette.PANEL, 0.88)))
+	_tips.z_index = Hud.DEPTH - 1
+	add_child(_tips)
+	_tips_label = Ui.text(_tips, 14, 8, text, 13, Palette.TEXT, false)
+	_tips_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tips_label.place()
+	_tips.size = _tips_label.size + Vector2(28, 16)
+
+
+# ---- what the rail can do -----------------------------------------------------
 
 func music_on() -> bool:
 	return Profile.load_profile().music
@@ -181,6 +268,40 @@ func toggle_pause() -> void:
 
 func toggle_speed() -> void:
 	speed = SPEEDS[(SPEEDS.find(speed) + 1) % SPEEDS.size()]
+	var p: Profile = Profile.load_profile()
+	p.speed = speed
+	Profile.save_profile(p)
+
+
+func auto_waves_on() -> bool:
+	return Profile.load_profile().auto_waves
+
+
+func toggle_auto_waves() -> void:
+	var p: Profile = Profile.load_profile()
+	p.auto_waves = not p.auto_waves
+	Profile.save_profile(p)
+
+
+## Seconds until the next wave starts by itself, or -1 when it won't.
+func auto_wave_seconds() -> int:
+	if _auto_wave_at < 0:
+		return -1
+	return ceili(maxi(0, _auto_wave_at - world.tick) / float(Config.TICK_RATE))
+
+
+## With auto waves on, counts down between waves (once the first was
+## started by hand) and starts the next one.
+func _update_auto_wave() -> void:
+	var waiting: bool = world.status == World.Status.PLAYING and world.wave_index >= 0 \
+		and not world.wave_in_progress() and world.next_wave() != null
+	if not waiting or not auto_waves_on():
+		_auto_wave_at = -1
+	elif _auto_wave_at < 0:
+		_auto_wave_at = world.tick + AUTO_WAVE_TICKS
+	elif world.tick >= _auto_wave_at and not is_modal_open():
+		_auto_wave_at = -1
+		start_wave()
 
 
 func toggle_music() -> void:
@@ -353,10 +474,19 @@ func choose_run_perk(id: String) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Track the hovered tile everywhere (the sidebar and dialogs clear it).
+	# Track the hovered tile everywhere (the rail, the cards and dialogs clear it).
 	var motion := event as InputEventMouseMotion
 	if motion != null:
 		_update_hover(motion.position)
+	# A click anywhere but on the gear menu or the abilities' drop-down closes it.
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.pressed and hud.is_menu_open() and not hud.covers(mb.position):
+		hud.close_menu()
+		get_viewport().set_input_as_handled() # the click only closes the menu
+	elif mb != null and mb.pressed and ability_bar.is_open() and not ability_bar.covers(mb.position) \
+			and not ability_bar.toggle_button.get_global_rect().has_point(mb.position):
+		ability_bar.close()
+		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -374,6 +504,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_cancel_picks()
 		elif mb.button_index == MOUSE_BUTTON_LEFT and _hover_tile != GameMap.NO_TILE:
 			click_tile(_hover_tile.x, _hover_tile.y)
+		elif mb.button_index == MOUSE_BUTTON_LEFT:
+			# A click on the land beside the map lets go of what is selected.
+			selected = null
+			selected_wall = GameMap.NO_TILE
 		get_viewport().set_input_as_handled()
 		return
 
@@ -383,7 +517,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	match key.keycode:
 		KEY_ESCAPE:
-			if (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE \
+			if hud.is_menu_open():
+				hud.close_menu()
+			elif ability_bar.is_open():
+				ability_bar.close()
+			elif (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE \
 					or build_menu.is_open()) and not is_modal_open():
 				_cancel_picks()
 			else:
@@ -434,7 +572,12 @@ func _notification(what: int) -> void:
 		toggle_pause()
 
 
-func _update_hover(p: Vector2) -> void:
+## `p` is a point on the screen.
+func _update_hover(screen_point: Vector2) -> void:
+	var p: Vector2 = screen_to_field(screen_point)
+	if hud.covers(screen_point) or ability_bar.covers(screen_point) \
+			or (card.visible and card.get_rect().has_point(screen_point)):
+		p = Vector2(-1000, -1000) # on the rail or a card, not the field
 	_mouse = p
 	if p.x >= 0 and p.x < Config.FIELD_W and p.y >= 0 and p.y < Config.FIELD_H:
 		_hover_tile = Vector2i(floori(p.x / Config.TILE), floori(p.y / Config.TILE))
@@ -510,13 +653,17 @@ func _process(delta: float) -> void:
 	if selected_wall != GameMap.NO_TILE and not world.has_wall(selected_wall.x, selected_wall.y):
 		selected_wall = GameMap.NO_TILE
 	_handle_scene_events(world.events)
+	_update_auto_wave()
 	field.handle_events(world.events)
 	field.sync(_alpha)
 	_update_hover_objects()
 	_boss_bar.queue_redraw()
 	if is_modal_open() and build_menu.is_open():
 		build_menu.close()
+	_refresh_card()
 	hud.refresh()
+	_tips.visible = world.wave_index < 0 and world.towers.is_empty() and not is_modal_open() \
+		and (tutorial == null or not tutorial.visible)
 	ability_bar.refresh()
 	draft.refresh()
 	build_menu.refresh()
@@ -619,6 +766,22 @@ func _draw_boss_bar(g: CanvasItem) -> void:
 	_boss_text.show_text("%s  %d / %d" % [boss.def.name, ceili(boss.hitpoints), boss.max_hitpoints])
 
 
+## The selected tower's (or wall's) card follows it (and the window's size).
+func _refresh_card() -> void:
+	var modal: bool = is_modal_open()
+	card.show_for(selected if not modal else null, selected_wall if not modal else GameMap.NO_TILE)
+	if not card.visible:
+		return
+	card.refresh()
+	var at: Vector2
+	if selected != null:
+		at = field_to_screen(Vector2(selected.x, selected.y))
+	else:
+		at = field_to_screen(GameMap.tile_center(selected_wall))
+	var screen: Vector2 = Screen.size(self)
+	card.place(at, Rect2(0, 0, hud.get_global_rect().position.x, screen.y))
+
+
 func _update_hover_objects() -> void:
 	_hover.queue_redraw()
 	_ghost.visible = false
@@ -665,8 +828,16 @@ func _draw_hover(g: CanvasItem) -> void:
 		g.draw_circle(Vector2(s.x, s.y), s.attack_range, Color(1, 1, 1, 0.1))
 		Paint.stroke_circle(g, s.x, s.y, s.attack_range, 2, Color(Palette.GOLD, 0.8))
 		g.draw_rect(Rect2(s.col * t + 1, s.row * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
+		if card.upgrade_hovered and not s.is_max_level() and not s.needs_branch():
+			_dashed_circle(g, Vector2(s.x, s.y), s.reach_at_level(s.level + 1), Color(Palette.GOLD, 0.9))
 	if selected_wall != GameMap.NO_TILE and not is_modal_open():
 		g.draw_rect(Rect2(selected_wall.x * t + 1, selected_wall.y * t + 1, t - 2, t - 2), Palette.GOLD, false, 2)
+	if build_menu.is_open() and not build_menu.previewing.is_empty():
+		var at: Vector2i = build_menu.tile
+		var c: Vector2 = GameMap.tile_center(at)
+		var reach: float = world.reach_at(build_menu.previewing, at.x, at.y)
+		g.draw_circle(c, reach, Color(1, 1, 1, 0.12))
+		Paint.stroke_circle(g, c.x, c.y, reach, 2, Color(1, 1, 1, 0.6))
 	if not is_modal_open() and _mouse.x >= 0 and _mouse.x < Config.FIELD_W and _mouse.y >= 0 and _mouse.y < Config.FIELD_H:
 		_draw_aim(g)
 	if _hover_tile == GameMap.NO_TILE or is_modal_open():
@@ -680,8 +851,7 @@ func _draw_hover(g: CanvasItem) -> void:
 		var ok: bool = reason == World.BlockReason.NONE and world.can_afford(tool)
 		var color: Color = Color.WHITE if ok else Palette.RED
 		if reason != World.BlockReason.TERRAIN:
-			var reach: float = Towers.get_def(tool).levels[0].attack_range * world.tower_range \
-				* (Config.HIGH_GROUND_RANGE if (world.map.is_high_ground(col, row) or world.has_wall(col, row)) else 1.0)
+			var reach: float = world.reach_at(tool, col, row)
 			g.draw_circle(center, reach, Color(color, 0.12))
 			Paint.stroke_circle(g, center.x, center.y, reach, 2, Color(color, 0.6))
 		g.draw_rect(Rect2(col * t + 1, row * t + 1, t - 2, t - 2), Color(color, 0.9), false, 2)
@@ -699,6 +869,13 @@ func _draw_hover(g: CanvasItem) -> void:
 	elif tower != null and tower != selected:
 		g.draw_circle(Vector2(tower.x, tower.y), tower.attack_range, Color(1, 1, 1, 0.08))
 		Paint.stroke_circle(g, tower.x, tower.y, tower.attack_range, 2, Color(1, 1, 1, 0.45))
+
+
+static func _dashed_circle(g: CanvasItem, c: Vector2, radius: float, color: Color) -> void:
+	var dashes: int = maxi(12, roundi(radius / 8))
+	var step: float = TAU / dashes
+	for i: int in dashes:
+		g.draw_arc(c, radius, i * step, i * step + step * 0.55, 4, color, 2)
 
 
 ## What the airstrike and the focus mark would hit, under the pointer.
@@ -739,6 +916,11 @@ func ghost_state() -> String:
 	if not _ghost.visible:
 		return "hidden"
 	return "ok" if _ghost.modulate.g > 0.9 else "blocked"
+
+
+## The hint at the bottom of the map ("" when hidden).
+func tips_text() -> String:
+	return _tips_label.text if _tips.visible else ""
 
 
 ## The boss health label at the top ("" without a boss).

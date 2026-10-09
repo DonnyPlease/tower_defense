@@ -22,6 +22,9 @@ class SpawnEntry:
 
 ## Half the width of a sniper's rail shot (on top of the enemy's radius).
 const RAIL_WIDTH: float = 4.0
+## From this many enemies on, towers and bullets look them up in a grid
+## (see nearby()) instead of checking every one.
+const GRID_MIN_ENEMIES: int = 64
 
 
 ## A landmine waiting for a ground enemy.
@@ -70,6 +73,8 @@ var waves_cleared: int = 0
 var kills: int = 0
 var status: Status = Status.PLAYING
 var events: Array[WorldEvent] = []
+## Changes whenever a tower or wall is built or sold (views compare it).
+var obstacles_version: int = 0
 ## Walls by tile, with what each cost (the refund when it is sold).
 var walls: Dictionary[Vector2i, int] = {}
 var mines: Array[Mine] = []
@@ -108,6 +113,12 @@ var _flow: FlowField
 var _open_flow: FlowField ## the way out ignoring towers and walls (hoppers)
 var _tower_grid: Array[Tower] = []
 var _block_mask: PackedByteArray ## 1 where a tower or wall stands
+## Enemies by position, rebuilt every tick before the towers act (see nearby()).
+var _grid := EnemyGrid.new()
+# The distance field with one more obstacle, by tile, for the current towers
+# and walls (the build check asks for it every frame the player hovers a tile).
+var _what_if: Dictionary[int, PackedInt32Array] = {}
+var _grid_ready: bool = false ## the grid matches `enemies` (during the towers' and bullets' turn)
 
 
 ## `endless_waves(index) -> Wave` turns on endless mode: waves come from it
@@ -188,7 +199,12 @@ func enemies_remaining() -> int:
 
 
 func hp_multiplier() -> float:
-	var i: int = maxi(0, wave_index)
+	return hp_multiplier_at(wave_index)
+
+
+## How much tougher than their base the enemies of a wave (by index) are.
+func hp_multiplier_at(index: int) -> float:
+	var i: int = maxi(0, index)
 	# Endless waves also get tougher quadratically, so every run ends eventually.
 	return hp_scale * (1 + Config.WAVE_HP_GROWTH * i + (Config.ENDLESS_HP_GROWTH * i * i if endless else 0.0))
 
@@ -218,6 +234,13 @@ func build_cost(kind: String, col: int, row: int) -> int:
 	if has_perk("hillforts") and (map.is_high_ground(col, row) or has_wall(col, row)):
 		cost = MathX.js_round(cost * RunPerks.HILL_FORT_PRICE)
 	return cost
+
+
+## How far a tower built now on a tile would reach (for the build previews).
+func reach_at(kind: String, col: int, row: int) -> float:
+	var level: int = 1 if veteran_left else 0
+	var raised: bool = map.is_high_ground(col, row) or has_wall(col, row)
+	return Towers.level_stats(kind, level).attack_range * (Config.HIGH_GROUND_RANGE if raised else 1.0) * tower_range
 
 
 ## Price of the tower's next upgrade, or Tower.NO_UPGRADE at max level.
@@ -276,17 +299,32 @@ func _path_block_reason(col: int, row: int) -> BlockReason:
 			continue
 		if (floori(e.x / Config.TILE) == col and floori(e.y / Config.TILE) == row) or e.nav.target_tile() == tile:
 			return BlockReason.ENEMY
-	var mask: PackedByteArray = _block_mask.duplicate()
-	mask[row * Config.COLS + col] = 1
-	var field: PackedInt32Array = map.distance_field(mask)
-	for s: Vector2i in map.starts:
-		if GameMap.dist_at(field, s.x, s.y) == GameMap.UNREACHABLE:
-			return BlockReason.BLOCKS_PATH
+	var field: PackedInt32Array = _field_with_obstacle_at(col, row)
+	if field.is_empty():
+		return BlockReason.BLOCKS_PATH # an entrance would be cut off
 	for e: Enemy in enemies:
 		var t: Vector2i = e.nav.target_tile()
 		if not e.flying and not e.def.hops and t != GameMap.NO_TILE and GameMap.dist_at(field, t.x, t.y) == GameMap.UNREACHABLE:
 			return BlockReason.BLOCKS_PATH
 	return BlockReason.NONE
+
+
+## The distance field with an extra obstacle at (col, row), or an empty array
+## if that would cut an entrance off the exit. Kept until towers or walls change.
+func _field_with_obstacle_at(col: int, row: int) -> PackedInt32Array:
+	var k: int = row * Config.COLS + col
+	var cached: Variant = _what_if.get(k)
+	if cached != null:
+		return cached
+	var mask: PackedByteArray = _block_mask.duplicate()
+	mask[k] = 1
+	var field: PackedInt32Array = map.distance_field(mask)
+	for s: Vector2i in map.starts:
+		if GameMap.dist_at(field, s.x, s.y) == GameMap.UNREACHABLE:
+			field = PackedInt32Array()
+			break
+	_what_if[k] = field
+	return field
 
 
 func can_build_at(col: int, row: int) -> bool:
@@ -297,7 +335,7 @@ func has_wall(col: int, row: int) -> bool:
 	return walls.has(Vector2i(col, row))
 
 
-## Current distance field (maze levels), for drawing the enemy path.
+## Current distance field enemies follow (levels where they re-route).
 var distance_field: PackedInt32Array:
 	get:
 		return _flow.dist
@@ -444,6 +482,8 @@ func start_next_wave() -> bool:
 
 ## Towers or walls were added or removed: enemies re-plan their way.
 func _obstacles_changed() -> void:
+	obstacles_version += 1
+	_what_if.clear()
 	_tower_grid.fill(null)
 	_block_mask.fill(0)
 	for t: Tower in towers:
@@ -506,23 +546,32 @@ func spawn(type: String, from: Enemy = null) -> Enemy:
 	if enemy.def.hops:
 		enemy.obstacles = _flow
 	enemies.append(enemy)
+	if _grid_ready:
+		_grid.add(enemies.size() - 1)
 	return enemy
 
 
 ## Damages an enemy (armor and shields apply, a focus mark doubles it, a
 ## cryo chill adds to it); pays
 ## the reward (doubled during a bounty) and splits splitters when it dies.
-func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: bool = true) -> void:
+## The tower that dealt it, if any, is credited with the damage and the kill.
+func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: bool = true, by: Tower = null) -> void:
 	var dealt: float = amount * e.mark_factor if e.mark_ticks > 0 else amount
 	if e.vulnerability > 0:
 		dealt *= 1 + e.vulnerability
 	if e.rallied:
 		dealt *= 1 - e.rally_toughness
-	if not e.hit(dealt, ignores_armor, flash):
+	var before: float = e.hitpoints + e.shield
+	var killed: bool = e.hit(dealt, ignores_armor, flash)
+	if by != null:
+		by.damage_done += before - (e.hitpoints + e.shield)
+	if not killed:
 		if e.alive and not e.def.phases.is_empty():
 			_check_phase(e)
 		return
 	kills += 1
+	if by != null:
+		by.kills += 1
 	var reward: int = e.def.reward * (roundi(Abilities.get_def("bounty").power) if is_active("bounty") else 1)
 	if has_perk("headhunter"):
 		reward += RunPerks.HEADHUNTER_BONUS
@@ -543,8 +592,25 @@ func damage_enemy(e: Enemy, amount: float, ignores_armor: bool = false, flash: b
 			child.prev_y = child.y
 
 
+## The enemies that may be within `reach` (plus their radius) of (x, y), in
+## the order of `enemies`: during the towers' turn only those near the spot
+## (from the grid), otherwise all of them. Callers still check the distance.
+func nearby(x: float, y: float, reach: float) -> Array[Enemy]:
+	return _grid.pick(_grid.near(x, y, reach)) if _grid_ready else enemies
+
+
+func _in_box(x0: float, y0: float, x1: float, y1: float) -> Array[Enemy]:
+	return _grid.pick(_grid.query(x0, y0, x1, y1)) if _grid_ready else enemies
+
+
+## The grid of enemies by position, while it is up to date (null otherwise).
+func enemy_grid() -> EnemyGrid:
+	return _grid if _grid_ready else null
+
+
 ## A tower fired a bullet.
 func fire(b: Bullet, from: Tower) -> void:
+	b.source = from
 	bullets.append(b)
 	var ev := WorldEvent.new(WorldEvent.Type.SHOT, b.x, b.y)
 	ev.kind = from.branch_id if from.branch != null else from.kind
@@ -558,7 +624,10 @@ func rail(from: Tower, angle: float, length: float, damage: float, max_hits: int
 	var dy: float = sin(angle)
 	var hits: Array[Enemy] = []
 	var along_of: Dictionary[Enemy, float] = {}
-	for e: Enemy in enemies:
+	var pad: float = RAIL_WIDTH + (_grid.max_radius if _grid_ready else 0.0)
+	var x1: float = from.x + dx * length
+	var y1: float = from.y + dy * length
+	for e: Enemy in _in_box(minf(from.x, x1) - pad, minf(from.y, y1) - pad, maxf(from.x, x1) + pad, maxf(from.y, y1) + pad):
 		if not from.can_target(e):
 			continue
 		var rx: float = e.x - from.x
@@ -583,7 +652,7 @@ func rail(from: Tower, angle: float, length: float, damage: float, max_hits: int
 	ev.kind = from.branch_id
 	events.append(ev)
 	for e: Enemy in hits:
-		damage_enemy(e, damage, from.ignores_armor)
+		damage_enemy(e, damage, from.ignores_armor, true, from)
 
 
 ## A frost tower pulsed (for effects).
@@ -931,25 +1000,31 @@ func update() -> void:
 
 	_update_mines()
 	_update_strikes()
+	# Only worth it on a crowded field: with few enemies (mostly along one
+	# road, in range of most towers) looking at all of them is cheaper.
+	_grid_ready = enemies.size() >= GRID_MIN_ENEMIES
+	if _grid_ready:
+		_grid.rebuild(enemies)
 	_update_buffs()
 	for t: Tower in towers:
 		t.update(self)
 
 	for b: Bullet in bullets:
-		var outcome: Bullet.Outcome = b.update(enemies)
+		var outcome: Bullet.Outcome = b.update(enemies, enemy_grid())
 		if outcome == Bullet.Outcome.HIT:
 			var ev := WorldEvent.new(WorldEvent.Type.HIT, b.x, b.y)
 			ev.bullet = b.type
 			events.append(ev)
-			damage_enemy(b.hit_enemy, b.damage_to(b.hit_enemy), b.ignores_armor)
+			damage_enemy(b.hit_enemy, b.damage_to(b.hit_enemy), b.ignores_armor, true, b.source)
 		elif outcome == Bullet.Outcome.EXPLODE:
 			var ev := WorldEvent.new(WorldEvent.Type.EXPLODE, b.x, b.y)
 			ev.radius = b.splash
 			events.append(ev)
 			for e: Enemy in enemies.duplicate():
 				if b.can_hit(e) and MathX.hypot(e.x - b.x, e.y - b.y) <= b.splash + e.radius:
-					damage_enemy(e, b.damage_to(e), b.ignores_armor)
+					damage_enemy(e, b.damage_to(e), b.ignores_armor, true, b.source)
 
+	_grid_ready = false
 	var alive_enemies: Array[Enemy] = []
 	for e: Enemy in enemies:
 		if e.alive:
@@ -1025,6 +1100,8 @@ func snapshot() -> WorldSnapshot:
 		save.branch = t.branch_id
 		save.target_mode = t.target_mode
 		save.invested = t.invested
+		save.kills = t.kills
+		save.damage = roundi(t.damage_done)
 		s.towers.append(save)
 	for tile: Vector2i in walls:
 		var wall := WorldSnapshot.WallSave.new()
@@ -1072,6 +1149,8 @@ func restore(s: WorldSnapshot) -> void:
 		else:
 			tower.level = clampi(save.level, 0, Towers.BRANCH_LEVEL - 1)
 		tower.target_mode = save.target_mode
+		tower.kills = save.kills
+		tower.damage_done = save.damage
 		towers.append(tower)
 	_obstacles_changed()
 	mines = []

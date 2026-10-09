@@ -12,11 +12,11 @@ const H: float = 54
 const WALLS_SECONDS: float = 9.0 ## how long the last hint stays
 
 const TEXT: Dictionary[Step, String] = {
-	Step.BUILD: "Build a tower: click the grass beside the road and pick one\n(or pick a tower in the sidebar, or press 1).",
+	Step.BUILD: "Build a tower: click the grass beside the road and pick one\n(or pick a tower on the right, or press 1).",
 	Step.START: "Start the first wave: press Space or the Start wave button.\nCalling waves early pays a bonus.",
 	Step.SELECT: "Click one of your towers to see what it can do.",
 	Step.UPGRADE: "Upgrade it (U). At level 3 it grows into one of two branches.",
-	Step.WALLS: "Walls (Q) reshape the road and make the way longer.\nThe bottom bar holds abilities. Good luck!",
+	Step.WALLS: "Walls (Q) reshape the road and make the way longer.\nMore tricks drop down from Abilities on the right. Good luck!",
 }
 
 var step: Step = Step.BUILD
@@ -44,9 +44,9 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	Paint.fill_rounded_rect(self, 0, 3, W, H, 10, Color(0, 0, 0, 0.3))
-	Paint.fill_rounded_rect(self, 0, 0, W, H, 10, Color(Palette.PANEL, 0.95))
-	Paint.stroke_rounded_rect(self, 0, 0, W, H, 10, 2, Palette.GOLD)
+	Paint.fill_rounded_rect(self, 0, 3, W, size.y, 10, Color(0, 0, 0, 0.3))
+	Paint.fill_rounded_rect(self, 0, 0, W, size.y, 10, Color(Palette.PANEL, 0.95))
+	Paint.stroke_rounded_rect(self, 0, 0, W, size.y, 10, 2, Palette.GOLD)
 
 
 ## Called every frame: moves on once the player did what the hint asks.
@@ -92,6 +92,12 @@ func _show() -> void:
 	if _label != null and TEXT.has(step):
 		_label.show_text(TEXT[step])
 		_label.set_wrap(W - 90)
+		# As tall as the hint needs, the text and the Skip button in the middle.
+		var h: float = maxf(H, _label.size.y + 16)
+		size.y = h
+		_label.move_to(14, h / 2)
+		skip_button.position.y = (h - skip_button.size.y) / 2
+		queue_redraw()
 
 
 ## The hint showing now ("" when the tutorial is over).

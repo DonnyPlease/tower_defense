@@ -25,6 +25,11 @@ static var profile_path: String = "user://test_profile_%d.json" % OS.get_process
 
 
 func after_each() -> void:
+	# Screens remember a few choices for the session; every test starts afresh.
+	TowerCard.details_open = false
+	TechTreeScene.last_page = TechTreeScene.Page.TOWERS
+	Screen.forced_ui_scale = 0.0
+	Screen.forced_insets = null
 	Profile.storage_path = Profile.DEFAULT_PATH
 	Profile.forget_cache()
 	DirAccess.remove_absolute(profile_path)
@@ -88,12 +93,14 @@ func until(condition: Callable, max_frames: int = 3600) -> bool:
 	return condition.call()
 
 
-## Clicks at a point in game coordinates (1000 x 600) with the mouse.
+## Clicks at a point of the view (game units: 1000 x 600 or more, see Screen) with the mouse.
 func click(x: float, y: float, button: MouseButton = MOUSE_BUTTON_LEFT) -> void:
 	var motion := InputEventMouseMotion.new()
 	motion.position = Vector2(x, y)
 	motion.global_position = motion.position
 	tree.root.push_input(motion, true)
+	# Pressed and released on different frames, like a real click: the game
+	# runs a frame in between (a button that flickers then loses the press).
 	for pressed: bool in [true, false]:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = button
@@ -101,10 +108,10 @@ func click(x: float, y: float, button: MouseButton = MOUSE_BUTTON_LEFT) -> void:
 		ev.position = Vector2(x, y)
 		ev.global_position = ev.position
 		tree.root.push_input(ev, true)
-	await frames(1)
+		await frames(1)
 
 
-## Taps at a point in game coordinates with a finger (the game sees emulated mouse events).
+## Taps at a point of the view with a finger (the game sees emulated mouse events).
 func tap(x: float, y: float) -> void:
 	var at: Vector2 = tree.root.get_final_transform() * Vector2(x, y)
 	await tap_window(at.x, at.y)
@@ -134,9 +141,51 @@ func tap_button(b: GameButton) -> void:
 	await tap(r.get_center().x, r.get_center().y)
 
 
-## Centre of a map tile in game coordinates.
+## Centre of a map tile on the screen (in view coordinates): where the game
+## screen draws it, or in field coordinates on other screens.
 func tile(col: int, row: int) -> Vector2:
-	return Vector2(col * Config.TILE + Config.TILE / 2.0, row * Config.TILE + Config.TILE / 2.0)
+	return field_point(Vector2(col * Config.TILE + Config.TILE / 2.0, row * Config.TILE + Config.TILE / 2.0))
+
+
+## A point of the field (simulation coordinates) on the screen.
+func field_point(p: Vector2) -> Vector2:
+	var game := scene() as GameScene
+	return game.field_to_screen(p) if game != null else p
+
+
+## Clicks a point of the field (simulation coordinates, 800 x 600).
+func click_field(x: float, y: float, button: MouseButton = MOUSE_BUTTON_LEFT) -> void:
+	var p: Vector2 = field_point(Vector2(x, y))
+	await click(p.x, p.y, button)
+
+
+## Moves the mouse to a point of the field (simulation coordinates).
+func hover_field(x: float, y: float) -> void:
+	var p: Vector2 = field_point(Vector2(x, y))
+	await hover(p.x, p.y)
+
+
+## Colour of the screenshot under a point of the field (simulation coordinates).
+func field_pixel(img: Image, x: float, y: float) -> Color:
+	var p: Vector2 = field_point(Vector2(x, y))
+	return pixel_at(img, p.x, p.y)
+
+
+## Right-clicks the land beside the map (or its corner tile when there is no
+## room beside it): puts the tool away and lets go of what is selected.
+func right_click_beside_map() -> void:
+	var game := scene() as GameScene
+	if game == null:
+		return
+	var map: Rect2 = game.map_rect()
+	var p: Vector2 = Vector2(map.position.x / 2, map.get_center().y) if map.position.x >= 8 else tile(0, 0)
+	await click(p.x, p.y, MOUSE_BUTTON_RIGHT)
+
+
+## A point on the game screen's rail (not on any of its buttons).
+func on_rail() -> Vector2:
+	var game := scene() as GameScene
+	return game.hud.get_global_rect().position + Vector2(Hud.W / 2, game.hud.tools_y + 150) if game != null else Vector2.ZERO
 
 
 func click_tile(col: int, row: int) -> void:
@@ -154,7 +203,7 @@ func press_key(keycode: Key) -> void:
 	await frames(1)
 
 
-## Moves the mouse to a point in game coordinates (hover effects, build preview).
+## Moves the mouse to a point of the view (hover effects, build preview).
 func hover(x: float, y: float) -> void:
 	var motion := InputEventMouseMotion.new()
 	motion.position = Vector2(x, y)
@@ -188,9 +237,9 @@ func screenshot() -> Image:
 	return tree.root.get_texture().get_image()
 
 
-## Colour of the screenshot under a point in game coordinates.
+## Colour of the screenshot under a point of the view.
 func pixel_at(img: Image, x: float, y: float) -> Color:
-	var p: Vector2 = Vector2(x, y) * Vector2(img.get_size()) / Vector2(Config.WIDTH, Config.HEIGHT)
+	var p: Vector2 = Vector2(x, y) * Vector2(img.get_size()) / tree.root.get_visible_rect().size
 	return img.get_pixel(clampi(floori(p.x), 0, img.get_width() - 1), clampi(floori(p.y), 0, img.get_height() - 1))
 
 

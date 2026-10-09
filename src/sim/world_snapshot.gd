@@ -13,6 +13,8 @@ class TowerSave:
 	var branch: String = "" ## "" before level 4
 	var target_mode: Towers.TargetMode
 	var invested: int
+	var kills: int = 0
+	var damage: int = 0
 
 
 class WallSave:
@@ -50,6 +52,7 @@ func to_dict() -> Dictionary:
 		var item: Dictionary = {
 			"kind": t.kind, "col": t.col, "row": t.row, "level": t.level,
 			"target_mode": Towers.TARGET_MODE_IDS[t.target_mode], "invested": t.invested,
+			"kills": t.kills, "damage": t.damage,
 		}
 		if not t.branch.is_empty():
 			item["branch"] = t.branch
@@ -111,6 +114,8 @@ static func from_dict(d: Variant) -> WorldSnapshot:
 			save.branch = branch
 		save.target_mode = Towers.target_mode_from_id(str(t.get("target_mode", "first")))
 		save.invested = JsonRead.int_or(t.get("invested"), Towers.get_def(save.kind).levels[0].cost)
+		save.kills = maxi(0, JsonRead.int_or(t.get("kills")))
+		save.damage = maxi(0, JsonRead.int_or(t.get("damage")))
 		s.towers.append(save)
 	_read_walls(dict, s)
 	s.free_walls = JsonRead.int_or(dict.get("free_walls"), -1)

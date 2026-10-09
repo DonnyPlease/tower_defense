@@ -21,6 +21,36 @@ static func num(x: float) -> String:
 	return str(int(x)) if x == floorf(x) and absf(x) < 1e15 else str(x)
 
 
+## A count kept short: 950, 12.3k, 4.1M.
+static func compact(x: float) -> String:
+	var v: float = absf(x)
+	if v < 1000:
+		return str(roundi(x))
+	if v < 1e6:
+		return "%sk" % num(snappedf(x / 1000.0, 0.1 if v < 1e5 else 1.0))
+	return "%sM" % num(snappedf(x / 1e6, 0.1))
+
+
+## What an enemy is like, for the next-wave preview: its hitpoints (times
+## `hp_multiplier`), speed, defences, reward and description.
+static func enemy_text(def: EnemyDef, hp_multiplier: float) -> String:
+	var lines: PackedStringArray = ["HP %d  ·  Speed %d" % [MathX.js_round(def.hitpoints * hp_multiplier),
+		roundi(def.speed * Config.TICK_RATE)]]
+	var traits: PackedStringArray = []
+	if def.armor > 0:
+		traits.append("Armor %s" % num(def.armor))
+	if def.shield > 0:
+		traits.append("Shield %d" % MathX.js_round(def.shield * hp_multiplier))
+	if def.flying:
+		traits.append("Flying")
+	if not traits.is_empty():
+		lines.append("  ·  ".join(traits))
+	lines.append("Worth $%d  ·  Costs %d %s" % [def.reward, def.damage, "life" if def.damage == 1 else "lives"])
+	lines.append("")
+	lines.append(def.description)
+	return "\n".join(lines)
+
+
 ## Stat lines shown in the sidebar for a tower at a given level (levels 3 and
 ## 4 with its branch). `reach` is the range to show (default: the level's),
 ## `buff` a beacon boost.

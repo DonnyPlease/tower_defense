@@ -14,7 +14,11 @@ const HEIGHT: int = FIELD_H
 ## The simulation runs at a fixed rate, independent of the monitor refresh
 ## rate. All speeds are in pixels per tick, all times in seconds.
 const TICK_RATE: int = 60
-const MAX_TICKS_PER_FRAME: int = 10 # protects against the "spiral of death"
+## At most this many ticks per frame (times the game speed). A slow frame
+## then slows the game down a little instead of making the next frame slower
+## still (the "spiral of death" that made the frame rate collapse on phones).
+## 4 keeps real time down to 15 frames per second, at any speed.
+const MAX_TICKS_PER_FRAME: int = 4
 
 const SELL_REFUND: float = 0.5 # fraction of the money invested returned when selling
 const WAVE_HP_GROWTH: float = 0.1 # enemy hitpoints grow by 10 % per wave

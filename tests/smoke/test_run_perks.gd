@@ -1,6 +1,6 @@
 extends SceneTestCase
 ## Field orders (run perks) in the game: the offer at the start, choosing with
-## the mouse or a number key, and what the sidebar shows afterwards.
+## the mouse or a number key, and the rail's list of the orders taken.
 
 
 func test_no_offer_without_field_orders() -> void:
@@ -35,8 +35,15 @@ func test_a_game_starts_with_an_offer_that_blocks_until_chosen() -> void:
 	await frames(1)
 	expect_false(game.draft.visible, "gone once chosen")
 	expect_true(game.field.floating_texts().has(RunPerks.get_def(pick).name + "!"))
-	expect_eq(game.hud.panel_title_text(), "Field orders")
-	expect_contains(game.hud.panel_body_text(), RunPerks.get_def(pick).name)
+	# The rail lists the orders taken, in a drop-down.
+	expect_true(game.hud.orders_button.visible, "the orders button shows up")
+	expect_eq(game.hud.orders_button.label_text(), "★ 1 order")
+	expect_eq(game.hud.orders_text(), "", "closed until asked")
+	await click_button(game.hud.orders_button)
+	expect_contains(game.hud.orders_text(), RunPerks.get_def(pick).name)
+	expect_contains(game.hud.orders_text(), RunPerks.get_def(pick).description)
+	await click_button(game.hud.orders_button)
+	expect_eq(game.hud.orders_text(), "", "and folds away again")
 	await press_key(KEY_SPACE)
 	expect_eq(w.wave_index, 0, "now the wave can start")
 
@@ -81,6 +88,8 @@ func test_the_tech_tree_sells_field_orders() -> void:
 	var tree: TechTreeScene = scene()
 	expect_eq(tree.state_text("orders"), "★ 2")
 	expect_eq(tree.state_text("orders2"), "Locked")
+	await click_button(tree.tab_buttons["upgrades"]) # on the second page
+	await frames(15)
 	await click_button(tree.node_buttons["orders"])
 	expect_eq(tree.state_text("orders"), "Owned")
 	expect_eq(tree.state_text("orders2"), "Earn ★9")

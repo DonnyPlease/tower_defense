@@ -38,20 +38,34 @@ func test_the_bar_offers_every_ability_with_its_price_and_hotkey() -> void:
 	for id: String in prices:
 		expect_eq(buttons[id].label_text(), prices[id], id)
 		expect_eq(buttons[id].hotkey, keys[id], id)
-	# The bar sits along the bottom edge of the field, inside it.
+	# The wall is on the rail; the others drop down beside it, off the field's
+	# bottom row (which stays free to play on).
+	var rail: Rect2 = game.hud.get_global_rect()
+	expect_true(rail.encloses(buttons["wall"].get_global_rect()), "the wall button is on the rail")
+	expect_false(buttons["slow"].is_visible_in_tree(), "the others start folded away")
+	expect_eq(game.ability_bar.toggle_button.label_text(), "Abilities")
+	await click_button(game.ability_bar.toggle_button)
+	expect_true(game.ability_bar.is_open())
 	for id: String in buttons:
-		var r: Rect2 = buttons[id].get_global_rect()
-		expect_ge(r.position.x, 0.0, id)
-		expect_le(r.end.x, float(Config.FIELD_W), id)
-		expect_ge(r.position.y, float(Config.FIELD_H - 45), id)
-		expect_le(r.end.y, float(Config.FIELD_H), id)
+		expect_true(buttons[id].is_visible_in_tree(), id)
+		if id != "wall":
+			var r: Rect2 = buttons[id].get_global_rect()
+			expect_le(r.end.x, rail.position.x, id + " beside the rail")
+	await click_button(game.ability_bar.toggle_button)
+	expect_false(game.ability_bar.is_open(), "the button folds it away again")
+	await click_button(game.ability_bar.toggle_button)
+	await click_tile(3, 3)
+	expect_false(game.ability_bar.is_open(), "so does a click elsewhere")
+	expect_false(game.build_menu.is_open(), "which does nothing else")
 
 
-func test_hovering_a_button_explains_the_ability_in_the_sidebar() -> void:
+func test_hovering_a_button_explains_the_ability() -> void:
 	use_profile()
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
+	game.ability_bar.open()
+	await frames(10)
 	var r: Rect2 = game.ability_bar.buttons["slow"].get_global_rect()
 	await hover(r.get_center().x, r.get_center().y)
 	await frames(2)
@@ -59,9 +73,9 @@ func test_hovering_a_button_explains_the_ability_in_the_sidebar() -> void:
 	expect_contains(game.hud.panel_body_text(), "half speed")
 	expect_contains(game.hud.panel_body_text(), "key W")
 	expect_contains(game.hud.panel_body_text(), "cooldown 45 s")
-	await hover(300, 200)
+	await hover_field(300, 200)
 	await frames(2)
-	expect_eq(game.hud.panel_title_text(), "Tips")
+	expect_eq(game.hud.panel_title_text(), "", "the help goes away with the pointer")
 
 
 func test_buttons_turn_red_without_the_money_and_show_the_wait_afterwards() -> void:
@@ -72,7 +86,11 @@ func test_buttons_turn_red_without_the_money_and_show_the_wait_afterwards() -> v
 	game.world.money = 70 # a time slow ($60) but nothing dearer
 	await frames(2)
 	expect_true(game.ability_bar.buttons["slow"].is_enabled())
+	game.ability_bar.open()
+	await frames(10)
 	await click_button(game.ability_bar.buttons["slow"])
+	expect_false(game.ability_bar.is_open(), "the drop-down closes once used")
+	expect_eq(game.ability_bar.toggle_button.label_text(), "Abilities  ·  1", "it says one is running")
 	await frames(2)
 	expect_eq(game.world.money, 10)
 	var slow: GameButton = game.ability_bar.buttons["slow"]
@@ -224,7 +242,7 @@ func test_a_wall_can_be_selected_and_sold_when_empty() -> void:
 	expect_false(game.world.has_wall(5, 11))
 	expect_eq(game.hud.money_text(), "$ 250")
 	expect_eq(game.selected_wall, GameMap.NO_TILE)
-	expect_eq(game.hud.panel_title_text(), "Tips")
+	expect_eq(game.hud.panel_title_text(), "", "its card goes away")
 
 
 func test_a_wall_with_a_tower_is_sold_in_two_steps() -> void:
@@ -311,8 +329,8 @@ func test_the_airstrike_is_aimed_with_a_click_and_lands_a_second_later() -> void
 	await press_key(KEY_R)
 	expect_eq(game.aim, "strike")
 	expect_eq(game.hud.panel_title_text(), "Airstrike  ·  $100")
-	await hover(310, 300)
-	await click(310, 300)
+	await hover_field(310, 300)
+	await click_field(310, 300)
 	expect_eq(game.aim, "", "one strike per pick")
 	expect_eq(game.world.strikes.size(), 1)
 	expect_eq(game.hud.money_text(), "$ %d" % (250 - 100))
@@ -333,11 +351,11 @@ func test_the_focus_mark_needs_an_enemy_under_the_pointer() -> void:
 	var scout: Enemy = frozen_enemy(game, "scout", 300, 300)
 	await press_key(KEY_C)
 	expect_eq(game.aim, "mark")
-	await click(500, 200) # nothing there
+	await click_field(500, 200) # nothing there
 	expect_true(said(game, "No enemy there"))
 	expect_eq(game.aim, "mark", "still aiming")
 	expect_eq(game.hud.money_text(), "$ 250")
-	await click(305, 300)
+	await click_field(305, 300)
 	expect_true(scout.is_marked())
 	expect_eq(game.aim, "")
 	expect_eq(game.hud.money_text(), "$ %d" % (250 - 40))

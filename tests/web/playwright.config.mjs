@@ -27,7 +27,7 @@ export default defineConfig({
   projects: [
     // Everything, on the debug build.
     { name: 'desktop', use: { baseURL: `http://127.0.0.1:${DEBUG_PORT}`, viewport: { width: 1000, height: 600 } } },
-    // A phone held sideways: the game is letterboxed and played by touch.
+    // A phone held sideways: the game fills it and is played by touch.
     {
       name: 'phone',
       use: { baseURL: `http://127.0.0.1:${DEBUG_PORT}`, viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true },

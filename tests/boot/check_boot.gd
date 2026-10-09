@@ -7,7 +7,7 @@ extends SceneTree
 ## title screen must be on screen and its demo game must be moving.
 
 const PLAY_BUTTON: Vector2i = Vector2i(400, 250) # the blue Play button, away from its text
-const SIDEBAR_SIDE: Vector2i = Vector2i(900, 250) # right of the demo field: the dimmed background
+const EDGE: Vector2i = Vector2i(990, 300) # near the right edge of the window
 
 var _problems: PackedStringArray = []
 
@@ -33,7 +33,9 @@ func _initialize() -> void:
 	var last: Image = Image.load_from_file(folder.path_join(files[files.size() - 1]))
 	_expect(last.get_size() == Vector2i(1000, 600), "frame size is %s, not 1000x600" % last.get_size())
 	_expect_color(last, PLAY_BUTTON, Palette.ACCENT, "the Play button on the title screen")
-	_expect_color(last, SIDEBAR_SIDE, Color("#14171f"), "the dimmed background next to the demo field")
+	# The demo game fills the window behind the menu (no empty or black band at the side).
+	var edge: Color = last.get_pixelv(EDGE)
+	_expect(edge.get_luminance() > 0.2, "the demo game reaches the edge of the window (got #%s at %s)" % [edge.to_html(false), EDGE])
 
 	# The demo game plays by itself: later frames must differ from earlier ones.
 	var earlier: Image = Image.load_from_file(folder.path_join(files[floori(files.size() / 2.0)]))

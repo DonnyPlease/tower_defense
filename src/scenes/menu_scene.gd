@@ -17,6 +17,8 @@ var buttons: Dictionary[String, GameButton] = {}
 var _clock := FixedStep.new()
 var _profile: Profile
 var _stars: TextLabel
+var _dim: ColorRect
+var _center: Node2D
 
 
 func _ready() -> void:
@@ -33,12 +35,14 @@ func _ready() -> void:
 	field.quiet = true
 	add_child(field)
 
-	var dim := ColorRect.new()
-	dim.color = Color(Palette.BACKGROUND, 0.55)
-	dim.size = Vector2(Config.WIDTH, Config.HEIGHT)
-	dim.z_index = 100
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(dim)
+	_dim = ColorRect.new()
+	_dim.color = Color(Palette.BACKGROUND, 0.55)
+	_dim.z_index = 100
+	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_dim)
+	# The menu stays in the middle of the window (see _layout()).
+	_center = Node2D.new()
+	add_child(_center)
 
 	_profile = Profile.load_profile()
 	var save: WorldSnapshot = _profile.save
@@ -49,12 +53,12 @@ func _ready() -> void:
 	var panel := DrawNode.new(func(g: CanvasItem) -> void:
 		Paint.fill_rounded_rect(g, px, py, panel_w, panel_h, 16, Color(Palette.PANEL, 0.94))
 		Paint.stroke_rounded_rect(g, px, py, panel_w, panel_h, 16, 1, Palette.BORDER), 101)
-	add_child(panel)
+	_center.add_child(panel)
 	var ui := Control.new()
 	ui.z_index = 102
 	ui.size = Vector2(Config.WIDTH, Config.HEIGHT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(ui)
+	_center.add_child(ui)
 
 	Ui.text(ui, Config.WIDTH / 2.0, py + 48, "TOWER DEFENSE", 40, Palette.GOLD, true, Vector2(0.5, 0.5)).set_outline(4)
 	# A row of the towers under the title.
@@ -63,7 +67,7 @@ func _ready() -> void:
 		for i: int in n:
 			var x: float = Config.WIDTH / 2.0 + (i - (n - 1) / 2.0) * 38
 			TowerArt.draw_icon(g, Towers.KINDS[i], Vector2(x, py + 86), 30), 102)
-	add_child(row)
+	_center.add_child(row)
 	_stars = Ui.text(ui, Config.WIDTH / 2.0, py + 112, "★ %d stars earned" % _profile.total_stars(), 16, Palette.TEXT_DIM, false,
 		Vector2(0.5, 0.5))
 
@@ -85,6 +89,17 @@ func _ready() -> void:
 
 	Ui.text(ui, Config.WIDTH / 2.0, py + panel_h - 22, "1-7 build  ·  U upgrade  ·  S sell  ·  T target  ·  Space wave  ·  F speed",
 		12, Palette.TEXT_DIM, false, Vector2(0.5, 0.5))
+	Screen.on_resize(self, _layout)
+
+
+## The demo game covers the whole window; the menu stays in the middle.
+func _layout() -> void:
+	var screen: Vector2 = Screen.size(self)
+	var k: float = maxf(screen.x / Config.FIELD_W, screen.y / Config.FIELD_H)
+	field.scale = Vector2(k, k)
+	field.position = ((screen - Vector2(Config.FIELD_W, Config.FIELD_H) * k) / 2).round()
+	_dim.size = screen
+	_center.position = Screen.center_offset(self)
 
 
 func _button(parent: Control, y: float, label: String, on_click: Callable, primary: bool) -> GameButton:

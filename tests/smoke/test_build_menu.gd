@@ -14,17 +14,19 @@ func test_a_click_on_empty_grass_opens_a_menu_of_what_can_go_there() -> void:
 	expect_eq(menu.buttons.keys(), ["gun", "missile", "wall"], "the towers owned, and a wall")
 	expect_eq(menu.buttons["gun"].label_text(), "$%d" % game.world.cost_of("gun"))
 	var r: Rect2 = menu.get_global_rect()
-	expect_true(Rect2(0, 0, Config.FIELD_W, Config.FIELD_H).encloses(r), "inside the field")
+	expect_true(game.map_rect().encloses(r), "inside the field")
 	expect_false(r.has_point(tile(6, 9)), "beside the tile, not over it")
 	# Hovering a choice explains it.
 	var b: Rect2 = menu.buttons["missile"].get_global_rect()
 	await hover(b.get_center().x, b.get_center().y)
 	expect_eq(game.hud.panel_title_text(), "Missile  ·  $%d" % game.world.cost_of("missile"))
+	expect_eq(menu.previewing, "missile", "and its reach is drawn around the tile")
 	var money: int = game.world.money
 	await click_button(menu.buttons["missile"])
 	expect_eq(tower_names(game), ["missile@6,9"])
 	expect_eq(game.world.money, money - game.world.cost_of("missile"))
 	expect_false(menu.is_open(), "closed after building")
+	expect_eq(menu.previewing, "", "and the reach with it")
 
 
 func test_on_a_wide_road_the_menu_offers_a_wall() -> void:
@@ -77,7 +79,7 @@ func test_no_menu_where_nothing_can_be_built_or_when_deselecting() -> void:
 	await press_key(KEY_ESCAPE)
 	await click_tile(2, 1)
 	expect_not_null(game.selected)
-	await click_tile(3, 1) # grass: this click only deselects
+	await click_tile(1, 6) # grass away from the tower (and its card): this click only deselects
 	expect_null(game.selected)
 	expect_false(game.build_menu.is_open())
 
@@ -107,7 +109,7 @@ func test_holding_a_button_shows_its_help_without_pressing_it() -> void:
 	down.position = r.get_center()
 	down.global_position = down.position
 	await hover(r.get_center().x, r.get_center().y)
-	await hover(400, 300) # the help must come from holding, not from hovering
+	await hover_field(400, 300) # the help must come from holding, not from hovering
 	tree.root.push_input(down, true)
 	await frames(roundi(GameButton.LONG_PRESS * 60) + 5)
 	expect_true(b.is_long_pressed())

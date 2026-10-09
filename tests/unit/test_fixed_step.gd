@@ -48,3 +48,18 @@ func test_runs_exactly_one_tick_per_60_hz_frame() -> void:
 		if ticks != 1:
 			other += 1
 	expect_eq(other, 0)
+
+
+func test_keeps_real_time_on_a_slow_device_at_every_speed() -> void:
+	for speed: int in [1, 2, 3]:
+		var clock := FixedStep.new()
+		ticks = 0
+		for f: int in 150: # 10 seconds at 15 frames per second
+			clock.advance(1000.0 / 15, speed, count)
+		expect_near(ticks, 600 * speed, -1, "%dx: every tick of 10 s runs" % speed)
+
+
+func test_a_hitch_costs_at_most_a_few_ticks_in_one_frame() -> void:
+	var clock := FixedStep.new()
+	clock.advance(250, 3, count) # a quarter-second hitch at 3x
+	expect_le(ticks, Config.MAX_TICKS_PER_FRAME * 3, "the next frame stays short")

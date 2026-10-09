@@ -45,6 +45,8 @@ var range_factor: float = 1.0 ## the level's range multiplier (night), see set_r
 var heat: int = 0 ## laser: ticks spent on the current target
 var spin: float = 0.0 ## minigun: 0..1, how far it has spun up
 var disabled_ticks: int = 0 ## switched off by a saboteur's EMP
+var kills: int = 0 ## enemies this tower finished off
+var damage_done: float = 0.0 ## damage it dealt (after armor and shields)
 
 ## Stats of the current level.
 var stats: TowerLevel
@@ -120,6 +122,12 @@ func set_range_buff(value: float) -> void:
 	if value != range_buff:
 		range_buff = value
 		attack_range = _base_range * (1 + range_buff)
+
+
+## How far this tower would reach at another level of its line (buffs included).
+func reach_at_level(lv: int) -> float:
+	return Towers.level_stats(kind, lv, branch_id).attack_range * (Config.HIGH_GROUND_RANGE if high_ground else 1.0) \
+		* range_factor * (1 + range_buff)
 
 
 ## At level 3 a tower grows only by choosing a branch.
@@ -274,7 +282,7 @@ func _update_projectile(world: World) -> void:
 	if stats.volley > 1:
 		_update_volley(world)
 		return
-	target = pick_target(world.enemies)
+	target = pick_target(world.nearby(x, y, attack_range))
 	_spin(target != null)
 	if target == null:
 		return
@@ -326,7 +334,7 @@ func _update_projectile(world: World) -> void:
 
 ## Swarm: a volley of missiles, spread over the best targets in range.
 func _update_volley(world: World) -> void:
-	var picks: Array[Enemy] = pick_targets(world.enemies, stats.volley)
+	var picks: Array[Enemy] = pick_targets(world.nearby(x, y, attack_range), stats.volley)
 	target = picks[0] if not picks.is_empty() else null
 	if target == null:
 		return
@@ -352,7 +360,7 @@ func _update_beam(world: World) -> void:
 	if previous != null and can_target(previous) and in_range(previous.x, previous.y, previous.radius):
 		target = previous
 	else:
-		target = pick_target(world.enemies)
+		target = pick_target(world.nearby(x, y, attack_range))
 	targets.clear()
 	if target == null:
 		heat = 0
@@ -360,12 +368,12 @@ func _update_beam(world: World) -> void:
 	targets.append(target)
 	heat = heat + (2 if world.has_perk("overcharge") else 1) if target == previous else 0
 	angle = atan2(target.y - y, target.x - x)
-	world.damage_enemy(target, _beam_damage(world), ignores_armor, false)
+	world.damage_enemy(target, _beam_damage(world), ignores_armor, false, self)
 
 
 ## Prism: burns several enemies at once; heat builds while it burns anything.
 func _update_prism(world: World) -> void:
-	targets = pick_targets(world.enemies, stats.beams)
+	targets = pick_targets(world.nearby(x, y, attack_range), stats.beams)
 	target = targets[0] if not targets.is_empty() else null
 	if target == null:
 		heat = 0
@@ -374,7 +382,7 @@ func _update_prism(world: World) -> void:
 	angle = atan2(target.y - y, target.x - x)
 	var per_tick: float = _beam_damage(world)
 	for e: Enemy in targets.duplicate():
-		world.damage_enemy(e, per_tick, ignores_armor, false)
+		world.damage_enemy(e, per_tick, ignores_armor, false, self)
 
 
 func _beam_damage(world: World) -> float:
@@ -386,7 +394,7 @@ func _update_aura(world: World) -> void:
 	var slow: float = stats.slow
 	var chill: float = stats.vulnerability
 	var any: bool = false
-	for e: Enemy in world.enemies:
+	for e: Enemy in world.nearby(x, y, attack_range):
 		if can_target(e) and in_range(e.x, e.y, e.radius):
 			e.apply_slow(slow, SLOW_TICKS)
 			if chill > 0:
@@ -409,7 +417,7 @@ func _update_aura(world: World) -> void:
 			if e.max_shield > 0 and world.has_perk("shatter"):
 				e.shield = maxf(0.0, e.shield - e.max_shield * 0.5)
 			if stats.damage > 0:
-				world.damage_enemy(e, stats.damage * world.damage_multiplier, false, true)
+				world.damage_enemy(e, stats.damage * world.damage_multiplier, false, true, self)
 			if freeze > 0 and e.alive:
 				e.freeze(maxi(1, floori(freeze / 3.0)) if e.def.boss else freeze)
 		i += 1
