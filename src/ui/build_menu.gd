@@ -52,10 +52,11 @@ func open(col: int, row: int) -> bool:
 	size = _size
 	# Beside the tile, on the side with room, inside the field.
 	var center: Vector2 = GameMap.tile_center(tile)
+	var shown: Vector2 = _size * scale # bigger on phones (the game screen sets the scale)
 	var x: float = center.x + Config.TILE * 0.7
-	if x + _size.x > Config.FIELD_W:
-		x = center.x - Config.TILE * 0.7 - _size.x
-	var y: float = clampf(center.y - _size.y / 2, 4, Config.FIELD_H - _size.y - 4)
+	if x + shown.x > Config.FIELD_W:
+		x = center.x - Config.TILE * 0.7 - shown.x
+	var y: float = clampf(center.y - shown.y / 2, 4, Config.FIELD_H - shown.y - 4)
 	position = Vector2(maxf(4, x), y)
 	for i: int in options.size():
 		var id: String = options[i]

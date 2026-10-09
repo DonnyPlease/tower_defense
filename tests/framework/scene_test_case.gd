@@ -28,6 +28,8 @@ func after_each() -> void:
 	# Screens remember a few choices for the session; every test starts afresh.
 	TowerCard.details_open = false
 	TechTreeScene.last_page = TechTreeScene.Page.TOWERS
+	Screen.forced_ui_scale = 0.0
+	Screen.forced_insets = null
 	Profile.storage_path = Profile.DEFAULT_PATH
 	Profile.forget_cache()
 	DirAccess.remove_absolute(profile_path)

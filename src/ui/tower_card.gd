@@ -22,6 +22,12 @@ var branch_buttons: Array[GameButton] = []
 var target_button: GameButton
 var sell_button: GameButton
 var details_button: GameButton
+## Drawn this many times bigger (on phones, see Screen.ui_scale).
+var ui_scale: float = 1.0:
+	set(value):
+		ui_scale = value
+		if _tween == null or not _tween.is_running():
+			scale = Vector2(value, value)
 ## Whether the pointer is on Upgrade (the next level's reach is then drawn on the map).
 var upgrade_hovered: bool = false
 
@@ -133,10 +139,10 @@ func show_for(tower: Tower, wall: Vector2i = GameMap.NO_TILE) -> void:
 	visible = true
 	refresh()
 	modulate.a = 0.0
-	scale = Vector2.ONE * 0.94
+	scale = Vector2.ONE * 0.94 * ui_scale
 	_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	_tween.tween_property(self, "modulate:a", 1.0, 0.14)
-	_tween.tween_property(self, "scale", Vector2.ONE, 0.14)
+	_tween.tween_property(self, "scale", Vector2.ONE * ui_scale, 0.14)
 
 
 func toggle_details() -> void:
@@ -148,14 +154,15 @@ func toggle_details() -> void:
 ## Puts the card beside `at` (the tower, in screen units), to the right when
 ## it fits in `bounds`, else to the left, and inside `bounds` vertically.
 func place(at: Vector2, bounds: Rect2) -> void:
+	var k: float = ui_scale
 	var x: float = at.x + GAP
-	if x + W > bounds.end.x - 4:
-		x = at.x - GAP - W
+	if x + W * k > bounds.end.x - 4:
+		x = at.x - GAP - W * k
 	x = maxf(bounds.position.x + 4, x)
-	var y: float = clampf(at.y - 44, bounds.position.y + 6, bounds.end.y - size.y - 6)
+	var y: float = clampf(at.y - 44 * k, bounds.position.y + 6, bounds.end.y - size.y * k - 6)
 	position = Vector2(x, y).round()
-	pivot_offset = Vector2(0.0 if x > at.x else W, clampf(at.y - y, 0, size.y))
-	var pointer: Vector2 = at - position
+	pivot_offset = Vector2(0.0 if x > at.x else W, clampf((at.y - y) / k, 0, size.y))
+	var pointer: Vector2 = (at - position) / k
 	if pointer != _pointer:
 		_pointer = pointer
 		queue_redraw()

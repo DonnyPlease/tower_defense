@@ -139,3 +139,50 @@ func test_tap_to_build_by_touch() -> void:
 	await tap_button(game.build_menu.buttons["gun"])
 	expect_eq(tower_names(game), ["gun@6,9"])
 	expect_false(game.build_menu.is_open())
+
+
+func test_a_phone_gets_a_bigger_rail_in_two_columns_clear_of_the_notch() -> void:
+	if not phone_window():
+		skip("needs an 844 x 390 window; tests/run.sh phone runs one in xvfb")
+		return
+	use_profile()
+	Screen.forced_ui_scale = Screen.MAX_UI_SCALE # as a small touch screen measures
+	Screen.forced_insets = Vector4(40, 0, 0, 14) # a notch on the left, a home bar below
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	var view: Vector2 = Screen.size(game)
+	var hud: Hud = game.hud
+	expect_eq(hud.columns, 2)
+	expect_near(hud.scale.x, Screen.MAX_UI_SCALE, 3)
+	var rail: Rect2 = hud.get_global_rect()
+	expect_near(rail.end.x, view.x, 0, "at the right edge")
+	var map: Rect2 = game.map_rect()
+	expect_near(map.size.y, view.y - 14, 0, "the map is still as tall as it can be")
+	expect_true(map.position.x >= 40 and map.end.x <= rail.position.x, "between the notch and the rail")
+	var tower: Rect2 = hud.tower_buttons["missile"].get_global_rect()
+	expect_gt(tower.size.y, 1.39 * Hud.TILE_H, "bigger buttons")
+	expect_true(rail.encloses(tower) and tower.end.x < rail.get_center().x, "the towers in the column by the map")
+	var wave: Rect2 = hud.wave_button.get_global_rect()
+	expect_gt(wave.position.x, rail.get_center().x, "the wave controls in the outer column")
+	expect_lt(hud.pause_button.get_global_rect().end.y, view.y - 14, "above the home bar")
+
+	# Everything still works by touch.
+	await tap_button(hud.tower_buttons["missile"])
+	var p: Vector2 = tile(6, 9)
+	await tap(p.x, p.y)
+	expect_eq(tower_names(game), ["missile@6,9"])
+	await tap(p.x, p.y)
+	await frames(10)
+	var card: Rect2 = game.card.get_global_rect()
+	expect_gt(card.size.x, TowerCard.W * 1.39, "the card is bigger too")
+	expect_true(card.position.x >= 0 and card.end.x <= rail.position.x and card.end.y <= view.y, "on the screen, beside the rail")
+	await tap_button(hud.upgrade_button)
+	expect_eq(game.selected.level, 1)
+	await tap_button(game.ability_bar.toggle_button)
+	await frames(10)
+	expect_true(game.ability_bar.is_open())
+	await tap_button(game.ability_bar.buttons["slow"])
+	expect_true(game.world.is_active("slow"))
+	await tap_button(hud.wave_button)
+	expect_eq(game.world.wave_index, 0)

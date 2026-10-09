@@ -85,6 +85,7 @@ class Driver:
 				s.card.toggle_details()
 				s.hud.show_tower_help("cannon", false)
 				s.ability_bar.close()
+				await _phone(s)
 
 		var game: GameScene = get_tree().current_scene
 		game.toggle_pause()
@@ -121,6 +122,28 @@ class Driver:
 		s.selected = w.towers[1]
 		s.field.sync(0) # draw the new towers right away
 		s.speed = 2
+
+
+	## The same game on a phone held sideways, with a notch on the left: a
+	## bigger rail in two columns.
+	func _phone(s: GameScene) -> void:
+		var window: Window = get_window()
+		var before: Vector2i = window.size
+		Screen.forced_ui_scale = Screen.MAX_UI_SCALE
+		Screen.forced_insets = Vector4(40, 0, 0, 14)
+		window.size = Vector2i(844, 390)
+		await _frames(20)
+		await _snap("game_meadow_phone")
+		s.ability_bar.open()
+		s.hud.show_tower_help("missile", true)
+		await _frames(20)
+		await _snap("game_meadow_phone_menus")
+		s.ability_bar.close()
+		s.hud.show_tower_help("missile", false)
+		Screen.forced_ui_scale = 0.0
+		Screen.forced_insets = null
+		window.size = before
+		await _frames(20)
 
 
 	func _wait_for(class_title: String) -> void:

@@ -7,6 +7,12 @@ const W: float = 232.0
 const PAD: float = 14.0
 const DEPTH: int = 180
 
+## Drawn this many times bigger (on phones, see Screen.ui_scale).
+var ui_scale: float = 1.0:
+	set(value):
+		ui_scale = value
+		scale = Vector2(value, value)
+
 var _title: TextLabel
 var _body: TextLabel
 var _extra: TextLabel
@@ -47,9 +53,11 @@ func show_help(title: String, body: String, extra: String, anchor: Rect2, bounds
 		size.y = h
 		queue_redraw()
 	# Beside the anchor: on its left when it is in the right half of the screen.
-	var x: float = anchor.position.x - W - 8 if anchor.get_center().x > bounds.get_center().x else anchor.end.x + 8
-	x = clampf(x, bounds.position.x + 4, bounds.end.x - W - 4)
-	var y: float = clampf(anchor.get_center().y - h / 2, bounds.position.y + 4, bounds.end.y - h - 4)
+	var w: float = W * ui_scale
+	var sh: float = h * ui_scale
+	var x: float = anchor.position.x - w - 8 if anchor.get_center().x > bounds.get_center().x else anchor.end.x + 8
+	x = clampf(x, bounds.position.x + 4, bounds.end.x - w - 4)
+	var y: float = clampf(anchor.get_center().y - sh / 2, bounds.position.y + 4, bounds.end.y - sh - 4)
 	position = Vector2(x, y).round()
 	if key == _key and visible:
 		return

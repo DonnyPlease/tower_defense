@@ -4,6 +4,10 @@ extends Control
 ## at the top, the towers to build, and the wave controls at the bottom. The
 ## gear button opens a small menu (music, sound, the pause menu).
 ##
+## On a phone (see Screen.ui_scale) the rail is drawn bigger, for fingers, and
+## split in two columns so it still fits the height: the towers and tools next
+## to the map, the status and wave controls at the edge.
+##
 ## The selected tower's (or wall's) controls are not here but on the
 ## TowerCard next to it; what a button does is shown on a HelpCard beside it
 ## while the pointer is on the button (or it is held down).
@@ -39,6 +43,8 @@ var help: HelpCard
 var card: TowerCard
 ## The rail's free space for the wall and ability buttons (see AbilityBar) starts here.
 var tools_y: float = 0.0
+## 1, or 2 on a phone (see layout).
+var columns: int = 1
 
 ## The selected tower's buttons, on its card.
 var upgrade_button: GameButton:
@@ -55,6 +61,11 @@ var sell_button: GameButton:
 		return card.sell_button
 
 var _host: GameScene
+## Money, lives, wave, the orders, the preview and the wave controls: under the
+## towers, or in a column of its own.
+var _status: Control
+var _tools: Control = null ## the wall and ability buttons, under the towers
+var _bleed: Vector4 = Vector4.ZERO ## how far the background goes on past the rail, to the window's edges
 var _money: TextLabel
 var _lives: TextLabel
 var _wave: TextLabel
@@ -84,9 +95,12 @@ func _init(host: GameScene) -> void:
 
 
 func _ready() -> void:
-	_money = Ui.text(self, PAD + 4, 8, "", 19, Palette.GOLD, true)
-	_lives = Ui.text(self, PAD + 4, 33, "", 16, Palette.RED, true)
-	_wave = Ui.text(self, PAD + 4, 55, "", 13, Palette.TEXT, true)
+	_status = Control.new()
+	_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_status)
+	_money = Ui.text(_status, PAD + 4, 8, "", 19, Palette.GOLD, true)
+	_lives = Ui.text(_status, PAD + 4, 33, "", 16, Palette.RED, true)
+	_wave = Ui.text(_status, PAD + 4, 55, "", 13, Palette.TEXT, true)
 
 	# Two columns of build buttons: the towers the player owns, then a "?".
 	var kinds: Array[String] = _host.buildable_kinds()
@@ -98,23 +112,19 @@ func _ready() -> void:
 		b.hover_callback(func(on: bool) -> void: show_tower_help(kind, on))
 		add_child(b)
 		tower_buttons[kind] = b
-	var slots: int = kinds.size()
 	if kinds.size() < Towers.KINDS.size():
 		teaser_button = GameButton.new(_cell(kinds.size()), "?", func() -> void: Audio.play("error")).font(20)
 		teaser_button.hover_callback(func(on: bool) -> void: show_tower_help("?", on))
 		add_child(teaser_button)
-		slots += 1
-	@warning_ignore("integer_division")
-	var rows: int = (slots + 1) / 2
-	tools_y = TOWERS_Y + rows * (TILE_H + TILE_GAP) + 4
+	_place_towers(TOWERS_Y)
 
-	_preview_label = Ui.text(self, PAD + 2, 0, "Next", 11, Palette.TEXT_DIM, true)
+	_preview_label = Ui.text(_status, PAD + 2, 0, "Next", 11, Palette.TEXT_DIM, true)
 	_preview = Control.new()
 	_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_preview)
+	_status.add_child(_preview)
 
 	wave_button = GameButton.new(Rect2(PAD, 0, INNER, 54), "Start wave", _host.start_wave).primary().font(13).sublabel("")
-	add_child(wave_button)
+	_status.add_child(wave_button)
 	var q: float = (INNER - 2 * 5) / 3
 	pause_button = _small(0, q, "II", _host.toggle_pause)
 	speed_button = _small(1, q, "1x", _host.toggle_speed)
@@ -130,11 +140,34 @@ func _cell(i: int) -> Rect2:
 	return Rect2(PAD + (i % 2) * (TILE_W + 4), TOWERS_Y + row * (TILE_H + TILE_GAP), TILE_W, TILE_H)
 
 
+## Takes the wall and ability buttons (see AbilityBar), placed under the towers.
+func add_tools(tools: Control) -> void:
+	_tools = tools
+	add_child(tools)
+	move_child(_status, -1) # its pop-ups go over the tools
+	tools.position = Vector2(PAD, tools_y)
+
+
+## Puts the build buttons in rows from `top` down; the tools go under them.
+func _place_towers(top: float) -> void:
+	var buttons: Array[GameButton] = []
+	buttons.assign(tower_buttons.values())
+	if teaser_button != null:
+		buttons.append(teaser_button)
+	for i: int in buttons.size():
+		buttons[i].position = _cell(i).position + Vector2(0, top - TOWERS_Y)
+	@warning_ignore("integer_division")
+	var rows: int = (buttons.size() + 1) / 2
+	tools_y = top + rows * (TILE_H + TILE_GAP) + 4
+	if _tools != null:
+		_tools.position = Vector2(PAD, tools_y)
+
+
 func _small(i: int, q: float, label: String, on_click: Callable, icon: Callable = Callable()) -> GameButton:
 	var b := GameButton.new(Rect2(PAD + i * (q + 5), 0, q, 32), label, on_click).font(13)
 	if icon.is_valid():
 		b.icon_only(icon)
-	add_child(b)
+	_status.add_child(b)
 	return b
 
 
@@ -148,7 +181,7 @@ func _build_menu() -> void:
 	_menu.size = Vector2(MENU_W, h)
 	_menu.mouse_filter = Control.MOUSE_FILTER_STOP
 	_menu.visible = false
-	add_child(_menu)
+	_status.add_child(_menu)
 	music_button = GameButton.new(Rect2(8, 8, MENU_W - 16, 34), "", _host.toggle_music).font(13)
 	_menu.add_child(music_button)
 	sfx_button = GameButton.new(Rect2(8, 48, MENU_W - 16, 34), "", _host.toggle_sfx).font(13)
@@ -165,7 +198,7 @@ func _build_menu() -> void:
 func _build_orders() -> void:
 	orders_button = GameButton.new(Rect2(PAD, 0, INNER, 26), "", toggle_orders).flat().font(12)
 	orders_button.visible = false
-	add_child(orders_button)
+	_status.add_child(orders_button)
 	var chevron := PainterView.new(func(ci: CanvasItem, center: Vector2, sz: float) -> void:
 		Icons.chevron(ci, center, sz, _orders.visible, Palette.GOLD))
 	chevron.position = Vector2(INNER - 20, 4)
@@ -178,7 +211,7 @@ func _build_orders() -> void:
 		Paint.stroke_rounded_rect(g, 0, 0, sz.x, sz.y, 10, 1, Color(Palette.GOLD, 0.6)))
 	_orders.size = Vector2(230, 60)
 	_orders.visible = false
-	add_child(_orders)
+	_status.add_child(_orders)
 	_orders_text = Ui.text(_orders, 14, 10, "", 12, Palette.TEXT).set_wrap(230 - 28)
 	_orders_text.set_line_spacing(3)
 
@@ -206,15 +239,25 @@ func _refresh_orders() -> void:
 		lines.append("%s\n%s" % [def.name, def.description])
 	_orders_text.show_text("\n\n".join(lines))
 	_orders.size.y = _orders_text.size.y + 20
-	_orders.position = Vector2(-_orders.size.x - 6, orders_button.position.y + orders_button.size.y - _orders.size.y)
+	_orders.position = Vector2(-_status.position.x - _orders.size.x - 6, orders_button.position.y + orders_button.size.y - _orders.size.y)
 	_orders.queue_redraw()
 
 
-## Places the rail at the right edge of a `screen`-sized view, full height.
-func layout(screen: Vector2) -> void:
-	position = Vector2(screen.x - W, 0)
-	size = Vector2(W, screen.y)
-	var y: float = screen.y - PAD - 32
+## Places the rail at the right edge of `area` (the part of the view no notch
+## hides), full height, `ui_scale` times its designed size, in one or two
+## columns. `bleed` is how far its background goes on to the window's edges
+## (left, top, right, bottom in x, y, z, w).
+func layout(area: Rect2, ui_scale: float = 1.0, cols: int = 1, bleed: Vector4 = Vector4.ZERO) -> void:
+	columns = cols
+	_bleed = bleed / ui_scale
+	scale = Vector2(ui_scale, ui_scale)
+	var h: float = area.size.y / ui_scale
+	size = Vector2(W * columns, h)
+	position = (Vector2(area.end.x - size.x * ui_scale, area.position.y)).round()
+	_status.position = Vector2(W * (columns - 1), 0)
+	_status.size = Vector2(W, h)
+	_place_towers(TOWERS_Y if columns == 1 else PAD + 4)
+	var y: float = h - PAD - 32
 	for b: GameButton in [pause_button, speed_button, menu_button]:
 		b.position.y = y
 	wave_button.position.y = y - 8 - wave_button.size.y
@@ -228,18 +271,26 @@ func layout(screen: Vector2) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(Palette.PANEL, 0.97))
-	draw_rect(Rect2(0, 0, 2, size.y), Palette.BORDER)
-	draw_rect(Rect2(PAD, TOWERS_Y - 6, INNER, 1), Color(Palette.BORDER, 0.6))
+	draw_rect(Rect2(0, -_bleed.y, size.x + _bleed.z, size.y + _bleed.y + _bleed.w), Color(Palette.PANEL, 0.97))
+	draw_rect(Rect2(0, -_bleed.y, 2, size.y + _bleed.y + _bleed.w), Palette.BORDER)
+	if columns == 1:
+		draw_rect(Rect2(PAD, TOWERS_Y - 6, INNER, 1), Color(Palette.BORDER, 0.6))
+	else:
+		draw_rect(Rect2(W, PAD, 1, size.y - 2 * PAD), Color(Palette.BORDER, 0.6))
+
+
+## How wide the rail is on the screen.
+func width_on_screen() -> float:
+	return size.x * scale.x
 
 
 ## Whether a point (in the game screen's coordinates) is on the rail or one of its pop-ups.
 func covers(p: Vector2) -> bool:
-	if get_rect().has_point(p):
+	if get_global_rect().has_point(p):
 		return true
-	if _orders.visible and Rect2(position + _orders.position, _orders.size).has_point(p):
+	if _orders.visible and _orders.get_global_rect().has_point(p):
 		return true
-	return _menu.visible and Rect2(position + _menu.position, _menu.size).has_point(p)
+	return _menu.visible and _menu.get_global_rect().has_point(p)
 
 
 func toggle_menu() -> void:

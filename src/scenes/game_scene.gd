@@ -115,8 +115,7 @@ func _ready() -> void:
 	add_child(hud)
 	add_child(hud.help)
 	ability_bar = AbilityBar.new(self)
-	ability_bar.position = Vector2(Hud.PAD, hud.tools_y)
-	hud.add_child(ability_bar)
+	hud.add_tools(ability_bar)
 	build_menu = BuildMenu.new(self)
 	_stage.add_child(build_menu)
 	if level_id == "meadow" and not profile.tutorial_done:
@@ -155,11 +154,27 @@ func _ready() -> void:
 # ---- layout ------------------------------------------------------------------
 
 ## Scales the map to the largest size that fits beside the sidebar, centres
-## it there, and lets the land around it fill the rest of the window.
+## it there, and lets the land around it fill the rest of the window. On a
+## phone the rail gets bigger (and two columns wide) when the map can still
+## be as tall as the screen beside it; a notch's margins are left free.
 func _layout() -> void:
 	var screen: Vector2 = Screen.size(self)
-	hud.layout(screen)
-	var area := Rect2(0, 0, screen.x - hud.size.x, screen.y)
+	var insets: Vector4 = Screen.safe_insets(self)
+	var safe := Rect2(insets.x, insets.y, screen.x - insets.x - insets.z, screen.y - insets.y - insets.w)
+	var ui: float = Screen.ui_scale()
+	var full_map_w: float = Config.FIELD_W * safe.size.y / Config.FIELD_H
+	var cols: int = 1
+	if ui > 1.0:
+		cols = 2
+		ui = minf(ui, (safe.size.x - full_map_w) / (2 * Hud.W))
+		if ui < 1.0:
+			cols = 1
+			ui = 1.0
+	hud.layout(safe, ui, cols, insets)
+	card.ui_scale = ui
+	hud.help.ui_scale = ui
+	build_menu.scale = Vector2(ui, ui)
+	var area := Rect2(safe.position.x, safe.position.y, safe.size.x - hud.width_on_screen(), safe.size.y)
 	var k: float = minf(area.size.x / Config.FIELD_W, area.size.y / Config.FIELD_H)
 	var map_size := Vector2(Config.FIELD_W, Config.FIELD_H) * k
 	_stage.scale = Vector2(k, k)
@@ -764,7 +779,7 @@ func _refresh_card() -> void:
 	else:
 		at = field_to_screen(GameMap.tile_center(selected_wall))
 	var screen: Vector2 = Screen.size(self)
-	card.place(at, Rect2(0, 0, screen.x - Hud.W, screen.y))
+	card.place(at, Rect2(0, 0, hud.get_global_rect().position.x, screen.y))
 
 
 func _update_hover_objects() -> void:
