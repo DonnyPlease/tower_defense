@@ -94,6 +94,8 @@ func click(x: float, y: float, button: MouseButton = MOUSE_BUTTON_LEFT) -> void:
 	motion.position = Vector2(x, y)
 	motion.global_position = motion.position
 	tree.root.push_input(motion, true)
+	# Pressed and released on different frames, like a real click: the game
+	# runs a frame in between (a button that flickers then loses the press).
 	for pressed: bool in [true, false]:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = button
@@ -101,7 +103,7 @@ func click(x: float, y: float, button: MouseButton = MOUSE_BUTTON_LEFT) -> void:
 		ev.position = Vector2(x, y)
 		ev.global_position = ev.position
 		tree.root.push_input(ev, true)
-	await frames(1)
+		await frames(1)
 
 
 ## Taps at a point in game coordinates with a finger (the game sees emulated mouse events).

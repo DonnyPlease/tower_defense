@@ -107,6 +107,13 @@ func test_walls_and_abilities_work_by_touch() -> void:
 	var p: Vector2 = tile(5, 11)
 	await tap(p.x, p.y)
 	expect_true(game.world.has_wall(5, 11), "a wall where the finger landed")
+	# Selected with a tap and sold with a tap (a tap spans several frames).
+	await tap(p.x, p.y)
+	expect_eq(game.selected_wall, Vector2i(5, 11), "a tap on the wall selects it")
+	await tap_button(game.hud.sell_button)
+	expect_false(game.world.has_wall(5, 11), "sold by touch")
+	await tap_button(game.ability_bar.buttons["wall"])
+	await tap(p.x, p.y)
 	await tap_button(game.ability_bar.buttons["slow"])
 	expect_true(game.world.is_active("slow"))
 	expect_eq(game.hud.money_text(), "$ %d" % (250 - 15 - 60))

@@ -201,7 +201,10 @@ func _refresh_panel() -> void:
 		b.visible = picking
 	target_button.visible = show_tower_buttons and not describing and selected.def.behavior != Towers.Behavior.SUPPORT \
 		and selected.def.behavior != Towers.Behavior.AURA
-	sell_button.visible = show_tower_buttons and not describing
+	# Set once per frame: hiding a button and showing it again resets a press
+	# in progress, so a click that spans two frames would be lost.
+	var wall_selected: bool = selected == null and _host.selected_wall != GameMap.NO_TILE
+	sell_button.visible = (show_tower_buttons and not describing) or wall_selected
 	_panel_extra.show_text("")
 
 	if selected != null:
@@ -234,7 +237,6 @@ func _refresh_panel() -> void:
 	var wall_tile: Vector2i = _host.selected_wall
 	if wall_tile != GameMap.NO_TILE:
 		var paid: int = world.walls.get(wall_tile, 0)
-		sell_button.visible = true
 		sell_button.set_label("Sell  +$%d" % paid)
 		_panel_title.show_text("Wall")
 		_panel_body.show_text("Enemies walk around it, if there is room: it can never block the path completely.\n\nBuild a tower on top of it for +25% range.")
