@@ -16,7 +16,7 @@ const TEXT: Dictionary[Step, String] = {
 	Step.START: "Start the first wave: press Space or the Start wave button.\nCalling waves early pays a bonus.",
 	Step.SELECT: "Click one of your towers to see what it can do.",
 	Step.UPGRADE: "Upgrade it (U). At level 3 it grows into one of two branches.",
-	Step.WALLS: "Walls (Q) reshape the road and make the way longer.\nThe bottom bar holds abilities. Good luck!",
+	Step.WALLS: "Walls (Q) reshape the road and make the way longer.\nMore tricks drop down from Abilities on the right. Good luck!",
 }
 
 var step: Step = Step.BUILD

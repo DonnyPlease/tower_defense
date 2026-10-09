@@ -111,7 +111,8 @@ func _ready() -> void:
 	add_child(hud)
 	add_child(hud.help)
 	ability_bar = AbilityBar.new(self)
-	_stage.add_child(ability_bar)
+	ability_bar.position = Vector2(Hud.PAD, hud.tools_y)
+	hud.add_child(ability_bar)
 	build_menu = BuildMenu.new(self)
 	_stage.add_child(build_menu)
 	if level_id == "meadow" and not profile.tutorial_done:
@@ -423,11 +424,15 @@ func _input(event: InputEvent) -> void:
 	var motion := event as InputEventMouseMotion
 	if motion != null:
 		_update_hover(motion.position)
-	# A click anywhere but on the gear menu closes it.
+	# A click anywhere but on the gear menu or the abilities' drop-down closes it.
 	var mb := event as InputEventMouseButton
 	if mb != null and mb.pressed and hud.is_menu_open() and not hud.covers(mb.position):
 		hud.close_menu()
 		get_viewport().set_input_as_handled() # the click only closes the menu
+	elif mb != null and mb.pressed and ability_bar.is_open() and not ability_bar.covers(mb.position) \
+			and not ability_bar.toggle_button.get_global_rect().has_point(mb.position):
+		ability_bar.close()
+		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -460,6 +465,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_ESCAPE:
 			if hud.is_menu_open():
 				hud.close_menu()
+			elif ability_bar.is_open():
+				ability_bar.close()
 			elif (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE \
 					or build_menu.is_open()) and not is_modal_open():
 				_cancel_picks()
@@ -514,7 +521,8 @@ func _notification(what: int) -> void:
 ## `p` is a point on the screen.
 func _update_hover(screen_point: Vector2) -> void:
 	var p: Vector2 = screen_to_field(screen_point)
-	if hud.covers(screen_point) or (card.visible and card.get_rect().has_point(screen_point)):
+	if hud.covers(screen_point) or ability_bar.covers(screen_point) \
+			or (card.visible and card.get_rect().has_point(screen_point)):
 		p = Vector2(-1000, -1000) # on the rail or a card, not the field
 	_mouse = p
 	if p.x >= 0 and p.x < Config.FIELD_W and p.y >= 0 and p.y < Config.FIELD_H:

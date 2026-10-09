@@ -127,19 +127,20 @@ func test_walls_and_mines_are_drawn() -> void:
 	expect_color(pixel_at(img, plain.x + 12, plain.y + 12), Palette.PATH, "road next to them is untouched", 0.04)
 
 
-func test_the_ability_bar_is_drawn_along_the_bottom() -> void:
+func test_the_wall_button_and_the_abilities_drop_down_are_drawn() -> void:
 	use_profile()
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
-	await frames(2)
+	game.ability_bar.open()
+	await frames(20)
 	var img: Image = await screenshot()
 	var r: Rect2 = game.ability_bar.buttons["wall"].get_global_rect()
 	expect_color(pixel_at(img, r.end.x - 6, r.get_center().y + 4), Palette.PANEL_LIGHT, "a button", 0.04)
 	var strike: Rect2 = game.ability_bar.buttons["strike"].get_global_rect()
 	expect_color(pixel_at(img, strike.end.x - 6, strike.get_center().y + 4), Palette.PANEL_LIGHT, "another button", 0.04)
-	# The strip between the buttons is the field.
-	expect_color(field_pixel(img, 20, 590), Palette.GRASS, "the field beside the bar", 0.05)
+	# The field's bottom row is plain grass: no bar over it.
+	expect_color(field_pixel(img, 20, 590), Palette.GRASS, "the field's bottom row", 0.05)
 
 
 func test_a_running_ability_frames_the_field() -> void:

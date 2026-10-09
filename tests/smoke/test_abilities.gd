@@ -38,13 +38,25 @@ func test_the_bar_offers_every_ability_with_its_price_and_hotkey() -> void:
 	for id: String in prices:
 		expect_eq(buttons[id].label_text(), prices[id], id)
 		expect_eq(buttons[id].hotkey, keys[id], id)
-	# The bar sits along the bottom edge of the field, inside it.
+	# The wall is on the rail; the others drop down beside it, off the field's
+	# bottom row (which stays free to play on).
+	var rail: Rect2 = game.hud.get_global_rect()
+	expect_true(rail.encloses(buttons["wall"].get_global_rect()), "the wall button is on the rail")
+	expect_false(buttons["slow"].is_visible_in_tree(), "the others start folded away")
+	expect_eq(game.ability_bar.toggle_button.label_text(), "Abilities")
+	await click_button(game.ability_bar.toggle_button)
+	expect_true(game.ability_bar.is_open())
 	for id: String in buttons:
-		var r: Rect2 = buttons[id].get_global_rect()
-		expect_ge(r.position.x, 0.0, id)
-		expect_le(r.end.x, float(Config.FIELD_W), id)
-		expect_ge(r.position.y, float(Config.FIELD_H - 45), id)
-		expect_le(r.end.y, float(Config.FIELD_H), id)
+		expect_true(buttons[id].is_visible_in_tree(), id)
+		if id != "wall":
+			var r: Rect2 = buttons[id].get_global_rect()
+			expect_le(r.end.x, rail.position.x, id + " beside the rail")
+	await click_button(game.ability_bar.toggle_button)
+	expect_false(game.ability_bar.is_open(), "the button folds it away again")
+	await click_button(game.ability_bar.toggle_button)
+	await click_tile(3, 3)
+	expect_false(game.ability_bar.is_open(), "so does a click elsewhere")
+	expect_false(game.build_menu.is_open(), "which does nothing else")
 
 
 func test_hovering_a_button_explains_the_ability() -> void:
@@ -52,6 +64,8 @@ func test_hovering_a_button_explains_the_ability() -> void:
 	var game: GameScene = await open_game("meadow")
 	if game == null:
 		return
+	game.ability_bar.open()
+	await frames(10)
 	var r: Rect2 = game.ability_bar.buttons["slow"].get_global_rect()
 	await hover(r.get_center().x, r.get_center().y)
 	await frames(2)
@@ -72,7 +86,11 @@ func test_buttons_turn_red_without_the_money_and_show_the_wait_afterwards() -> v
 	game.world.money = 70 # a time slow ($60) but nothing dearer
 	await frames(2)
 	expect_true(game.ability_bar.buttons["slow"].is_enabled())
+	game.ability_bar.open()
+	await frames(10)
 	await click_button(game.ability_bar.buttons["slow"])
+	expect_false(game.ability_bar.is_open(), "the drop-down closes once used")
+	expect_eq(game.ability_bar.toggle_button.label_text(), "Abilities  ·  1", "it says one is running")
 	await frames(2)
 	expect_eq(game.world.money, 10)
 	var slow: GameButton = game.ability_bar.buttons["slow"]
