@@ -1,161 +1,286 @@
 class_name Hud
 extends Control
-## The right-hand sidebar: stats, build grid, context panel and wave controls.
-## Positions are relative to the sidebar, which starts at x = FIELD_W.
+## The slim rail at the right edge of the game screen: money, lives and wave
+## at the top, the towers to build, and the wave controls at the bottom. The
+## gear button opens a small menu (music, sound, the pause menu).
+##
+## The selected tower's (or wall's) controls are not here but on the
+## TowerCard next to it; what a button does is shown on a HelpCard beside it
+## while the pointer is on the button (or it is held down).
 
-const X: float = 12.0
-const W: float = Config.SIDEBAR_W - 24
+const W: float = 116.0 ## width of the rail
+const PAD: float = 8.0
+const INNER: float = W - 2 * PAD
 const DEPTH: int = 100
-const PANEL_Y: float = 290.0
-const PANEL_H: float = 180.0
-const MODE_LABEL: Array[String] = ["First", "Last", "Strongest", "Closest"]
-const UNAFFORDABLE: Color = Color("#ffd0cc")
+const TOWERS_Y: float = 80.0
+const TILE_W: float = (INNER - 4) / 2
+const TILE_H: float = 50.0
+const TILE_GAP: float = 4.0
+const MENU_W: float = 168.0
 
 ## Build buttons of the towers the player owns (locked ones live in the tech tree).
 var tower_buttons: Dictionary[String, GameButton] = {}
 ## The "?" slot after them while some towers are still locked (null when all are owned).
 var teaser_button: GameButton = null
-var upgrade_button: GameButton
-## The two branches a level-3 tower can grow into (shown instead of Upgrade).
-var branch_buttons: Array[GameButton] = []
-var target_button: GameButton
-var sell_button: GameButton
 var wave_button: GameButton
 var pause_button: GameButton
 var speed_button: GameButton
+var menu_button: GameButton
+## In the gear menu.
 var music_button: GameButton
 var sfx_button: GameButton
+var quit_button: GameButton
+## Opens the list of the field orders taken in this game (shown once there is one).
+var orders_button: GameButton
+## Where the help appears.
+var help: HelpCard
+## The card next to the selected tower or wall (made by the game screen).
+var card: TowerCard
+## The rail's free space for the wall and ability buttons (see AbilityBar) starts here.
+var tools_y: float = 0.0
+
+## The selected tower's buttons, on its card.
+var upgrade_button: GameButton:
+	get:
+		return card.upgrade_button
+var branch_buttons: Array[GameButton]:
+	get:
+		return card.branch_buttons
+var target_button: GameButton:
+	get:
+		return card.target_button
+var sell_button: GameButton:
+	get:
+		return card.sell_button
 
 var _host: GameScene
 var _money: TextLabel
 var _lives: TextLabel
 var _wave: TextLabel
-var _panel_title: TextLabel
-var _panel_body: TextLabel
 var _preview_label: TextLabel
 var _preview: Control
 var _preview_key: String = "-"
+var _preview_y: float = 0.0
 var _hovered: String = ""
 var _hovered_ability: String = ""
 var _hovered_branch: int = -1
-var _panel_extra: TextLabel
+var _menu: Control
+var _menu_tween: Tween
+var _orders: Control
+var _orders_text: TextLabel
+var _orders_key: String = "-"
 
 
 func _init(host: GameScene) -> void:
 	_host = host
-	size = Vector2(Config.SIDEBAR_W, Config.HEIGHT)
+	size = Vector2(W, Config.HEIGHT)
 	z_index = DEPTH
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 
 func _ready() -> void:
-	_money = Ui.text(self, X + 4, 10, "", 19, Palette.GOLD, true)
-	_lives = Ui.text(self, X + 4, 36, "", 19, Palette.RED, true)
-	_wave = Ui.text(self, X + 4, 62, "", 19, Palette.TEXT, true)
+	_money = Ui.text(self, PAD + 4, 8, "", 19, Palette.GOLD, true)
+	_lives = Ui.text(self, PAD + 4, 33, "", 16, Palette.RED, true)
+	_wave = Ui.text(self, PAD + 4, 55, "", 13, Palette.TEXT, true)
 
-	# 2 x 4 grid of build buttons: the towers the player owns, then a "?".
+	# Two columns of build buttons: the towers the player owns, then a "?".
 	var kinds: Array[String] = _host.buildable_kinds()
 	for i: int in kinds.size():
 		var kind: String = kinds[i]
 		var b := GameButton.new(_cell(i), "", func() -> void: _host.select_tool("" if _host.tool == kind else kind))
-		b.font(13).key(str(i + 1)).icon(func(ci: CanvasItem, center: Vector2, s: float) -> void:
+		b.tile().font(12).key(str(i + 1)).icon(func(ci: CanvasItem, center: Vector2, s: float) -> void:
 			TowerArt.draw_icon(ci, kind, center, s))
-		b.hover_callback(func(on: bool) -> void: _on_tower_hover(kind, on))
+		b.hover_callback(func(on: bool) -> void: show_tower_help(kind, on))
 		add_child(b)
 		tower_buttons[kind] = b
+	var slots: int = kinds.size()
 	if kinds.size() < Towers.KINDS.size():
-		teaser_button = GameButton.new(_cell(kinds.size()), "?", func() -> void: Audio.play("error")).font(22)
-		teaser_button.hover_callback(func(on: bool) -> void: _on_tower_hover("?", on))
+		teaser_button = GameButton.new(_cell(kinds.size()), "?", func() -> void: Audio.play("error")).font(20)
+		teaser_button.hover_callback(func(on: bool) -> void: show_tower_help("?", on))
 		add_child(teaser_button)
+		slots += 1
+	@warning_ignore("integer_division")
+	var rows: int = (slots + 1) / 2
+	tools_y = TOWERS_Y + rows * (TILE_H + TILE_GAP) + 4
 
-	# Context panel: the selected tower, or info about a tower type, or tips.
-	_panel_title = Ui.text(self, X + 10, PANEL_Y + 8, "", 15, Palette.TEXT, true)
-	_panel_body = Ui.text(self, X + 10, PANEL_Y + 30, "", 12, Palette.TEXT_DIM)
-	_panel_body.set_wrap(W - 20)
-	_panel_body.set_line_spacing(2)
-	upgrade_button = GameButton.new(Rect2(X + 8, PANEL_Y + 80, W - 16, 34), "Upgrade", _host.upgrade_selected) \
-		.primary().font(14).key("U")
-	add_child(upgrade_button)
-	var bw: float = (W - 16 - 6) / 2
-	for i: int in 2:
-		var b := GameButton.new(Rect2(X + 8 + i * (bw + 6), PANEL_Y + 78, bw, 38), "", func() -> void: _host.choose_branch(i)) \
-			.primary().font(12).sublabel("")
-		b.hover_callback(func(on: bool) -> void:
-			if on:
-				_hovered_branch = i
-			elif _hovered_branch == i:
-				_hovered_branch = -1)
-		b.visible = false
-		add_child(b)
-		branch_buttons.append(b)
-	_panel_extra = Ui.text(self, X + 10, PANEL_Y + 122, "", 12, Palette.TEXT_DIM)
-	_panel_extra.set_wrap(W - 20)
-	_panel_extra.set_line_spacing(2)
-	target_button = GameButton.new(Rect2(X + 8, PANEL_Y + 118, W - 16, 28), "Target: First", _host.cycle_target_mode) \
-		.font(13).key("T")
-	add_child(target_button)
-	sell_button = GameButton.new(Rect2(X + 8, PANEL_Y + 150, W - 16, 28), "Sell", _host.sell_selected) \
-		.danger().font(13).key("S")
-	add_child(sell_button)
-
-	_preview_label = Ui.text(self, X, 474, "Next:", 12, Palette.TEXT_DIM)
+	_preview_label = Ui.text(self, PAD + 2, 0, "Next", 11, Palette.TEXT_DIM, true)
 	_preview = Control.new()
 	_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_preview)
 
-	wave_button = GameButton.new(Rect2(X, 494, W, 50), "Start wave", _host.start_wave).primary().font(15).sublabel("")
+	wave_button = GameButton.new(Rect2(PAD, 0, INNER, 54), "Start wave", _host.start_wave).primary().font(13).sublabel("")
 	add_child(wave_button)
-	var q: float = (W - 3 * 6) / 4
+	var q: float = (INNER - 2 * 5) / 3
 	pause_button = _small(0, q, "II", _host.toggle_pause)
 	speed_button = _small(1, q, "1x", _host.toggle_speed)
-	music_button = _small(2, q, "♪", _host.toggle_music)
-	sfx_button = _small(3, q, "FX", _host.toggle_sfx)
+	menu_button = _small(2, q, "", toggle_menu, Icons.gear)
+	_build_menu()
+	_build_orders()
 
 
-## Where the build button in slot `i` of the 2 x 4 grid goes.
+## Where the build button in slot `i` (two per row) goes.
 func _cell(i: int) -> Rect2:
-	var cell_w: float = (W - 8) / 2
-	var cell_h: float = 44.0
 	@warning_ignore("integer_division")
 	var row: int = i / 2
-	return Rect2(X + (i % 2) * (cell_w + 8), 90 + row * (cell_h + 6), cell_w, cell_h)
+	return Rect2(PAD + (i % 2) * (TILE_W + 4), TOWERS_Y + row * (TILE_H + TILE_GAP), TILE_W, TILE_H)
 
 
-func _small(i: int, q: float, label: String, on_click: Callable) -> GameButton:
-	var b := GameButton.new(Rect2(X + i * (q + 6), 552, q, 38), label, on_click).font(14)
+func _small(i: int, q: float, label: String, on_click: Callable, icon: Callable = Callable()) -> GameButton:
+	var b := GameButton.new(Rect2(PAD + i * (q + 5), 0, q, 32), label, on_click).font(13)
+	if icon.is_valid():
+		b.icon_only(icon)
 	add_child(b)
 	return b
 
 
-## Places the sidebar at the right edge of a `screen`-sized view, full height.
+## The gear menu: music, sound and the pause menu, opening upwards to the left.
+func _build_menu() -> void:
+	var h: float = 3 * 40 + 12
+	_menu = PainterView.new(func(g: CanvasItem, _center: Vector2, _s: float) -> void:
+		Paint.fill_rounded_rect(g, 3, 4, MENU_W, h, 10, Color(0, 0, 0, 0.3))
+		Paint.fill_rounded_rect(g, 0, 0, MENU_W, h, 10, Color(Palette.PANEL, 0.98))
+		Paint.stroke_rounded_rect(g, 0, 0, MENU_W, h, 10, 1, Palette.BORDER))
+	_menu.size = Vector2(MENU_W, h)
+	_menu.mouse_filter = Control.MOUSE_FILTER_STOP
+	_menu.visible = false
+	add_child(_menu)
+	music_button = GameButton.new(Rect2(8, 8, MENU_W - 16, 34), "", _host.toggle_music).font(13)
+	_menu.add_child(music_button)
+	sfx_button = GameButton.new(Rect2(8, 48, MENU_W - 16, 34), "", _host.toggle_sfx).font(13)
+	_menu.add_child(sfx_button)
+	quit_button = GameButton.new(Rect2(8, 88, MENU_W - 16, 34), "Pause menu", func() -> void:
+		close_menu()
+		_host.toggle_pause()).font(13)
+	_menu.add_child(quit_button)
+
+
+## The field orders: a button on the rail and the list it drops down, to its left.
+func _build_orders() -> void:
+	orders_button = GameButton.new(Rect2(PAD, 0, INNER, 26), "", toggle_orders).flat().font(12)
+	orders_button.visible = false
+	add_child(orders_button)
+	var chevron := PainterView.new(func(ci: CanvasItem, center: Vector2, sz: float) -> void:
+		Icons.chevron(ci, center, sz, _orders.visible, Palette.GOLD))
+	chevron.position = Vector2(INNER - 20, 4)
+	chevron.size = Vector2(18, 18)
+	orders_button.add_child(chevron)
+	_orders = PainterView.new(func(g: CanvasItem, _center: Vector2, _s: float) -> void:
+		var sz: Vector2 = _orders.size
+		Paint.fill_rounded_rect(g, 3, 4, sz.x, sz.y, 10, Color(0, 0, 0, 0.3))
+		Paint.fill_rounded_rect(g, 0, 0, sz.x, sz.y, 10, Color(Palette.PANEL, 0.98))
+		Paint.stroke_rounded_rect(g, 0, 0, sz.x, sz.y, 10, 1, Color(Palette.GOLD, 0.6)))
+	_orders.size = Vector2(230, 60)
+	_orders.visible = false
+	add_child(_orders)
+	_orders_text = Ui.text(_orders, 14, 10, "", 12, Palette.TEXT).set_wrap(230 - 28)
+	_orders_text.set_line_spacing(3)
+
+
+func toggle_orders() -> void:
+	_orders.visible = not _orders.visible
+	orders_button.set_selected(_orders.visible)
+	orders_button.queue_redraw()
+	for child: Node in orders_button.get_children():
+		(child as CanvasItem).queue_redraw()
+
+
+## The field orders taken, and the button that shows them (once there is one).
+func _refresh_orders() -> void:
+	var perks: Array[String] = _host.world.run_perks
+	var key: String = ",".join(perks)
+	if key == _orders_key:
+		return
+	_orders_key = key
+	orders_button.visible = not perks.is_empty()
+	orders_button.set_label("★ %d order%s" % [perks.size(), "" if perks.size() == 1 else "s"], Palette.GOLD)
+	var lines: PackedStringArray = []
+	for id: String in perks:
+		var def: RunPerks.RunPerkDef = RunPerks.get_def(id)
+		lines.append("%s\n%s" % [def.name, def.description])
+	_orders_text.show_text("\n\n".join(lines))
+	_orders.size.y = _orders_text.size.y + 20
+	_orders.position = Vector2(-_orders.size.x - 6, orders_button.position.y + orders_button.size.y - _orders.size.y)
+	_orders.queue_redraw()
+
+
+## Places the rail at the right edge of a `screen`-sized view, full height.
 func layout(screen: Vector2) -> void:
-	position = Vector2(screen.x - Config.SIDEBAR_W, 0)
-	size = Vector2(Config.SIDEBAR_W, screen.y)
+	position = Vector2(screen.x - W, 0)
+	size = Vector2(W, screen.y)
+	var y: float = screen.y - PAD - 32
+	for b: GameButton in [pause_button, speed_button, menu_button]:
+		b.position.y = y
+	wave_button.position.y = y - 8 - wave_button.size.y
+	_preview_y = wave_button.position.y - 46
+	_preview_label.move_to(PAD + 2, _preview_y)
+	orders_button.position.y = _preview_y - 32
+	_orders_key = "-" # place the list again
+	_preview_key = "-" # draw the icons again at the new place
+	_menu.position = Vector2(W - PAD - MENU_W, y - 8 - _menu.size.y)
 	queue_redraw()
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Palette.PANEL)
+	draw_rect(Rect2(Vector2.ZERO, size), Color(Palette.PANEL, 0.97))
 	draw_rect(Rect2(0, 0, 2, size.y), Palette.BORDER)
-	Paint.fill_rounded_rect(self, X, PANEL_Y, W, PANEL_H, 8, Color(Palette.PANEL_LIGHT, 0.6))
+	draw_rect(Rect2(PAD, TOWERS_Y - 6, INNER, 1), Color(Palette.BORDER, 0.6))
 
 
-## Shows an ability's help in the panel while the pointer is over its button ("" to stop).
+## Whether a point (in the game screen's coordinates) is on the rail or one of its pop-ups.
+func covers(p: Vector2) -> bool:
+	if get_rect().has_point(p):
+		return true
+	if _orders.visible and Rect2(position + _orders.position, _orders.size).has_point(p):
+		return true
+	return _menu.visible and Rect2(position + _menu.position, _menu.size).has_point(p)
+
+
+func toggle_menu() -> void:
+	if _menu.visible:
+		close_menu()
+		return
+	_menu.visible = true
+	_menu.modulate.a = 0.0
+	_menu.pivot_offset = Vector2(MENU_W, _menu.size.y)
+	_menu.scale = Vector2.ONE * 0.92
+	if _menu_tween != null:
+		_menu_tween.kill()
+	_menu_tween = _menu.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_menu_tween.tween_property(_menu, "modulate:a", 1.0, 0.14)
+	_menu_tween.tween_property(_menu, "scale", Vector2.ONE, 0.14)
+	menu_button.set_selected(true)
+
+
+func close_menu() -> void:
+	if _menu_tween != null:
+		_menu_tween.kill()
+	_menu.visible = false
+	menu_button.set_selected(false)
+
+
+func is_menu_open() -> bool:
+	return _menu.visible
+
+
+## Shows an ability's help while the pointer is over its button ("" to stop).
 func show_ability_help(id: String) -> void:
 	_hovered_ability = id
 
 
-## Shows a tower's help in the panel while the pointer is over a button for it
-## (the build menu's too).
+## Shows a tower's help while the pointer is over a button for it (here or in the build menu).
 func show_tower_help(kind: String, on: bool) -> void:
-	_on_tower_hover(kind, on)
-
-
-func _on_tower_hover(kind: String, on: bool) -> void:
 	if on:
 		_hovered = kind
 	elif _hovered == kind:
 		_hovered = ""
+
+
+## Shows a branch's help while the pointer is over its button on the tower card.
+func show_branch_help(index: int, on: bool) -> void:
+	if on:
+		_hovered_branch = index
+	elif _hovered_branch == index:
+		_hovered_branch = -1
 
 
 ## Called every frame; only touches what changed.
@@ -172,137 +297,78 @@ func refresh() -> void:
 		b.set_label("$%d" % cost, Palette.TEXT if world.money >= cost else Palette.RED) \
 			.set_selected(_host.tool == kind).set_enabled(world.status == World.Status.PLAYING)
 
-	_refresh_panel()
+	_refresh_help()
 	_refresh_preview()
+	_refresh_orders()
 
 	if world.status != World.Status.PLAYING:
 		wave_button.set_label("Game over").set_sublabel("").set_enabled(false)
 	elif world.next_wave() == null:
-		wave_button.set_label("Final wave").set_sublabel("%d enemies left" % world.enemies_remaining()).set_enabled(false)
+		wave_button.set_label("Final wave").set_sublabel("%d left" % world.enemies_remaining()).set_enabled(false)
 	elif world.is_spawning():
 		wave_button.set_label("Wave %d" % (world.wave_index + 1)) \
-			.set_sublabel("%d enemies left" % world.enemies_remaining()).set_enabled(false)
+			.set_sublabel("%d left" % world.enemies_remaining()).set_enabled(false)
 	elif world.early_bonus_now() > 0:
 		wave_button.set_label("Call wave %d" % (world.wave_index + 2)) \
-			.set_sublabel("Space · +$%d early" % world.early_bonus_now(), Palette.GOLD).set_enabled(true)
+			.set_sublabel("+$%d early" % world.early_bonus_now(), Palette.GOLD).set_enabled(true)
 	else:
 		wave_button.set_label("Start wave %d" % (world.wave_index + 2)) \
-			.set_sublabel("Space · build first!" if world.wave_index < 0 else "Space · ready").set_enabled(true)
+			.set_sublabel("build first!" if world.wave_index < 0 else "Space").set_enabled(true)
 	pause_button.set_label("▶" if _host.paused else "II")
 	speed_button.set_label("%dx" % _host.speed).set_selected(_host.speed > 1)
-	music_button.set_label("♪", Palette.TEXT if _host.music_on() else Palette.TEXT_DIM).set_selected(_host.music_on())
-	sfx_button.set_label("FX", Palette.TEXT if _host.sfx_on() else Palette.TEXT_DIM).set_selected(_host.sfx_on())
+	music_button.set_label("♪  Music %s" % ("on" if _host.music_on() else "off"),
+		Palette.TEXT if _host.music_on() else Palette.TEXT_DIM).set_selected(_host.music_on())
+	sfx_button.set_label("Sound %s" % ("on" if _host.sfx_on() else "off"),
+		Palette.TEXT if _host.sfx_on() else Palette.TEXT_DIM).set_selected(_host.sfx_on())
 
 
-func _refresh_panel() -> void:
+## The help card: about the hovered branch, ability or tower, beside its button.
+func _refresh_help() -> void:
 	var world: World = _host.world
 	var selected: Tower = _host.selected
-	var show_tower_buttons: bool = selected != null
-	var picking: bool = selected != null and selected.needs_branch()
-	if not picking:
+	if selected == null or not selected.needs_branch():
 		_hovered_branch = -1
-	var describing: bool = picking and _hovered_branch >= 0
-	upgrade_button.visible = show_tower_buttons and not picking
-	for b: GameButton in branch_buttons:
-		b.visible = picking
-	target_button.visible = show_tower_buttons and not describing and selected.def.behavior != Towers.Behavior.SUPPORT \
-		and selected.def.behavior != Towers.Behavior.AURA
-	# Set once per frame: hiding a button and showing it again resets a press
-	# in progress, so a click that spans two frames would be lost.
-	var wall_selected: bool = selected == null and _host.selected_wall != GameMap.NO_TILE
-	sell_button.visible = (show_tower_buttons and not describing) or wall_selected
-	_panel_extra.show_text("")
+	var bounds := Rect2(Vector2.ZERO, Screen.size(self))
 
-	if selected != null:
-		_panel_title.show_text("%s  ·  Level %d" % [selected.display_name, selected.level + 1])
-		if picking:
-			_refresh_branches(world, selected)
-		if describing:
-			var br: TowerBranch = selected.def.branches[_hovered_branch]
-			_panel_title.show_text("%s  ·  $%d" % [br.name, world.branch_cost_of(selected, br.id)])
-			_panel_body.show_text(br.description)
-			_panel_extra.show_text(Format.tower_stats_text(selected.kind, Towers.BRANCH_LEVEL, -1, 0, br.id) +
-				("" if world.is_branch_unlocked(br.id) else "\n\nUnlock it in the tech tree."))
-			return
-		var extra: String = ""
-		if selected.high_ground:
-			var on_wall: bool = world.has_wall(selected.col, selected.row) and not world.map.is_high_ground(selected.col, selected.row)
-			extra = "\nOn a wall: +25% range" if on_wall else "\nHigh ground: +25% range"
-		_panel_body.show_text(Format.tower_stats_text(selected.kind, selected.level, selected.attack_range, selected.buff,
-			selected.branch_id) + extra)
-		var cost: int = world.upgrade_cost_of(selected)
-		if cost == Tower.NO_UPGRADE:
-			upgrade_button.set_label("Max level").set_enabled(false)
-		else:
-			upgrade_button.set_label("Upgrade  $%d" % cost, Palette.TEXT if world.money >= cost else UNAFFORDABLE) \
-				.set_enabled(world.money >= cost and world.status == World.Status.PLAYING)
-		target_button.set_label("Target: %s" % MODE_LABEL[selected.target_mode])
-		sell_button.set_label("Sell  +$%d" % selected.sell_value())
+	if _hovered_branch >= 0:
+		var br: TowerBranch = selected.def.branches[_hovered_branch]
+		help.show_help("%s  ·  $%d" % [br.name, world.branch_cost_of(selected, br.id)], br.description,
+			Format.tower_stats_text(selected.kind, Towers.BRANCH_LEVEL, -1, 0, br.id) +
+			("" if world.is_branch_unlocked(br.id) else "\n\nUnlock it in the tech tree."),
+			card.get_global_rect(), bounds) # beside the tower's card
 		return
 
-	var wall_tile: Vector2i = _host.selected_wall
-	if wall_tile != GameMap.NO_TILE:
-		var paid: int = world.walls.get(wall_tile, 0)
-		sell_button.set_label("Sell  +$%d" % paid)
-		_panel_title.show_text("Wall")
-		_panel_body.show_text("Enemies walk around it, if there is room: it can never block the path completely.\n\nBuild a tower on top of it for +25% range.")
+	var ability: String = _hovered_ability
+	if ability.is_empty() and _hovered.is_empty() and _host.tool.is_empty():
+		ability = _host.aim
+	if not ability.is_empty():
+		var def: Abilities.AbilityDef = Abilities.get_def(ability)
+		var button: GameButton = _host.ability_bar.buttons.get(ability)
+		var anchor: Rect2 = button.get_global_rect() if button != null and button.is_visible_in_tree() else get_global_rect()
+		help.show_help("%s  ·  $%d" % [def.name, world.ability_cost(ability)], _ability_text(def), "", anchor, bounds)
 		return
 
-	var help: String = _hovered_ability
-	if help.is_empty() and _hovered.is_empty() and _host.tool.is_empty():
-		help = _host.aim
-	if not help.is_empty():
-		var def: Abilities.AbilityDef = Abilities.get_def(help)
-		_panel_title.show_text("%s  ·  $%d" % [def.name, world.ability_cost(help)])
-		_panel_body.show_text(_ability_text(def))
+	if _hovered == "?" and teaser_button != null:
+		help.show_help("More towers", "Spend your stars in the tech tree (main menu) to unlock more towers and their branches.",
+			"", teaser_button.get_global_rect(), bounds)
 		return
-
-	if _hovered == "?":
-		_panel_title.show_text("More towers")
-		_panel_body.show_text("Spend your stars in the tech tree (main menu) to unlock more towers and their branches.")
-		return
-	var kind: String = _hovered if not _hovered.is_empty() else _host.tool
-	if not kind.is_empty():
-		var d: TowerDef = Towers.get_def(kind)
-		_panel_title.show_text("%s  ·  $%d" % [d.name, world.cost_of(kind)])
+	if not _hovered.is_empty():
+		var d: TowerDef = Towers.get_def(_hovered)
 		var hits: PackedStringArray = []
 		if d.hits_ground:
 			hits.append("ground")
 		if d.hits_air:
 			hits.append("air")
-		_panel_body.show_text("\n".join(PackedStringArray([
-			Format.tower_stats_text(kind, 0),
+		var from_menu: GameButton = _host.build_menu.buttons.get(_hovered) if _host.build_menu.is_open() else null
+		var anchor: Control = from_menu if from_menu != null else tower_buttons.get(_hovered)
+		help.show_help("%s  ·  $%d" % [d.name, world.cost_of(_hovered)], "\n".join(PackedStringArray([
+			Format.tower_stats_text(_hovered, 0),
 			"Hits: %s" % (" + ".join(hits) if not hits.is_empty() else "—"),
 			"",
 			d.description,
-		])))
+		])), "", anchor.get_global_rect() if anchor != null else get_global_rect(), bounds)
 		return
-
-	if not world.run_perks.is_empty():
-		_panel_title.show_text("Field orders")
-		var lines: PackedStringArray = []
-		for id: String in world.run_perks:
-			var def: RunPerks.RunPerkDef = RunPerks.get_def(id)
-			lines.append("%s: %s" % [def.name, def.description])
-		_panel_body.show_text("\n".join(lines))
-		return
-	_panel_title.show_text("Tips")
-	if world.map.maze:
-		_panel_body.show_text("No road here: enemies walk around your towers and walls.\n\nClick a tower or wall to upgrade or sell it.\nQ: wall. Bottom bar: abilities.")
-	else:
-		_panel_body.show_text("Pick a tower above, then click the grass to build.\n\nClick a placed tower to upgrade it, change its target or sell it.\nQ: wall. Bottom bar: abilities.")
-
-
-## The two branch buttons of a level-3 tower: name and price, locked or not.
-func _refresh_branches(world: World, tower: Tower) -> void:
-	for i: int in branch_buttons.size():
-		var b: GameButton = branch_buttons[i]
-		var br: TowerBranch = tower.def.branches[i]
-		var cost: int = world.branch_cost_of(tower, br.id)
-		var unlocked: bool = world.is_branch_unlocked(br.id)
-		b.set_label(br.name if unlocked else "🔒 " + br.name)
-		b.set_sublabel("$%d" % cost, Palette.TEXT if world.money >= cost else UNAFFORDABLE)
-		b.set_enabled(unlocked and world.money >= cost and world.status == World.Status.PLAYING)
+	help.hide_help()
 
 
 func _ability_text(def: Abilities.AbilityDef) -> String:
@@ -318,7 +384,7 @@ func _ability_text(def: Abilities.AbilityDef) -> String:
 	return "%s\n\n%s" % [def.description, " · ".join(facts)]
 
 
-## Small icons showing what the next wave brings.
+## Small icons showing what the next wave brings (two rows at most).
 func _refresh_preview() -> void:
 	var wave: Wave = _host.world.next_wave()
 	var types: Array[String] = []
@@ -335,21 +401,27 @@ func _refresh_preview() -> void:
 	_preview_key = key
 	for child: Node in _preview.get_children():
 		child.queue_free()
-	_preview_label.show_text("Next:" if wave != null else "")
-	var x: float = X + 36
+	_preview_label.show_text("Next" if wave != null else "")
+	var x: float = PAD + 2
+	var y: float = _preview_y + 16
 	for type: String in types:
-		if x > X + W - 20:
-			break
 		var def: EnemyDef = Enemies.get_def(type)
+		var label: String = "%d" % counts[type]
+		var w: float = 18 + 7 * label.length() + 6
+		if x + w > W - PAD:
+			x = PAD + 2
+			y += 20
+			if y > _preview_y + 40:
+				break
 		var icon := PainterView.new(func(ci: CanvasItem, center: Vector2, s: float) -> void:
 			EnemyArt.draw(ci, def.art, center, s))
-		icon.position = Vector2(x + 8 - 9, 481 - 9)
-		icon.size = Vector2(18, 18)
+		icon.position = Vector2(x, y)
+		icon.size = Vector2(16, 16)
 		if def.has_tint:
 			icon.modulate = def.tint
 		_preview.add_child(icon)
-		var count: TextLabel = Ui.text(_preview, x + 18, 474, "%d" % counts[type], 12, Palette.TEXT, true)
-		x += 26 + count.size.x
+		Ui.text(_preview, x + 17, y + 1, label, 11, Palette.TEXT, true)
+		x += w
 
 
 # ---- what the player sees (read by the scene tests) ---------------------------
@@ -366,17 +438,28 @@ func wave_text() -> String:
 	return _wave.text
 
 
+## The title of what the player is reading about: the help card beside a
+## hovered button, else the selected tower's (or wall's) card; "" when neither shows.
 func panel_title_text() -> String:
-	return _panel_title.text
+	if help.visible:
+		return help.title_text()
+	return card.title_text()
 
 
 func panel_body_text() -> String:
-	return _panel_body.text
+	if help.visible:
+		return help.body_text()
+	return card.body_text()
 
 
-## The second text block of the panel (a branch's stats while its button is hovered).
+## The help card's second text block (a branch's stats while its button is hovered).
 func panel_extra_text() -> String:
-	return _panel_extra.text
+	return help.extra_text()
+
+
+## The field orders listed in their drop-down ("" while it is closed).
+func orders_text() -> String:
+	return _orders_text.text if _orders.visible else ""
 
 
 ## The next-wave preview as "type count" pairs, e.g. "scout8,racer5".

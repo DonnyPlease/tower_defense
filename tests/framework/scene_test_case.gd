@@ -148,6 +148,41 @@ func field_point(p: Vector2) -> Vector2:
 	return game.field_to_screen(p) if game != null else p
 
 
+## Clicks a point of the field (simulation coordinates, 800 x 600).
+func click_field(x: float, y: float, button: MouseButton = MOUSE_BUTTON_LEFT) -> void:
+	var p: Vector2 = field_point(Vector2(x, y))
+	await click(p.x, p.y, button)
+
+
+## Moves the mouse to a point of the field (simulation coordinates).
+func hover_field(x: float, y: float) -> void:
+	var p: Vector2 = field_point(Vector2(x, y))
+	await hover(p.x, p.y)
+
+
+## Colour of the screenshot under a point of the field (simulation coordinates).
+func field_pixel(img: Image, x: float, y: float) -> Color:
+	var p: Vector2 = field_point(Vector2(x, y))
+	return pixel_at(img, p.x, p.y)
+
+
+## Right-clicks the land beside the map (or its corner tile when there is no
+## room beside it): puts the tool away and lets go of what is selected.
+func right_click_beside_map() -> void:
+	var game := scene() as GameScene
+	if game == null:
+		return
+	var map: Rect2 = game.map_rect()
+	var p: Vector2 = Vector2(map.position.x / 2, map.get_center().y) if map.position.x >= 8 else tile(0, 0)
+	await click(p.x, p.y, MOUSE_BUTTON_RIGHT)
+
+
+## A point on the game screen's rail (not on any of its buttons).
+func on_rail() -> Vector2:
+	var game := scene() as GameScene
+	return game.hud.get_global_rect().position + Vector2(Hud.W / 2, game.hud.tools_y + 150) if game != null else Vector2.ZERO
+
+
 func click_tile(col: int, row: int) -> void:
 	var p: Vector2 = tile(col, row)
 	await click(p.x, p.y)

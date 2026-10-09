@@ -24,10 +24,10 @@ func test_building_upgrading_retargeting_and_selling_with_the_mouse() -> void:
 	expect_eq(hud.money_text(), "$ 250")
 	expect_eq(hud.lives_text(), "♥ 20")
 	expect_eq(hud.wave_text(), "Wave 0 / 8")
-	expect_eq(hud.panel_title_text(), "Tips")
-	expect_false(hud.upgrade_button.visible, "no tower selected")
+	expect_eq(hud.panel_title_text(), "", "nothing to read about yet")
+	expect_false(game.card.visible, "no tower selected")
 
-	# Pick the missile tower in the sidebar: the panel describes it.
+	# Pick the missile tower on the rail: a help card beside it describes it.
 	var cost: int = w.cost_of("missile")
 	await click_button(hud.tower_buttons["missile"])
 	expect_eq(game.tool, "missile")
@@ -46,12 +46,17 @@ func test_building_upgrading_retargeting_and_selling_with_the_mouse() -> void:
 	var t: Tower = w.towers[0]
 	expect_not_null(game.field.tower_view(t), "the tower is drawn")
 
-	# Clicking it selects it: the panel shows it with its buttons.
+	# Clicking it selects it: a card next to it shows it with its buttons.
 	await click_tile(6, 9)
+	await frames(10) # the card pops in
 	expect_true(game.selected == t, "selected")
 	expect_eq(game.tool, "", "selecting puts the build tool away")
 	expect_eq(hud.panel_title_text(), "Missile  ·  Level 1")
-	expect_true(hud.upgrade_button.visible and hud.target_button.visible and hud.sell_button.visible)
+	expect_true(game.card.visible and hud.upgrade_button.visible and hud.target_button.visible and hud.sell_button.visible)
+	var r: Rect2 = game.card.get_global_rect()
+	var at: Vector2 = tile(6, 9)
+	expect_true(r.position.x > at.x or r.end.x < at.x, "the card is beside the tower, not on it")
+	expect_lt(absf(r.get_center().y - at.y), r.size.y, "level with it")
 	expect_eq(hud.upgrade_button.label_text(), "Upgrade  $%d" % w.upgrade_cost_of(t))
 	await click_button(hud.upgrade_button)
 	expect_eq(t.level, 1)
@@ -71,13 +76,15 @@ func test_building_upgrading_retargeting_and_selling_with_the_mouse() -> void:
 		return
 	var value: int = gun.sell_value()
 	var money: int = w.money
+	await frames(10)
 	expect_eq(hud.sell_button.label_text(), "Sell  +$%d" % value)
 	await click_button(hud.sell_button)
 	expect_eq(tower_names(game), ["missile@6,9"])
 	expect_eq(w.money, money + value)
 	expect_true(game.field.floating_texts().has("+$%d" % value), "the refund floats up")
 	expect_null(game.selected)
-	expect_eq(hud.panel_title_text(), "Tips")
+	expect_false(game.card.visible, "the card goes away")
+	expect_eq(hud.panel_title_text(), "")
 
 	# Start the wave: the tower shoots, kills pay out.
 	await click_button(hud.wave_button)
@@ -150,7 +157,7 @@ func test_right_click_and_escape_cancel_the_tool_and_the_selection() -> void:
 	expect_not_null(game.selected)
 	await click(p.x, p.y, MOUSE_BUTTON_RIGHT)
 	expect_null(game.selected, "right click deselects")
-	expect_false(game.hud.upgrade_button.visible)
+	expect_false(game.card.visible)
 
 	await click_tile(3, 9)
 	await press_key(KEY_ESCAPE)
@@ -158,7 +165,7 @@ func test_right_click_and_escape_cancel_the_tool_and_the_selection() -> void:
 	expect_false(game.paused, "Esc only pauses when nothing is selected")
 
 
-func test_sidebar_pause_speed_and_sound_buttons() -> void:
+func test_rail_pause_speed_and_sound_buttons() -> void:
 	use_profile()
 	var game: GameScene = await open_game("meadow")
 	if game == null:
@@ -171,14 +178,34 @@ func test_sidebar_pause_speed_and_sound_buttons() -> void:
 		expect_eq(game.speed, label.to_int())
 		expect_eq(hud.speed_button.is_selected(), label != "1x", label)
 
+	# The sound switches are in the gear menu.
+	expect_false(hud.music_button.is_visible_in_tree(), "the gear menu starts closed")
+	await click_button(hud.menu_button)
+	expect_true(hud.is_menu_open())
+	await frames(10) # it fades in
 	expect_false(hud.music_button.is_selected())
 	await click_button(hud.music_button)
 	expect_true(hud.music_button.is_selected(), "music on")
 	await click_button(hud.sfx_button)
 	expect_true(hud.sfx_button.is_selected(), "effects on")
+	expect_true(hud.is_menu_open(), "it stays open while it's used")
 	Profile.forget_cache()
 	var p: Profile = Profile.load_profile()
 	expect_true(p.music and p.sfx, "saved")
+	var grass: Vector2 = tile(3, 3)
+	await click(grass.x, grass.y)
+	expect_false(hud.is_menu_open(), "a click elsewhere closes it")
+	await click_button(hud.menu_button)
+	await press_key(KEY_ESCAPE)
+	expect_false(hud.is_menu_open(), "so does Esc")
+	expect_false(game.paused, "without pausing")
+	await click_button(hud.menu_button)
+	await frames(10)
+	await click_button(hud.quit_button)
+	expect_true(game.paused, "the menu opens the pause dialog")
+	expect_false(hud.is_menu_open())
+	await click_button(game.pause_overlay.button("Resume"))
+	game.build_menu.close()
 
 	expect_eq(hud.pause_button.label_text(), "II")
 	await click_button(hud.pause_button)
@@ -191,7 +218,7 @@ func test_sidebar_pause_speed_and_sound_buttons() -> void:
 	await frames(10)
 	expect_eq(game.world.tick, tick, "time stands still")
 	await click_button(hud.wave_button) # covered by the dialog
-	expect_eq(game.world.wave_index, -1, "the dialog blocks the sidebar")
+	expect_eq(game.world.wave_index, -1, "the dialog blocks the rail")
 	await click_button(game.pause_overlay.button("Resume"))
 	expect_false(game.paused)
 	expect_false(game.pause_overlay.visible)
@@ -278,7 +305,7 @@ func test_the_wave_button_previews_the_next_wave_and_pays_for_calling_early() ->
 	var w: World = game.world
 	expect_eq(game.banner_text(), "Meadow")
 	expect_eq(hud.wave_button.label_text(), "Start wave 1")
-	expect_eq(hud.wave_button.sublabel_text(), "Space · build first!")
+	expect_eq(hud.wave_button.sublabel_text(), "build first!")
 	expect_eq(hud.preview_key(), "scout8")
 
 	await click_button(hud.wave_button)
@@ -289,7 +316,7 @@ func test_the_wave_button_previews_the_next_wave_and_pays_for_calling_early() ->
 	expect_eq(hud.wave_text(), "Wave 1 / 8")
 	expect_eq(hud.preview_key(), "scout12", "the preview moves on")
 	expect_eq(hud.wave_button.label_text(), "Wave 1")
-	expect_match(hud.wave_button.sublabel_text(), "^\\d+ enemies left$")
+	expect_match(hud.wave_button.sublabel_text(), "^\\d+ left$")
 	expect_false(hud.wave_button.is_enabled(), "can't call while spawning")
 	await frames(150)
 	expect_false(game.banner_showing(), "the banner fades out")
@@ -298,7 +325,7 @@ func test_the_wave_button_previews_the_next_wave_and_pays_for_calling_early() ->
 	expect_false(w.enemies.is_empty(), "enemies are still walking")
 	await frames(1)
 	expect_eq(hud.wave_button.label_text(), "Call wave 2")
-	expect_eq(hud.wave_button.sublabel_text(), "Space · +$14 early")
+	expect_eq(hud.wave_button.sublabel_text(), "+$14 early")
 	expect_true(hud.wave_button.is_enabled())
 	var money: int = w.money
 	await click_button(hud.wave_button)
@@ -322,7 +349,7 @@ func test_clearing_a_wave_pays_a_bonus() -> void:
 	expect_match(game.banner_text(), "^Wave cleared  \\+\\$20(\\nInterest \\+\\$\\d+)?$")
 	await frames(1)
 	expect_eq(game.hud.wave_button.label_text(), "Start wave 2")
-	expect_eq(game.hud.wave_button.sublabel_text(), "Space · ready")
+	expect_eq(game.hud.wave_button.sublabel_text(), "Space")
 	expect_eq(game.hud.money_text(), "$ %d" % w.money)
 
 
@@ -419,7 +446,8 @@ func test_refused_builds_explain_why() -> void:
 	expect_true(game.field.floating_texts().has("Not enough money"), "says why")
 	expect_true(game.hud.tower_buttons["gun"].is_selected(), "the tool stays picked")
 
-	await hover(900, 300) # the sidebar
+	var rail: Vector2 = on_rail()
+	await hover(rail.x, rail.y)
 	expect_eq(game.ghost_state(), "hidden")
 
 
@@ -441,7 +469,7 @@ func test_maze_levels_refuse_to_block_the_path() -> void:
 	var game: GameScene = await open_game("openfield")
 	if game == null:
 		return
-	expect_contains(game.hud.panel_body_text(), "No road here")
+	expect_contains(game.tips_text(), "No road here")
 	# Column 6 is rock except rows 7 and 8: closing both would wall the exit off.
 	await press_key(KEY_1)
 	await click_tile(6, 7)
@@ -599,3 +627,58 @@ func test_every_map_runs_a_busy_wave_without_errors() -> void:
 			expect_not_null(game.field.tower_view(t), "%s: %s is drawn" % [level_id, t.kind])
 		for e: Enemy in w.enemies:
 			expect_not_null(game.field.enemy_view(e), "%s: %s is drawn" % [level_id, e.type])
+
+
+func test_the_tower_card_folds_out_its_details() -> void:
+	use_profile()
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	game.world.money = 10_000
+	await press_key(KEY_2)
+	await click_tile(6, 9)
+	await click_tile(6, 9)
+	await frames(10)
+	var card: TowerCard = game.card
+	expect_false(card.body_text().contains("Damage"), "the stats start folded away")
+	var folded: float = card.size.y
+	await click_button(card.details_button)
+	expect_contains(card.body_text(), "Damage 6")
+	expect_contains(card.body_text(), "Next level:\nDamage 10")
+	expect_gt(card.size.y, folded + 60, "the card grows to show them")
+	# The choice is kept for the next tower.
+	await press_key(KEY_ESCAPE)
+	await press_key(KEY_1)
+	await click_tile(13, 7)
+	await click_tile(13, 7)
+	await frames(10)
+	expect_eq(card.title_text(), "Gun  ·  Level 1")
+	expect_contains(card.body_text(), "Damage 3")
+	await click_button(card.details_button)
+	expect_false(card.body_text().contains("Damage"))
+	expect_near(card.size.y, folded, 0)
+
+
+func test_the_map_fills_the_window_beside_the_rail() -> void:
+	use_profile()
+	var game: GameScene = await open_game("meadow")
+	if game == null:
+		return
+	var view: Vector2 = Screen.size(game)
+	var rail: Rect2 = game.hud.get_global_rect()
+	expect_near(rail.end.x, view.x, 0, "the rail is at the right edge")
+	expect_near(rail.size.y, view.y, 0, "full height")
+	var map: Rect2 = game.map_rect()
+	expect_near(map.size.x / map.size.y, 4.0 / 3.0, 2, "the map keeps its shape")
+	expect_true(is_equal_approx(map.size.y, view.y) or is_equal_approx(map.size.x, view.x - Hud.W),
+		"the map is as big as it can be")
+	expect_le(map.end.x, rail.position.x + 0.5, "and is not under the rail")
+	# The land around the map is drawn but can't be built on; a click there lets go of the tower.
+	await press_key(KEY_2)
+	await click_tile(6, 9)
+	await click_tile(6, 9)
+	expect_not_null(game.selected)
+	if map.position.x >= 4:
+		await click(map.position.x / 2, map.get_center().y)
+		expect_null(game.selected, "deselected")
+		expect_eq(game.world.towers.size(), 1, "nothing built outside the map")

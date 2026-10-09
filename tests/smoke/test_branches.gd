@@ -40,24 +40,25 @@ func test_a_level_3_tower_offers_its_two_branches() -> void:
 	expect_eq(hud.branch_buttons[1].label_text(), "Sniper")
 	expect_true(hud.target_button.visible and hud.sell_button.visible)
 
-	# Hovering a branch explains it (and hides the target and sell buttons for the text).
+	# Hovering a branch explains it, on a help card beside the tower's card.
 	var r: Rect2 = hud.branch_buttons[1].get_global_rect()
 	await hover(r.get_center().x, r.get_center().y)
 	await frames(2)
 	expect_eq(hud.panel_title_text(), "Sniper  ·  $%d" % game.world.branch_cost_of(t, "sniper"))
 	expect_contains(hud.panel_body_text(), "through a line of enemies")
 	expect_contains(hud.panel_extra_text(), "Hits 3 in a line")
-	expect_false(hud.sell_button.visible)
+	expect_true(hud.help.get_global_rect().intersects(game.card.get_global_rect()) == false, "beside the card, not on it")
 
 	# Clicking it grows the tower.
 	var money: int = game.world.money
 	var price: int = game.world.branch_cost_of(t, "sniper")
 	await click_button(hud.branch_buttons[1])
-	await hover(400, 300)
+	await hover_field(400, 300)
 	await frames(2)
 	expect_eq(t.branch_id, "sniper")
 	expect_eq(game.world.money, money - price)
 	expect_eq(hud.panel_title_text(), "Sniper  ·  Level 4")
+	await click_button(game.card.details_button) # the stats fold out
 	expect_contains(hud.panel_body_text(), "Hits 3 in a line")
 	expect_false(hud.branch_buttons[0].visible, "the choice is made")
 	expect_true(hud.upgrade_button.visible)
@@ -164,7 +165,7 @@ func test_a_branch_looks_different_from_its_tower() -> void:
 	var changed: int = 0
 	for dy: int in range(-16, 17, 4):
 		for dx: int in range(-16, 17, 4):
-			if not near(pixel_at(before, t.x + dx, t.y + dy), pixel_at(after, t.x + dx, t.y + dy), 0.08):
+			if not near(field_pixel(before, t.x + dx, t.y + dy), field_pixel(after, t.x + dx, t.y + dy), 0.08):
 				changed += 1
 	expect_gt(changed, 10, "the sniper is drawn, not the gun")
 
@@ -196,5 +197,5 @@ func test_a_sniper_shot_draws_a_tracer() -> void:
 	var mid := Vector2(t.x + 120, t.y)
 	expect_true(await until(func() -> bool: return t.shooting, 120), "it fires")
 	var img: Image = await screenshot()
-	var c: Color = pixel_at(img, mid.x, mid.y)
+	var c: Color = field_pixel(img, mid.x, mid.y)
 	expect_gt(c.r + c.g + c.b, 2.2, "a bright line over the grass")

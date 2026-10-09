@@ -80,7 +80,7 @@ func test_a_level_won_with_clicks_and_keys_only() -> void:
 					spots_built.append(spot)
 					upgrades[spot] = 0
 				next += 1
-				await click(900, 300, MOUSE_BUTTON_RIGHT) # put the tool away
+				await right_click_beside_map() # put the tool away
 		else:
 			# Everything is built: upgrade the weakest tower we can afford.
 			var weakest: Vector2i = Vector2i(-1, -1)
@@ -89,13 +89,13 @@ func test_a_level_won_with_clicks_and_keys_only() -> void:
 					weakest = s
 			if weakest.x >= 0:
 				await click_tile(weakest.x, weakest.y)
-				var label: String = hud.upgrade_button.label_text()
+				var label: String = game.card.upgrade_button.label_text()
 				if label == "Max level":
 					maxed[weakest] = true
 				elif money(game) >= dollars(label):
-					await click_button(hud.upgrade_button)
+					await click_button(game.card.upgrade_button)
 					upgrades[weakest] += 1
-				await click(900, 300, MOUSE_BUTTON_RIGHT)
+				await right_click_beside_map()
 		if spots_built.size() >= 2 or game.world.wave_index >= 0:
 			await start_wave_if_offered(game)
 		await frames(30)

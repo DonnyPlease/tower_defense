@@ -47,7 +47,7 @@ func test_the_bar_offers_every_ability_with_its_price_and_hotkey() -> void:
 		expect_le(r.end.y, float(Config.FIELD_H), id)
 
 
-func test_hovering_a_button_explains_the_ability_in_the_sidebar() -> void:
+func test_hovering_a_button_explains_the_ability() -> void:
 	use_profile()
 	var game: GameScene = await open_game("meadow")
 	if game == null:
@@ -59,9 +59,9 @@ func test_hovering_a_button_explains_the_ability_in_the_sidebar() -> void:
 	expect_contains(game.hud.panel_body_text(), "half speed")
 	expect_contains(game.hud.panel_body_text(), "key W")
 	expect_contains(game.hud.panel_body_text(), "cooldown 45 s")
-	await hover(300, 200)
+	await hover_field(300, 200)
 	await frames(2)
-	expect_eq(game.hud.panel_title_text(), "Tips")
+	expect_eq(game.hud.panel_title_text(), "", "the help goes away with the pointer")
 
 
 func test_buttons_turn_red_without_the_money_and_show_the_wait_afterwards() -> void:
@@ -224,7 +224,7 @@ func test_a_wall_can_be_selected_and_sold_when_empty() -> void:
 	expect_false(game.world.has_wall(5, 11))
 	expect_eq(game.hud.money_text(), "$ 250")
 	expect_eq(game.selected_wall, GameMap.NO_TILE)
-	expect_eq(game.hud.panel_title_text(), "Tips")
+	expect_eq(game.hud.panel_title_text(), "", "its card goes away")
 
 
 func test_a_wall_with_a_tower_is_sold_in_two_steps() -> void:
@@ -311,8 +311,8 @@ func test_the_airstrike_is_aimed_with_a_click_and_lands_a_second_later() -> void
 	await press_key(KEY_R)
 	expect_eq(game.aim, "strike")
 	expect_eq(game.hud.panel_title_text(), "Airstrike  ·  $100")
-	await hover(310, 300)
-	await click(310, 300)
+	await hover_field(310, 300)
+	await click_field(310, 300)
 	expect_eq(game.aim, "", "one strike per pick")
 	expect_eq(game.world.strikes.size(), 1)
 	expect_eq(game.hud.money_text(), "$ %d" % (250 - 100))
@@ -333,11 +333,11 @@ func test_the_focus_mark_needs_an_enemy_under_the_pointer() -> void:
 	var scout: Enemy = frozen_enemy(game, "scout", 300, 300)
 	await press_key(KEY_C)
 	expect_eq(game.aim, "mark")
-	await click(500, 200) # nothing there
+	await click_field(500, 200) # nothing there
 	expect_true(said(game, "No enemy there"))
 	expect_eq(game.aim, "mark", "still aiming")
 	expect_eq(game.hud.money_text(), "$ 250")
-	await click(305, 300)
+	await click_field(305, 300)
 	expect_true(scout.is_marked())
 	expect_eq(game.aim, "")
 	expect_eq(game.hud.money_text(), "$ %d" % (250 - 40))

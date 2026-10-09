@@ -82,12 +82,12 @@ func test_shots_glow() -> void:
 	if game == null:
 		return
 	game.speed = 0 # the screen still updates
-	var at := Vector2(tile(4, 1).x, tile(4, 1).y)
+	var at: Vector2 = GameMap.tile_center(Vector2i(4, 1))
 	await frames(2)
-	var before: Color = pixel_at(await screenshot(), at.x, at.y + 6)
+	var before: Color = field_pixel(await screenshot(), at.x, at.y + 6)
 	var b := Bullet.new(at.x, at.y, 0, 0, 1, Towers.BulletType.NORMAL, true, true)
 	game.world.bullets.append(b)
 	await frames(2)
-	var lit: Color = pixel_at(await screenshot(), at.x, at.y + 6)
+	var lit: Color = field_pixel(await screenshot(), at.x, at.y + 6)
 	expect_gt(lit.get_luminance(), before.get_luminance() + 0.05, "the grass next to the bullet is lit up")
 	expect_not_null(game.field.glow.material, "an additive layer")

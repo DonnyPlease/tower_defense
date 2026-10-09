@@ -12,7 +12,7 @@ const H: float = 54
 const WALLS_SECONDS: float = 9.0 ## how long the last hint stays
 
 const TEXT: Dictionary[Step, String] = {
-	Step.BUILD: "Build a tower: click the grass beside the road and pick one\n(or pick a tower in the sidebar, or press 1).",
+	Step.BUILD: "Build a tower: click the grass beside the road and pick one\n(or pick a tower on the right, or press 1).",
 	Step.START: "Start the first wave: press Space or the Start wave button.\nCalling waves early pays a bonus.",
 	Step.SELECT: "Click one of your towers to see what it can do.",
 	Step.UPGRADE: "Upgrade it (U). At level 3 it grows into one of two branches.",

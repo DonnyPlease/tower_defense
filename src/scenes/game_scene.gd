@@ -1,10 +1,10 @@
 class_name GameScene
 extends Node2D
 ## A game in progress: runs the simulation at a fixed rate, draws it, and
-## handles building, selecting, the sidebar, pausing and the end of the game.
+## handles building, selecting, the rail (Hud), pausing and the end of the game.
 ## The level comes from Router (Router.goto_game).
 ##
-## The map is drawn as large as the window allows beside the sidebar, and the
+## The map is drawn as large as the window allows beside the rail, and the
 ## land around it carries on to the edges of the window. Positions in the
 ## simulation are "field" coordinates (800 x 600); the screen shows them
 ## scaled and moved (see field_to_screen()).
@@ -34,6 +34,8 @@ var resumed: bool = false
 
 var field: FieldView
 var hud: Hud
+## The selected tower's (or wall's) controls, next to it.
+var card: TowerCard
 var pause_overlay: Overlay
 var win_overlay: Overlay
 var lose_overlay: Overlay
@@ -56,6 +58,8 @@ var _banner: TextLabel
 var _banner_tween: Tween
 var _boss_bar: DrawNode
 var _boss_text: TextLabel
+var _tips: Control
+var _tips_label: TextLabel
 
 
 func _ready() -> void:
@@ -99,8 +103,13 @@ func _ready() -> void:
 	_stage.add_child(_boss_bar)
 	_boss_text = Ui.text(_stage, Config.FIELD_W / 2.0, 12, "", 13, Palette.TEXT, true, Vector2(0.5, 0)).set_outline(3)
 	_boss_text.z_index = FieldView.D_FLOATERS
+	card = TowerCard.new(self)
+	add_child(card)
 	hud = Hud.new(self)
+	hud.card = card
+	hud.help = HelpCard.new()
 	add_child(hud)
+	add_child(hud.help)
 	ability_bar = AbilityBar.new(self)
 	_stage.add_child(ability_bar)
 	build_menu = BuildMenu.new(self)
@@ -129,6 +138,7 @@ func _ready() -> void:
 		add_child(o) # they cover the whole window
 	draft = DraftOverlay.new(self)
 	_stage.add_child(draft)
+	_build_tips()
 
 	Screen.on_resize(self, _layout)
 
@@ -152,6 +162,8 @@ func _layout() -> void:
 	# The whole window in field coordinates, with a tile to spare for screen shake.
 	var top_left: Vector2 = screen_to_field(Vector2.ZERO)
 	field.set_surroundings(Rect2(top_left, screen_to_field(screen) - top_left).grow(Config.TILE))
+	var map: Rect2 = map_rect()
+	_tips.position = Vector2(map.get_center().x - _tips.size.x / 2, map.position.y + 8).round()
 
 
 ## Where the map is drawn on the screen.
@@ -169,7 +181,22 @@ func screen_to_field(p: Vector2) -> Vector2:
 	return (p - _stage.position) / _stage.scale
 
 
-# ---- what the sidebar can do ---------------------------------------------------
+## A short hint at the top of the map until the first tower is built (unless
+## the first-game tutorial is showing its own).
+func _build_tips() -> void:
+	var text: String = "No road here: enemies walk around your towers and walls.\nBuild a maze to make their way long." \
+		if world.map.maze else "Pick a tower on the right (or click the grass), then build.\nClick a tower or wall to upgrade or sell it."
+	_tips = PainterView.new(func(g: CanvasItem, _center: Vector2, _s: float) -> void:
+		Paint.fill_rounded_rect(g, 0, 0, _tips.size.x, _tips.size.y, 10, Color(Palette.PANEL, 0.88)))
+	_tips.z_index = Hud.DEPTH - 1
+	add_child(_tips)
+	_tips_label = Ui.text(_tips, 14, 8, text, 13, Palette.TEXT, false)
+	_tips_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tips_label.place()
+	_tips.size = _tips_label.size + Vector2(28, 16)
+
+
+# ---- what the rail can do -----------------------------------------------------
 
 func music_on() -> bool:
 	return Profile.load_profile().music
@@ -392,10 +419,15 @@ func choose_run_perk(id: String) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# Track the hovered tile everywhere (the sidebar and dialogs clear it).
+	# Track the hovered tile everywhere (the rail, the cards and dialogs clear it).
 	var motion := event as InputEventMouseMotion
 	if motion != null:
 		_update_hover(motion.position)
+	# A click anywhere but on the gear menu closes it.
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.pressed and hud.is_menu_open() and not hud.covers(mb.position):
+		hud.close_menu()
+		get_viewport().set_input_as_handled() # the click only closes the menu
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -413,6 +445,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_cancel_picks()
 		elif mb.button_index == MOUSE_BUTTON_LEFT and _hover_tile != GameMap.NO_TILE:
 			click_tile(_hover_tile.x, _hover_tile.y)
+		elif mb.button_index == MOUSE_BUTTON_LEFT:
+			# A click on the land beside the map lets go of what is selected.
+			selected = null
+			selected_wall = GameMap.NO_TILE
 		get_viewport().set_input_as_handled()
 		return
 
@@ -422,7 +458,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	match key.keycode:
 		KEY_ESCAPE:
-			if (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE \
+			if hud.is_menu_open():
+				hud.close_menu()
+			elif (not tool.is_empty() or selected != null or not aim.is_empty() or selected_wall != GameMap.NO_TILE \
 					or build_menu.is_open()) and not is_modal_open():
 				_cancel_picks()
 			else:
@@ -476,6 +514,8 @@ func _notification(what: int) -> void:
 ## `p` is a point on the screen.
 func _update_hover(screen_point: Vector2) -> void:
 	var p: Vector2 = screen_to_field(screen_point)
+	if hud.covers(screen_point) or (card.visible and card.get_rect().has_point(screen_point)):
+		p = Vector2(-1000, -1000) # on the rail or a card, not the field
 	_mouse = p
 	if p.x >= 0 and p.x < Config.FIELD_W and p.y >= 0 and p.y < Config.FIELD_H:
 		_hover_tile = Vector2i(floori(p.x / Config.TILE), floori(p.y / Config.TILE))
@@ -557,7 +597,10 @@ func _process(delta: float) -> void:
 	_boss_bar.queue_redraw()
 	if is_modal_open() and build_menu.is_open():
 		build_menu.close()
+	_refresh_card()
 	hud.refresh()
+	_tips.visible = world.wave_index < 0 and world.towers.is_empty() and not is_modal_open() \
+		and (tutorial == null or not tutorial.visible)
 	ability_bar.refresh()
 	draft.refresh()
 	build_menu.refresh()
@@ -658,6 +701,22 @@ func _draw_boss_bar(g: CanvasItem) -> void:
 	if boss.max_shield > 0 and boss.shield > 0:
 		Paint.fill_rounded_rect(g, x, y + 11, w * boss.shield / boss.max_shield, 3, 1, Palette.rgb(0x7ad3ff))
 	_boss_text.show_text("%s  %d / %d" % [boss.def.name, ceili(boss.hitpoints), boss.max_hitpoints])
+
+
+## The selected tower's (or wall's) card follows it (and the window's size).
+func _refresh_card() -> void:
+	var modal: bool = is_modal_open()
+	card.show_for(selected if not modal else null, selected_wall if not modal else GameMap.NO_TILE)
+	if not card.visible:
+		return
+	card.refresh()
+	var at: Vector2
+	if selected != null:
+		at = field_to_screen(Vector2(selected.x, selected.y))
+	else:
+		at = field_to_screen(GameMap.tile_center(selected_wall))
+	var screen: Vector2 = Screen.size(self)
+	card.place(at, Rect2(0, 0, screen.x - Hud.W, screen.y))
 
 
 func _update_hover_objects() -> void:
@@ -780,6 +839,11 @@ func ghost_state() -> String:
 	if not _ghost.visible:
 		return "hidden"
 	return "ok" if _ghost.modulate.g > 0.9 else "blocked"
+
+
+## The hint at the bottom of the map ("" when hidden).
+func tips_text() -> String:
+	return _tips_label.text if _tips.visible else ""
 
 
 ## The boss health label at the top ("" without a boss).

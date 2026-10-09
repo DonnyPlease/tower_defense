@@ -10,7 +10,7 @@ extends Control
 ## help instead (the hover callback, which touch screens can't otherwise
 ## reach) and does nothing when released.
 
-enum Variant { DEFAULT, PRIMARY, DANGER }
+enum Variant { DEFAULT, PRIMARY, DANGER, FLAT } ## FLAT: no background until hovered
 
 const LONG_PRESS: float = 0.45 ## seconds
 enum Layout { ROW, TILE } ## ROW: icon left of the text; TILE: icon on top, text underneath
@@ -38,6 +38,7 @@ var _selected: bool = false
 var _pressed: bool = false
 var _held: float = 0.0
 var _long: bool = false
+var _icon_only: bool = false
 
 
 func _init(rect: Rect2, label: String, click: Callable) -> void:
@@ -59,6 +60,19 @@ func primary() -> GameButton:
 
 func danger() -> GameButton:
 	variant = Variant.DANGER
+	return self
+
+
+## No background until hovered (e.g. a "Details" toggle).
+func flat() -> GameButton:
+	variant = Variant.FLAT
+	return self
+
+
+## An icon without text, in the middle.
+func icon_only(painter: Callable) -> GameButton:
+	icon_painter = painter
+	_icon_only = true
 	return self
 
 
@@ -108,6 +122,10 @@ func _ready() -> void:
 			_icon.position = Vector2(w / 2 - s / 2, 4)
 			_icon.size = Vector2(s, s)
 			text_y = h - 11
+		elif _icon_only:
+			var s: float = minf(w, h) - 10
+			_icon.position = Vector2(w / 2 - s / 2, h / 2 - s / 2)
+			_icon.size = Vector2(s, s)
 		else:
 			var s: float = minf(40, h - 12)
 			_icon.position = Vector2(10, h / 2 - s / 2)
@@ -126,7 +144,13 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	var base: Color = [Palette.PANEL_LIGHT, Palette.ACCENT, Palette.RED][variant]
+	if variant == Variant.FLAT:
+		if _hover and _enabled:
+			Paint.fill_rounded_rect(self, 0, 0, size.x, size.y, 6, Color(1, 1, 1, 0.07))
+		if _selected:
+			Paint.stroke_rounded_rect(self, 0, 0, size.x, size.y, 6, 1.5, Palette.GOLD)
+		return
+	var base: Color = [Palette.PANEL_LIGHT, Palette.ACCENT, Palette.RED, Palette.PANEL_LIGHT][variant]
 	Paint.fill_rounded_rect(self, 0, 0, size.x, size.y, 8, Palette.PANEL_LIGHTER if _selected else base)
 	if _hover and _enabled:
 		Paint.fill_rounded_rect(self, 0, 0, size.x, size.y, 8, Color(1, 1, 1, 0.1))
